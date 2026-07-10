@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets / credentials (절대 커밋 금지)
+.wings_credentials
+.totp_secret
+*.secret
+
+# Chrome profile (대용량, 로컬 전용)
+.wings_chrome_profile/
+wings_chrome_profile.zip
+
+# Local WINGS downloads (Actions 가 생성)
+wings_data/*.xlsx
+wings_data/*.xls
+wings_data/*.csv
+
+# Debug
+_wings_*.log
+_debug_*

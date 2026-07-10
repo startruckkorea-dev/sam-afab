@@ -1,0 +1,6 @@
+# Backend (GitHub Actions) only — no Streamlit needed.
+pandas
+openpyxl
+playwright
+pyotp
+requests

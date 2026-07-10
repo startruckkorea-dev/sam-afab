@@ -1,0 +1,8 @@
+{
+  "_comment": "SAM/WINGS 원본 폴더 경로. 절대경로(예: C:/Users/.../SharePoint 동기화 폴더) 또는 이 저장소 기준 상대경로. 우선순위: CLI(--sam-dir/--wings) > 환경변수(SAM_DIR/WINGS_DIR) > 이 파일 > 기본값.",
+  "sam_dir": "sam_files",
+  "wings_dir": "wings_data",
+  "code_dict_file": "code/mbtruck-spec-data.xlsx",
+  "code_dict_sheet": "code_dict",
+  "cab_file": "code/cab.xlsx"
+}

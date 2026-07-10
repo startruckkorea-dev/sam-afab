@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AFAB vs SAM Comparison</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <img class="mb-logo" src="logo.png" alt="Mercedes-Benz · Trucks you can trust" />
+    <h1>SAM &times; AFAB Comparison Dashboard</h1>
+    <div id="meta" class="meta">불러오는 중&hellip;</div>
+    <span class="spacer"></span>
+    <button id="rulesBtn" class="icon-btn" title="모델 변환 규칙 보기/편집">⚙ 규칙</button>
+    <button id="exportXlsBtn" class="icon-btn" title="현재 필터된 결과를 Excel로 저장">⬇ Excel</button>
+    <button id="exportBtn" class="icon-btn" title="현재 필터된 결과를 CSV로 저장">⬇ CSV</button>
+    <button id="themeBtn" class="icon-btn" title="라이트/다크 전환">🌙</button>
+  </header>
+
+  <section class="summary" id="summary"></section>
+
+  <section class="controls">
+    <input type="search" id="search" placeholder="Commission no. / 모델 / 코드 검색&hellip;" />
+    <select id="statusFilter">
+      <option value="">전체 상태</option>
+      <option value="Match">Match</option>
+      <option value="Mismatch">Mismatch</option>
+      <option value="No SAM">No SAM</option>
+    </select>
+    <select id="vehicleFilter">
+      <option value="">전체 차종</option>
+    </select>
+    <select id="productionFilter" title="생산월(Requested delivery) 선택">
+      <option value="">전체 생산월</option>
+    </select>
+    <label class="chk" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> 이번달 이후만</label>
+    <label class="chk"><input type="checkbox" id="ptoOnly" /> PTO만</label>
+    <label class="chk"><input type="checkbox" id="mismatchOnly" /> 불일치만</label>
+    <span id="count" class="count"></span>
+  </section>
+
+  <section class="table-wrap">
+    <table id="grid">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+    <div id="statusMsg" class="status-msg hidden"></div>
+  </section>
+
+  <!-- Rules editor modal -->
+  <div id="rulesBackdrop" class="backdrop hidden"></div>
+  <div id="rulesModal" class="modal hidden">
+    <div class="modal-inner">
+      <button class="close" id="rulesClose">&times;</button>
+      <h2>모델 인식 (model_mapping.xlsx)</h2>
+      <p class="modal-note">
+        모델 매칭은 이제 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>,
+        본문 <code>Vehicle type</code> = <b>SAM Baumuster(원본)</b>. WINGS 번호가 둘 중 하나라도 같으면 매칭됩니다.
+        인식 결과는 <code>model_rules/model_mapping.xlsx</code> 의 <b>인식모델_대조표</b> 시트에서 확인하세요(빌드 시 자동 갱신).
+        <b>잘못 매칭될 때 수정</b>은 엑셀에서:
+        <b>수동매핑</b> 시트(WINGS 모델 → SAM Baumuster/now 강제, 또는 SAM 파일 지정으로 특정 파일과 강제 비교),
+        <b>매칭_별칭(수동)</b> 시트(파일 제목이 다른 세대 번호일 때 연결). 수정 후 <code>python backend/build_data.py</code> 재실행하면 반영·보존됩니다.
+      </p>
+      <div id="rulesBody"></div>
+      <div class="modal-actions">
+        <button id="rulesReload" class="icon-btn">↺ 서버 규칙 다시 불러오기</button>
+        <label id="rulesUpload" class="icon-btn" title="PC의 model_mapping.xlsx 불러오기">⬆ 엑셀 불러오기
+          <input type="file" id="rulesUploadInput" accept=".xlsx" hidden />
+        </label>
+        <span class="spacer"></span>
+        <button id="rulesDownload" class="icon-btn primary">⬇ 엑셀 저장 (model_mapping.xlsx)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail drawer -->
+  <div id="backdrop" class="backdrop hidden"></div>
+  <div id="drawer" class="drawer hidden">
+    <div class="drawer-inner">
+      <button class="close" id="drawerClose">&times;</button>
+      <h2 id="drawerTitle"></h2>
+      <div id="drawerSub" class="sub"></div>
+      <div id="drawerBody"></div>
+    </div>
+  </div>
+
+  <!-- SheetJS: xlsx read/write for the rules editor. Loaded lazily; if blocked
+       (e.g. corporate network), the editor falls back to editing the .xlsx in Excel. -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+          onerror="window.__XLSX_BLOCKED=true"></script>
+  <script src="app.js"></script>
+</body>
+</html>
