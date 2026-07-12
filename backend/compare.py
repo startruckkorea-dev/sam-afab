@@ -17,6 +17,7 @@ from option_codes import OPTION_CODE_MAP
 from sam_parser import normalize_model
 from rules import RULES, apply_map
 from mandatory_codes import load_mandatory
+from model_category import load_model_category, category_for_baumuster
 
 # Default Factory-Control (exception) code set: prefixes I/O/Z/U + a few extras.
 DEFAULT_EXCEPT_CODES = (
@@ -27,10 +28,29 @@ DEFAULT_EXCEPT_CODES = (
 # Mandatory codes come from code/mandatory-codes.xlsx (hand-edited source of truth),
 # falling back to option_codes.py. MAND_GROUPS are "one-of" groups: a group is met
 # if at least one member is present, so a variant swap within a group is NOT a miss.
+# MAND_CATS maps code -> {categories}: a code applies to a row only when 'all' is in
+# its categories or the row's vehicle category (tractor/rigid/tipper) matches.
 _MAND = load_mandatory()
 DEFAULT_MAND_CODES = set(_MAND['set'])
 MAND_GROUPS = _MAND['groups']
+MAND_CATS = _MAND['cats']
 _GROUPED_CODES = set().union(*MAND_GROUPS.values()) if MAND_GROUPS else set()
+
+# Baumuster-prefix -> tractor/rigid/tipper (code/model-category.xlsx + rule fallback).
+MODEL_CATEGORY = load_model_category()
+
+
+def _mand_applies(code: str, row_cat: str) -> bool:
+    """True if a mandatory code applies to a vehicle of the given category.
+
+    'all' codes always apply. Category-specific codes apply only when the row's
+    category matches. When the row category is unknown, only 'all' codes apply
+    (so tipper/tractor-only codes are not force-flagged on an unclassified row).
+    """
+    cats = MAND_CATS.get(code, {'all'})
+    if 'all' in cats:
+        return True
+    return bool(row_cat) and row_cat in cats
 
 _ROOT = Path(__file__).resolve().parent.parent
 
@@ -281,25 +301,37 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         sam_codes = sam_data['codes'] if sam_data else set()
         sam_file = sam_data['file'] if sam_data else ''
 
+        # Vehicle category (tractor/rigid/tipper) from Baumuster -> which mandatory
+        # codes apply. WINGS Baumuster is the vehicle's own factory code; fall back to
+        # the matched SAM file's Baumuster. Category-specific codes (e.g. tipper-only
+        # J9J) are then only enforced on vehicles of that category.
+        _row_cat = category_for_baumuster(
+            wings_bm or (sam_data.get('bm', '') if sam_data else ''), MODEL_CATEGORY)
+        _eff_mand = {c for c in _mand_set if _mand_applies(c, _row_cat)}
+        _eff_grouped = _GROUPED_CODES & _eff_mand
+
         only_w = sorted(c for c in (wings_codes - sam_codes)
-                        if c and not _is_fc(c) and c not in _mand_set) if sam_codes else []
+                        if c and not _is_fc(c) and c not in _eff_mand) if sam_codes else []
         only_s = sorted(c for c in (sam_codes - wings_codes)
-                        if c and not _is_fc(c) and c not in _mand_set)
+                        if c and not _is_fc(c) and c not in _eff_mand)
         except_codes_row = sorted(
             c for c in ((wings_codes - sam_codes) | (sam_codes - wings_codes)) if c and _is_fc(c)
         ) if sam_codes else []
-        # Mandatory diff: a code present on exactly one side is a miss — EXCEPT for
-        # "one-of" groups (e.g. AEBS), where the requirement is met as long as each
-        # side has some member. So flag a grouped member only when the group's
-        # presence differs between sides (one side has the group, the other doesn't).
+        # Mandatory diff: a code present on exactly one side is a miss — restricted to
+        # codes that APPLY to this vehicle's category, EXCEPT for "one-of" groups (e.g.
+        # AEBS), which are satisfied as long as each side has some member. A grouped
+        # member is flagged only when the group's presence differs between sides.
         _only_one_side = sam_codes ^ wings_codes  # symmetric difference
         _ungrouped_flag = {c for c in _only_one_side
-                           if c and c in _mand_set and c not in _GROUPED_CODES}
+                           if c and c in _eff_mand and c not in _eff_grouped}
         _group_flag = set()
         for _members in MAND_GROUPS.values():
-            _s_has, _w_has = bool(sam_codes & _members), bool(wings_codes & _members)
+            _em = _members & _eff_mand
+            if not _em:
+                continue
+            _s_has, _w_has = bool(sam_codes & _em), bool(wings_codes & _em)
             if _s_has != _w_has:
-                _group_flag |= (_only_one_side & _members)
+                _group_flag |= (_only_one_side & _em)
         mand_codes_row = sorted(_ungrouped_flag | _group_flag)
 
         # Vehicle / axle / cab / PTO from SAM filename.
@@ -351,6 +383,7 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
             'Model(WINGS)': re.sub(r'DNA$', '',
                 str(r.get('Model', model_raw) if 'Model' in r.index else model_raw).strip()),
             'Vehicle': _vehicle,
+            'Category': _row_cat,
             'Type': _axle_type,
             'Cab': _cab_code,
             'PTO': _pto_flag,

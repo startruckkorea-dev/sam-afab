@@ -23,6 +23,7 @@ const NUMERIC_KEYS = new Set(['Until Dealine', 'Baumuster',
 const META_LABELS = {
   'Changeability Date': 'Changeability',
   'Until Dealine': 'Changeability D-Day',
+  'Category': 'Category (tractor/rigid/tipper)',
 };
 // Keys whose value should render as a D-day (D-9 / D-Day / D+9).
 const DDAY_KEYS = new Set(['Until Dealine']);
@@ -368,7 +369,7 @@ function openDrawer(r) {
   DRAWER_ROW = r;
   $('#drawerTitle').textContent = `${r['Commission no.']}  ·  ${r['Model(WINGS)'] || ''}`;
   $('#drawerSub').textContent = r['Compared SAM file name'] || '';
-  const meta = ['Vehicle', 'Type', 'Cab', 'PTO', 'Production date', 'Changeability Date',
+  const meta = ['Vehicle', 'Category', 'Type', 'Cab', 'PTO', 'Production date', 'Changeability Date',
     'Until Dealine', 'SAM Baumuster', 'SAM now',
     'Order status financial', 'SAM Status', 'FIN']
     .filter((k) => r[k] !== undefined && r[k] !== '')
@@ -483,7 +484,7 @@ function exportTableXls() {
 // Export one vehicle's full comparison (the detail view) to Excel.
 function exportRowXls(r) {
   if (!r) return;
-  const metaKeys = ['Commission no.', 'Model(WINGS)', 'Vehicle', 'Type', 'Cab', 'PTO',
+  const metaKeys = ['Commission no.', 'Model(WINGS)', 'Vehicle', 'Category', 'Type', 'Cab', 'PTO',
     'Production date', 'Changeability Date', 'Until Dealine',
     'SAM Baumuster', 'SAM now', 'SAM Status', 'Compared SAM file name'];
   const metaTbl = '<table><tr><th colspan="2">Vehicle Info</th></tr>' +

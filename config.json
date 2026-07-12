@@ -5,5 +5,6 @@
   "code_dict_file": "code/mbtruck-spec-data.xlsx",
   "code_dict_sheet": "code_dict",
   "cab_file": "code/cab.xlsx",
-  "mandatory_file": "code/mandatory-codes.xlsx"
+  "mandatory_file": "code/mandatory-codes.xlsx",
+  "model_category_file": "code/model-category.xlsx"
 }

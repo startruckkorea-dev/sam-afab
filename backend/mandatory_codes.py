@@ -92,7 +92,7 @@ def load_mandatory(path=None) -> dict:
         rows = _rows_from_option_codes()
         source = 'option_codes(fallback)'
 
-    desc, mset, groups = {}, set(), {}
+    desc, mset, groups, cats = {}, set(), {}, {}
     for r in rows:
         c = r['code']
         mset.add(c)
@@ -100,7 +100,10 @@ def load_mandatory(path=None) -> dict:
             desc[c] = r['desc']
         if r['group']:
             groups.setdefault(r['group'], set()).add(c)
-    return {'rows': rows, 'desc': desc, 'set': mset, 'groups': groups, 'source': source}
+        cat = (r.get('cat') or 'all').strip().lower() or 'all'
+        cats.setdefault(c, set()).add(cat)
+    return {'rows': rows, 'desc': desc, 'set': mset, 'groups': groups,
+            'cats': cats, 'source': source}
 
 
 if __name__ == '__main__':

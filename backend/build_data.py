@@ -63,7 +63,7 @@ WINGS_DIR = ROOT / 'wings_data'
 
 # Columns surfaced to the front-end, in display order.
 DISPLAY_COLS = [
-    'Commission no.', 'Baumuster', 'Model(WINGS)', 'Vehicle', 'Type', 'Cab', 'PTO',
+    'Commission no.', 'Baumuster', 'Model(WINGS)', 'Vehicle', 'Category', 'Type', 'Cab', 'PTO',
     'SAM Baumuster', 'SAM now', 'Changeability Date', 'Until Dealine',
     'Production date', 'Only_in_SAM', 'Only_in_WINGS', 'Factory Control Codes',
     'Mandatory Codes', 'Order status financial', 'Order status logistical',
@@ -253,6 +253,14 @@ def main():
         build_model_rules_xlsx.build()
     except Exception as e:
         print(f'[warn] model_mapping.xlsx refresh skipped: {str(e)[:100]}')
+
+    # Refresh the Baumuster->category workbook so newly-seen BM prefixes appear
+    # (existing category edits are preserved). Never let this break the build.
+    try:
+        import build_model_category_xlsx
+        build_model_category_xlsx.build()
+    except Exception as e:
+        print(f'[warn] model-category.xlsx refresh skipped: {str(e)[:100]}')
 
 
 if __name__ == '__main__':
