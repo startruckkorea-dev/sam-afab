@@ -336,6 +336,33 @@ function codeColHtml(title, csv, opts) {
   return `<div class="code-col"><h4>${esc(title)} ${badge}</h4>${body}</div>`;
 }
 
+// Full Code List: SAM vs WINGS aligned by code. Union of both sides, sorted, so
+// the SAME code always sits on the SAME row. A code present on only one side
+// leaves the other cell blank and shades it light blue (--accent-soft) to flag
+// the gap (e.g. A0B only in WINGS -> blank, shaded SAM cell).
+function alignedFullHtml(samCsv, wingsCsv) {
+  const sam = new Set(splitCodes(samCsv));
+  const wings = new Set(splitCodes(wingsCsv));
+  const union = [...new Set([...sam, ...wings])].sort();
+  const cell = (code, present) => present
+    ? `<span class="c">${esc(code)}</span><span class="d">${esc(describe(code) || '—')}</span>`
+    : '';
+  const rows = union.map((code) => {
+    const inS = sam.has(code), inW = wings.has(code);
+    return `<div class="acode-row">`
+      + `<div class="acode-cell${inS ? '' : ' miss'}">${cell(code, inS)}</div>`
+      + `<div class="acode-cell${inW ? '' : ' miss'}">${cell(code, inW)}</div>`
+      + `</div>`;
+  }).join('');
+  return `<div class="acode">
+      <div class="acode-head">
+        <h4>All SAM Codes <span class="badge">${sam.size}</span></h4>
+        <h4>All WINGS Codes <span class="badge">${wings.size}</span></h4>
+      </div>
+      <div class="acode-body">${rows}</div>
+    </div>`;
+}
+
 function openDrawer(r) {
   if (!r) return;
   DRAWER_ROW = r;
@@ -377,10 +404,7 @@ function openDrawer(r) {
       </div>
     </div>
     <div class="tab-pane hidden" data-pane="full">
-      <div class="code-cols">
-        ${codeColHtml('All SAM Codes', r['_all_sam_codes'])}
-        ${codeColHtml('All WINGS Codes', r['_all_wings_codes'])}
-      </div>
+      ${alignedFullHtml(r['_all_sam_codes'], r['_all_wings_codes'])}
     </div>
   `;
   $('#drawerBody').querySelectorAll('.tab').forEach((t) =>
