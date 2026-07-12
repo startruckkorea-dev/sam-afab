@@ -13,16 +13,24 @@ from pathlib import Path
 
 import pandas as pd
 
-from option_codes import OPTION_CODE_MAP, MANDATORY_CODES
+from option_codes import OPTION_CODE_MAP
 from sam_parser import normalize_model
 from rules import RULES, apply_map
+from mandatory_codes import load_mandatory
 
 # Default Factory-Control (exception) code set: prefixes I/O/Z/U + a few extras.
 DEFAULT_EXCEPT_CODES = (
     {c for c in OPTION_CODE_MAP if c and c[0] in {'I', 'O', 'Z', 'U'}}
     | {'DUP0', 'A0B', 'E0D', 'E0Q', 'J7G'}
 )
-DEFAULT_MAND_CODES = set(MANDATORY_CODES.keys())
+
+# Mandatory codes come from code/mandatory-codes.xlsx (hand-edited source of truth),
+# falling back to option_codes.py. MAND_GROUPS are "one-of" groups: a group is met
+# if at least one member is present, so a variant swap within a group is NOT a miss.
+_MAND = load_mandatory()
+DEFAULT_MAND_CODES = set(_MAND['set'])
+MAND_GROUPS = _MAND['groups']
+_GROUPED_CODES = set().union(*MAND_GROUPS.values()) if MAND_GROUPS else set()
 
 _ROOT = Path(__file__).resolve().parent.parent
 
@@ -280,9 +288,19 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         except_codes_row = sorted(
             c for c in ((wings_codes - sam_codes) | (sam_codes - wings_codes)) if c and _is_fc(c)
         ) if sam_codes else []
-        mand_in_sam = [c for c in sorted(sam_codes - wings_codes) if c and c in _mand_set]
-        mand_in_wings = [c for c in sorted(wings_codes - sam_codes) if c and c in _mand_set]
-        mand_codes_row = sorted(set(mand_in_sam + mand_in_wings))
+        # Mandatory diff: a code present on exactly one side is a miss — EXCEPT for
+        # "one-of" groups (e.g. AEBS), where the requirement is met as long as each
+        # side has some member. So flag a grouped member only when the group's
+        # presence differs between sides (one side has the group, the other doesn't).
+        _only_one_side = sam_codes ^ wings_codes  # symmetric difference
+        _ungrouped_flag = {c for c in _only_one_side
+                           if c and c in _mand_set and c not in _GROUPED_CODES}
+        _group_flag = set()
+        for _members in MAND_GROUPS.values():
+            _s_has, _w_has = bool(sam_codes & _members), bool(wings_codes & _members)
+            if _s_has != _w_has:
+                _group_flag |= (_only_one_side & _members)
+        mand_codes_row = sorted(_ungrouped_flag | _group_flag)
 
         # Vehicle / axle / cab / PTO from SAM filename.
         _vehicle = _axle_type = _cab_code = _pto_flag = ''

@@ -235,14 +235,16 @@ def main():
     # Emit the code dictionary so the front-end can show descriptions on click.
     # Source: code_dict sheet of the spec workbook, columns B (code) + C (name_en).
     options = _build_code_dict()
-    from option_codes import MANDATORY_CODES
+    from mandatory_codes import load_mandatory
+    _mand = load_mandatory()
     codes_out = out.parent / 'codes.json'
     codes_out.write_text(json.dumps({
         'options': options,
-        'mandatory': {k: (v[0] if isinstance(v, tuple) else v)
-                      for k, v in MANDATORY_CODES.items()},
+        'mandatory': _mand['desc'],
+        'mandatory_groups': {g: sorted(m) for g, m in _mand['groups'].items()},
     }, ensure_ascii=False, indent=2), encoding='utf-8')
-    print(f'[done] wrote {codes_out}  ({len(options)} codes)')
+    print(f"[done] wrote {codes_out}  ({len(options)} codes, "
+          f"{len(_mand['set'])} mandatory from {_mand['source']})")
 
     # Refresh the model-recognition workbook (model_rules/model_mapping.xlsx) so it
     # always reflects the latest build. Never let this break the build.

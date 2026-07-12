@@ -1,12 +1,17 @@
-"""Generate code/mandatory-codes.xlsx — an editable list of MANDATORY_CODES.
+"""(Re)format code/mandatory-codes.xlsx — the editable mandatory-code list.
 
-Layout (so the list can be added to / edited by hand):
+The workbook is the hand-edited SOURCE OF TRUTH (read at build time by
+mandatory_codes.load_mandatory). This script reads that same data (xlsx-first,
+option_codes.py fallback) and rewrites the sheet with consistent styling, so
+running it PRESERVES your edits — it does not revert to the hardcoded list.
+
+Layout of the 'Mandatory' sheet:
     A = 카테고리(Category)   all / tractor / rigid / tipper
-    B = 코드(Code)           e.g. D2J
-    C = 코드명(Description)   e.g. Seat version, Korea
-    D = 비고(Note)           optional remark
+    B = Group                one-of group name (blank = individually mandatory)
+    C = 코드(Code)
+    D = 코드명(Description)
+    E = 비고(Note)
 
-Source: backend/option_codes.py -> MANDATORY_CODES.
 Run:  python backend/build_mandatory_codes_xlsx.py
 """
 from __future__ import annotations
@@ -16,24 +21,20 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 
-from option_codes import MANDATORY_CODES, MANDATORY_GROUPS  # noqa: E402
+from mandatory_codes import load_mandatory  # noqa: E402
 
 OUT = ROOT / 'code' / 'mandatory-codes.xlsx'
 
 NAVY = '1F4E79'
-GREY = 'F2F2F2'
 CAT_FILL = {
-    'all': 'E2EFDA',      # green-ish
-    'tractor': 'DDEBF7',  # blue-ish
-    'rigid': 'FCE4D6',    # orange-ish
-    'tipper': 'FFF2CC',   # yellow-ish
+    'all': 'E2EFDA', 'tractor': 'DDEBF7', 'rigid': 'FCE4D6', 'tipper': 'FFF2CC',
 }
+GROUP_FILL = 'EDE7F6'
 
 HEADER_FONT = Font(color='FFFFFF', bold=True, size=11)
 BOLD = Font(bold=True)
@@ -42,17 +43,18 @@ BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 WRAP_TOP = Alignment(wrap_text=True, vertical='top')
 CENTER = Alignment(horizontal='center', vertical='center')
 
-# Display order for categories.
 CAT_ORDER = {'all': 0, 'tractor': 1, 'rigid': 2, 'tipper': 3}
 
 
 def build():
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    data = load_mandatory()
+    rows = data['rows']
+
     wb = Workbook()
     ws = wb.active
     ws.title = 'Mandatory'
-
-    headers = ['카테고리(Category)', '코드(Code)', '코드명(Description)', '비고(Note)']
+    headers = ['카테고리(Category)', 'Group', '코드(Code)', '코드명(Description)', '비고(Note)']
     ws.append(headers)
     for i in range(1, len(headers) + 1):
         c = ws.cell(row=1, column=i)
@@ -61,35 +63,31 @@ def build():
         c.alignment = CENTER
         c.border = BORDER
 
-    # Sort: by category order, then by code.
-    items = sorted(
-        MANDATORY_CODES.items(),
-        key=lambda kv: (CAT_ORDER.get(kv[1][2], 99), kv[0]),
-    )
-
+    # Stable order: category, then group (grouped rows together), then code.
+    ordered = sorted(rows, key=lambda r: (CAT_ORDER.get(r['cat'], 99), r['group'], r['code']))
     r = 2
-    for code, (desc, note, cat) in items:
-        ws.cell(row=r, column=1, value=cat)
-        ws.cell(row=r, column=2, value=code).font = BOLD
-        ws.cell(row=r, column=3, value=desc)
-        ws.cell(row=r, column=4, value=note)
-        fill = CAT_FILL.get(cat)
-        for col in range(1, 5):
+    for row in ordered:
+        ws.cell(row=r, column=1, value=row['cat'])
+        ws.cell(row=r, column=2, value=row['group'])
+        ws.cell(row=r, column=3, value=row['code']).font = BOLD
+        ws.cell(row=r, column=4, value=row['desc'])
+        ws.cell(row=r, column=5, value=row['note'])
+        for col in range(1, 6):
             cell = ws.cell(row=r, column=col)
             cell.alignment = WRAP_TOP
             cell.border = BORDER
-            if fill and col == 1:
-                cell.fill = PatternFill('solid', fgColor=fill)
+        if row['cat'] in CAT_FILL:
+            ws.cell(row=r, column=1).fill = PatternFill('solid', fgColor=CAT_FILL[row['cat']])
+        if row['group']:
+            ws.cell(row=r, column=2).fill = PatternFill('solid', fgColor=GROUP_FILL)
         r += 1
 
-    ws.column_dimensions['A'].width = 18
-    ws.column_dimensions['B'].width = 12
-    ws.column_dimensions['C'].width = 56
-    ws.column_dimensions['D'].width = 44
+    for col, w in zip('ABCDE', [18, 16, 12, 56, 44]):
+        ws.column_dimensions[col].width = w
     ws.freeze_panes = 'A2'
-    ws.auto_filter.ref = f'A1:D{r - 1}'
+    ws.auto_filter.ref = f'A1:E{r - 1}'
 
-    # --- Sheet 2: category / group legend ------------------------------------
+    # --- Legend sheet --------------------------------------------------------
     lg = wb.create_sheet('설명(Legend)')
     lg.column_dimensions['A'].width = 16
     lg.column_dimensions['B'].width = 70
@@ -100,18 +98,17 @@ def build():
         c.font = HEADER_FONT
         c.alignment = CENTER
         c.border = BORDER
-    legend = [
+    for k, v in [
         ('all', '모든 차량 필수 (All vehicle mandatory)'),
         ('tractor', '트랙터 전용 필수 (BM 963425, 964416, 963403, 964424)'),
         ('rigid', '리지드 전용 필수 (BM 964XXX)'),
         ('tipper', '티퍼 전용 필수 (BM 964230, 964214)'),
         ('', ''),
-        ('그룹(Group)', '그룹 내 코드 중 하나만 있으면 충족 (아래):'),
-    ]
-    for k, v in legend:
+        ('Group', '같은 Group 이름끼리는 그 중 하나만 있으면 충족 (one-of). 빈칸이면 개별 필수.'),
+    ]:
         lg.append([k, v])
-    for code_set_name, members in MANDATORY_GROUPS.items():
-        lg.append([code_set_name, ', '.join(sorted(members))])
+    for g, members in sorted(data['groups'].items()):
+        lg.append([g, ', '.join(sorted(members))])
     for row in lg.iter_rows(min_row=2, max_row=lg.max_row, min_col=1, max_col=2):
         for cell in row:
             cell.alignment = WRAP_TOP
@@ -119,7 +116,8 @@ def build():
     lg.cell(row=2, column=1).font = BOLD
 
     wb.save(OUT)
-    print(f'Wrote {OUT}  ({len(items)} codes, {len(MANDATORY_GROUPS)} groups)')
+    print(f"Wrote {OUT}  ({len(rows)} rows, {len(data['groups'])} groups, "
+          f"source={data['source']})")
 
 
 if __name__ == '__main__':

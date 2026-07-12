@@ -4124,8 +4124,8 @@
     "L0A": "Illumination regulation, in acc. with UN-R 48.06",
     "S1D": "Stability Control Assist (ESP)",
     "S1H": "Lane Keeping Assist",
-    "S1W": "Active Brake Assist 5",
     "S1P": "Active Brake Assist",
+    "S1W": "Active Brake Assist 5",
     "S2D": "Active Brake Assist 6",
     "S2N": "Active Brake Assist 6 Plus",
     "S5A": "Speed limiter, 90 km/h (56 mph), ECE",
@@ -4133,10 +4133,40 @@
     "V8B": "Chassis number FIN with model year",
     "X4B": "Instrument/labels/publications in Korean",
     "Z5X": "Left-hand drive",
+    "L0B": "Illumination regulation, in acc. with UN-R 48.08",
     "D2J": "Seat version, Korea",
+    "JD2J": "Seat version, Korea",
+    "E4W": "Starting-off aid, speed limit 30 km/h",
     "C6H": "Steering, Servotwin",
+    "C6G": "Steering, Servotwin",
+    "CLX": "Servotwin, optimised, dual-circuit",
     "J9J": "Pre-installation for reversing camera",
     "J9P": "Pre-installation and display for up to 4 cameras",
-    "E4W": "Starting-off aid, speed limit 30 km/h"
+    "Y4J": "2 wheel chocks"
+  },
+  "mandatory_groups": {
+    "AEBS": [
+      "S1P",
+      "S1W",
+      "S2D",
+      "S2N"
+    ],
+    "UN-R 48": [
+      "L0A",
+      "L0B"
+    ],
+    "seat belt": [
+      "D2J",
+      "JD2J"
+    ],
+    "servotwin": [
+      "C6G",
+      "C6H",
+      "CLX"
+    ],
+    "reverse camera": [
+      "J9J",
+      "J9P"
+    ]
   }
 }
