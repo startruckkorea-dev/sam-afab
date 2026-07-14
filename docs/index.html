@@ -4,26 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AFAB vs SAM Comparison</title>
-  <link rel="stylesheet" href="style.css?v=20260713" />
+  <link rel="stylesheet" href="style.css?v=20260713d" />
 </head>
 <body>
   <header>
     <img class="mb-logo" src="logo.png" alt="Mercedes-Benz · Trucks you can trust" />
     <h1>SAM &times; AFAB Comparison Dashboard</h1>
-    <div id="meta" class="meta">불러오는 중&hellip;</div>
+    <div id="meta" class="meta" data-i18n="meta.loading">불러오는 중&hellip;</div>
     <span class="spacer"></span>
-    <button id="rulesBtn" class="icon-btn" title="모델 변환 규칙 보기/편집">⚙ 규칙</button>
-    <button id="exportXlsBtn" class="icon-btn" title="현재 필터된 결과를 Excel로 저장">⬇ Excel</button>
-    <button id="exportBtn" class="icon-btn" title="현재 필터된 결과를 CSV로 저장">⬇ CSV</button>
-    <button id="themeBtn" class="icon-btn" title="라이트/다크 전환">🌙</button>
+    <button id="langBtn" class="icon-btn" title="한국어 / English">🌐 EN</button>
+    <button id="rulesBtn" class="icon-btn" data-i18n="btn.rules" data-i18n-title="btn.rules.title" title="모델 변환 규칙 보기/편집">⚙ 규칙</button>
+    <button id="exportXlsBtn" class="icon-btn" data-i18n-title="btn.xls.title" title="현재 필터된 결과를 Excel로 저장">⬇ Excel</button>
+    <button id="exportBtn" class="icon-btn" data-i18n-title="btn.csv.title" title="현재 필터된 결과를 CSV로 저장">⬇ CSV</button>
+    <button id="themeBtn" class="icon-btn" data-i18n-title="btn.theme.title" title="라이트/다크 전환">🌙</button>
   </header>
 
   <section class="summary" id="summary"></section>
 
   <section class="controls">
-    <input type="search" id="search" placeholder="Commission no. / 모델 / 코드 검색&hellip;" />
+    <input type="search" id="search" data-i18n-ph="search.ph" placeholder="Commission no. / 모델 / 코드 검색&hellip;" />
     <select id="statusFilter">
-      <option value="">전체 상태</option>
+      <option value="" data-i18n="filter.allStatus">전체 상태</option>
       <option value="Match">Match</option>
       <option value="Mismatch">Mismatch</option>
       <option value="No SAM">No SAM</option>
@@ -31,12 +32,12 @@
     <select id="vehicleFilter">
       <option value="">전체 차종</option>
     </select>
-    <select id="productionFilter" title="생산월(Requested delivery) 선택">
+    <select id="productionFilter" data-i18n-title="filter.prod.title" title="생산월(Requested delivery) 선택">
       <option value="">전체 생산월</option>
     </select>
-    <label class="chk" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> 이번달 이후만</label>
-    <label class="chk"><input type="checkbox" id="ptoOnly" /> PTO만</label>
-    <label class="chk"><input type="checkbox" id="mismatchOnly" /> 불일치만</label>
+    <label class="chk" data-i18n-title="chk.upcoming.title" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> <span data-i18n="chk.upcoming">이번달 이후만</span></label>
+    <label class="chk"><input type="checkbox" id="ptoOnly" /> <span data-i18n="chk.pto">PTO만</span></label>
+    <label class="chk"><input type="checkbox" id="mismatchOnly" /> <span data-i18n="chk.mismatch">불일치만</span></label>
     <span id="count" class="count"></span>
   </section>
 
@@ -53,8 +54,8 @@
   <div id="rulesModal" class="modal hidden">
     <div class="modal-inner">
       <button class="close" id="rulesClose">&times;</button>
-      <h2>모델 인식 (model_mapping.xlsx)</h2>
-      <p class="modal-note">
+      <h2 data-i18n="modal.title">모델 인식 (model_mapping.xlsx)</h2>
+      <p class="modal-note" data-i18n-html="modal.note">
         모델 매칭은 이제 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>,
         본문 <code>Vehicle type</code> = <b>SAM Baumuster(원본)</b>. WINGS 번호가 둘 중 하나라도 같으면 매칭됩니다.
         인식 결과는 <code>model_rules/model_mapping.xlsx</code> 의 <b>인식모델_대조표</b> 시트에서 확인하세요(빌드 시 자동 갱신).
@@ -64,12 +65,12 @@
       </p>
       <div id="rulesBody"></div>
       <div class="modal-actions">
-        <button id="rulesReload" class="icon-btn">↺ 서버 규칙 다시 불러오기</button>
-        <label id="rulesUpload" class="icon-btn" title="PC의 model_mapping.xlsx 불러오기">⬆ 엑셀 불러오기
+        <button id="rulesReload" class="icon-btn" data-i18n="modal.reload">↺ 서버 규칙 다시 불러오기</button>
+        <label id="rulesUpload" class="icon-btn" data-i18n-title="modal.upload.title" title="PC의 model_mapping.xlsx 불러오기"><span data-i18n="modal.upload">⬆ 엑셀 불러오기</span>
           <input type="file" id="rulesUploadInput" accept=".xlsx" hidden />
         </label>
         <span class="spacer"></span>
-        <button id="rulesDownload" class="icon-btn primary">⬇ 엑셀 저장 (model_mapping.xlsx)</button>
+        <button id="rulesDownload" class="icon-btn primary" data-i18n="modal.download">⬇ 엑셀 저장 (model_mapping.xlsx)</button>
       </div>
     </div>
   </div>
@@ -89,6 +90,6 @@
        (e.g. corporate network), the editor falls back to editing the .xlsx in Excel. -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
           onerror="window.__XLSX_BLOCKED=true"></script>
-  <script src="app.js?v=20260713"></script>
+  <script src="app.js?v=20260713d"></script>
 </body>
 </html>

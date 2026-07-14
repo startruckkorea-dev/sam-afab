@@ -1,18 +1,17 @@
 name: Build comparison data
 
 # "계산은 Actions에서, 표시만 GitHub Pages에서"
-# 1) (옵션) WINGS 스크래핑  2) SAM/WINGS 파싱 + 비교  3) docs/data.json 커밋
+# 1) WINGS 스크래핑  2) SAM/WINGS 파싱 + 비교  3) docs/data.json 커밋
 # 토큰/자격증명은 GitHub Secrets 에만 존재하며 클라이언트 HTML 에는 노출되지 않음.
 
+# wings_data/ 는 .gitignore 대상이라 러너에는 WINGS 파일이 없다.
+# 따라서 Actions 실행은 항상 WINGS 스크래핑을 동반해야 하며, 수동 실행 전용이다.
 on:
-  schedule:
-    - cron: '0 21 * * *'      # 매일 06:00 KST (UTC 21:00)
   workflow_dispatch:
     inputs:
       months:
-        description: 'WINGS 스크래핑 월 (예: "2026_04 2026_05"). 비우면 wings_data/ 최신 파일 사용'
-        required: false
-        default: ''
+        description: 'WINGS 스크래핑 월 (예: "2026_04 2026_05")'
+        required: true
 
 permissions:
   contents: write
@@ -32,9 +31,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Playwright 브라우저는 WINGS 스크래핑이 필요할 때만 설치
-      - name: Install Playwright (scrape only)
-        if: ${{ github.event.inputs.months != '' }}
+      - name: Install Playwright
         run: python -m playwright install --with-deps chromium
 
       - name: Build data.json
@@ -42,12 +39,8 @@ jobs:
           WINGS_USER: ${{ secrets.WINGS_USER }}
           WINGS_PASSWORD: ${{ secrets.WINGS_PASSWORD }}
           WINGS_TOTP_SECRET: ${{ secrets.WINGS_TOTP_SECRET }}
-        run: |
-          if [ -n "${{ github.event.inputs.months }}" ]; then
-            python backend/build_data.py --scrape ${{ github.event.inputs.months }}
-          else
-            python backend/build_data.py
-          fi
+          MONTHS: ${{ inputs.months }}
+        run: python backend/build_data.py --scrape $MONTHS
 
       - name: Commit results
         run: |

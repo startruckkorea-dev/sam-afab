@@ -349,6 +349,11 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
                 _cab_code = _cab_m.group(1)
             if re.search(r'\bPTO\b', sam_file, re.IGNORECASE):
                 _pto_flag = 'PTO'
+        # Fallback: some SAM filenames carry no cab token (e.g. tipper "4153 K"
+        # files "...Arocs 4153 K 8x4 2026-04..."). Derive the cab variant from the
+        # WINGS cab code via cab.xlsx (F1B -> C3M) so the column is not left blank.
+        if not _cab_code and expected_cabs:
+            _cab_code = sorted(expected_cabs)[0]
         if not _pto_flag and is_pto:
             _pto_flag = 'PTO'
         if not _vehicle:

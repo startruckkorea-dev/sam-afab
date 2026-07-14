@@ -35,8 +35,150 @@ const CUR_MONTH = _now.getFullYear() + '-' + String(_now.getMonth() + 1).padStar
 let DATA = { rows: [] };
 let CODES = { options: {}, mandatory: {} };
 let sortKey = null, sortDir = 1;
+let restrictSoon = false;  // "2주 이내 전체 Commission" 타일로 목록을 2주 이내로 제한
+let tileMandatory = false; // Mandatory 누락 타일: mandatory 코드가 있는 행만
+let activeTile = 't-total'; // 현재 활성 대시보드 타일 (하이라이트용)
 
 const $ = (s) => document.querySelector(s);
+
+// ====================== i18n (한국어 / English) ======================
+const I18N = {
+  ko: {
+    'meta.loading': '불러오는 중…',
+    'meta.generated': '생성: {when}  ·  WINGS: {file}',
+    'btn.rules': '⚙ 규칙',
+    'btn.rules.title': '모델 변환 규칙 보기/편집',
+    'btn.xls.title': '현재 필터된 결과를 Excel로 저장',
+    'btn.csv.title': '현재 필터된 결과를 CSV로 저장',
+    'btn.theme.title': '라이트/다크 전환',
+    'search.ph': 'Commission no. / 모델 / 코드 검색…',
+    'filter.allStatus': '전체 상태',
+    'filter.allVehicle': '전체 차종',
+    'filter.allProd': '전체 생산월',
+    'filter.prod.title': '생산월(Requested delivery) 선택',
+    'chk.upcoming': '이번달 이후만',
+    'chk.upcoming.title': 'Changeability 가 이번 달 이후인 항목만',
+    'chk.pto': 'PTO만',
+    'chk.mismatch': '불일치만',
+    'count': '{n} / {total} 건',
+    'dash.overall': '전체 현황 (이번 생산월 이후)',
+    'dash.soon': '2주 이내 (Changeability D-14)',
+    'tile.total': '전체 Commission',
+    'tile.mismatch': '미스매치',
+    'tile.match': '매칭',
+    'tile.mand': 'Mandatory 누락',
+    'dday.passed': '지남',
+    'cell.ok.title': '이상없음 (차이·누락 없음)',
+    'msg.noData': '표시할 데이터가 없습니다. data.json 을 먼저 빌드하세요.',
+    'msg.noRows': '필터 조건에 맞는 항목이 없습니다.',
+    'msg.loadFail': 'data.json 을 불러올 수 없습니다: {err}',
+    'meta.loadFail': 'data.json 로드 실패: {err}',
+    'code.none': '없음',
+    'code.okDiff': '✅ 이상없음 — 누락·차이 없음',
+    'code.okMand': '✅ 이상없음 — 아래 필수코드가 양쪽 모두 반영됨',
+    'drawer.xls': '⬇ 이 차량 Excel',
+    'modal.title': '모델 인식 (model_mapping.xlsx)',
+    'modal.note':
+      '모델 매칭은 이제 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>, ' +
+      '본문 <code>Vehicle type</code> = <b>SAM Baumuster(원본)</b>. WINGS 번호가 둘 중 하나라도 같으면 매칭됩니다. ' +
+      '인식 결과는 <code>model_rules/model_mapping.xlsx</code> 의 <b>인식모델_대조표</b> 시트에서 확인하세요(빌드 시 자동 갱신). ' +
+      '<b>잘못 매칭될 때 수정</b>은 엑셀에서: <b>수동매핑</b> 시트(WINGS 모델 → SAM Baumuster/now 강제, 또는 SAM 파일 지정으로 특정 파일과 강제 비교), ' +
+      '<b>매칭_별칭(수동)</b> 시트(파일 제목이 다른 세대 번호일 때 연결). 수정 후 <code>python backend/build_data.py</code> 재실행하면 반영·보존됩니다.',
+    'modal.reload': '↺ 서버 규칙 다시 불러오기',
+    'modal.upload': '⬆ 엑셀 불러오기',
+    'modal.upload.title': 'PC의 model_mapping.xlsx 불러오기',
+    'modal.download': '⬇ 엑셀 저장 (model_mapping.xlsx)',
+    'alert.xlsxJson':
+      '엑셀 라이브러리를 불러오지 못해 JSON(rules.json)으로 저장합니다.\n엑셀 편집은 model_rules/model_mapping.xlsx 를 직접 열어 진행하세요.',
+    'alert.xlsxBlocked':
+      '엑셀 라이브러리를 불러오지 못했습니다(사내망 차단 가능). model_rules/model_mapping.xlsx 를 엑셀에서 직접 편집하세요.',
+    'alert.xlsxReadFail': '엑셀 읽기 실패: ',
+    'rules.loadFail': 'rules.json 로드 실패: ',
+  },
+  en: {
+    'meta.loading': 'Loading…',
+    'meta.generated': 'Generated: {when}  ·  WINGS: {file}',
+    'btn.rules': '⚙ Rules',
+    'btn.rules.title': 'View / edit model-conversion rules',
+    'btn.xls.title': 'Export the current filtered result to Excel',
+    'btn.csv.title': 'Export the current filtered result to CSV',
+    'btn.theme.title': 'Toggle light / dark',
+    'search.ph': 'Search commission no. / model / code…',
+    'filter.allStatus': 'All statuses',
+    'filter.allVehicle': 'All vehicles',
+    'filter.allProd': 'All production months',
+    'filter.prod.title': 'Select production month (Requested delivery)',
+    'chk.upcoming': 'This month onward',
+    'chk.upcoming.title': 'Only rows whose Changeability is this month or later',
+    'chk.pto': 'PTO only',
+    'chk.mismatch': 'Mismatch only',
+    'count': '{n} / {total} rows',
+    'dash.overall': 'Overall (this production month onward)',
+    'dash.soon': 'Within 2 weeks (Changeability D-14)',
+    'tile.total': 'Total commissions',
+    'tile.mismatch': 'Mismatch',
+    'tile.match': 'Match',
+    'tile.mand': 'Mandatory missing',
+    'dday.passed': 'Passed',
+    'cell.ok.title': 'No issue (no difference / omission)',
+    'msg.noData': 'No data to show. Build data.json first.',
+    'msg.noRows': 'No items match the current filters.',
+    'msg.loadFail': 'Could not load data.json: {err}',
+    'meta.loadFail': 'Failed to load data.json: {err}',
+    'code.none': 'None',
+    'code.okDiff': '✅ No issue — nothing missing or different',
+    'code.okMand': '✅ No issue — the mandatory codes below are present on both sides',
+    'drawer.xls': '⬇ Export this vehicle',
+    'modal.title': 'Model recognition (model_mapping.xlsx)',
+    'modal.note':
+      'Model matching is now done <b>automatically from the SAM file</b> — file title = <b>SAM now (revised)</b>, ' +
+      'body <code>Vehicle type</code> = <b>SAM Baumuster (original)</b>. A match is made when either WINGS number agrees. ' +
+      'Check the recognition result in the <b>인식모델_대조표</b> sheet of <code>model_rules/model_mapping.xlsx</code> (auto-refreshed at build time). ' +
+      'To <b>fix a wrong match</b>, edit the Excel: the <b>수동매핑</b> sheet (force a WINGS model → SAM Baumuster/now, or pin a specific SAM file for comparison), ' +
+      'and the <b>매칭_별칭(수동)</b> sheet (link a file title that uses a different generation number). After editing, re-run <code>python backend/build_data.py</code> to apply and preserve the changes.',
+    'modal.reload': '↺ Reload server rules',
+    'modal.upload': '⬆ Load Excel',
+    'modal.upload.title': 'Load model_mapping.xlsx from your PC',
+    'modal.download': '⬇ Save Excel (model_mapping.xlsx)',
+    'alert.xlsxJson':
+      'The Excel library could not be loaded, so saving as JSON (rules.json).\nTo edit in Excel, open model_rules/model_mapping.xlsx directly.',
+    'alert.xlsxBlocked':
+      'The Excel library could not be loaded (corporate network may block it). Edit model_rules/model_mapping.xlsx directly in Excel.',
+    'alert.xlsxReadFail': 'Failed to read Excel: ',
+    'rules.loadFail': 'Failed to load rules.json: ',
+  },
+};
+
+let LANG = localStorage.getItem('lang') || 'ko';
+
+function t(key, params) {
+  let s = (I18N[LANG] && I18N[LANG][key]) || (I18N.ko[key]) || key;
+  if (params) for (const [k, v] of Object.entries(params)) s = s.replaceAll('{' + k + '}', v);
+  return s;
+}
+
+// Apply translations to all static elements carrying data-i18n* attributes.
+function applyStaticI18n() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach((el) => { el.innerHTML = t(el.dataset.i18nHtml); });
+  document.querySelectorAll('[data-i18n-ph]').forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+  const lb = $('#langBtn');
+  if (lb) lb.textContent = LANG === 'ko' ? '🌐 EN' : '🌐 한국어';
+}
+
+function toggleLang() {
+  LANG = LANG === 'ko' ? 'en' : 'ko';
+  localStorage.setItem('lang', LANG);
+  applyStaticI18n();
+  renderMeta();
+  renderSummary();
+  fillVehicleFilter();
+  fillProductionFilter();
+  render();
+  if (DRAWER_ROW && !$('#drawer').classList.contains('hidden')) openDrawer(DRAWER_ROW);
+}
 
 // ---- HTML escaping (rows come from .docx; never trust raw) ----
 function esc(s) {
@@ -83,8 +225,9 @@ function changeMonth(r) {
 }
 
 function renderMeta() {
-  const when = DATA.generated_at ? new Date(DATA.generated_at).toLocaleString('ko-KR') : '-';
-  $('#meta').textContent = `생성: ${when}  ·  WINGS: ${DATA.wings_file || '-'}`;
+  const locale = LANG === 'ko' ? 'ko-KR' : 'en-GB';
+  const when = DATA.generated_at ? new Date(DATA.generated_at).toLocaleString(locale) : '-';
+  $('#meta').textContent = t('meta.generated', { when, file: DATA.wings_file || '-' });
 }
 
 function dashStats(rows) {
@@ -101,32 +244,79 @@ function within2weeks(r) {
   return !Number.isNaN(n) && n >= 0 && n <= 14;
 }
 
-function tile(cls, n, label) {
-  return `<div class="tile ${cls}"><div class="n">${esc(n)}</div><div class="l">${label}</div></div>`;
+// "전체 현황" counts only vehicles produced this month or later (current
+// production month onward), not the entire WINGS file.
+function overallRows() {
+  return DATA.rows.filter((r) => {
+    const pm = prodMonth(r);
+    return pm && pm >= CUR_MONTH;
+  });
+}
+
+function tile(cls, n, label, action) {
+  return `<div class="tile ${cls} clickable" data-tile="${cls}" data-action="${action}">` +
+    `<div class="n">${esc(n)}</div><div class="l">${label}</div></div>`;
+}
+
+// Each tile applies a filter/sort combination. soon = restrict to Changeability
+// D-14; status = SAM Status filter; mand = only rows with mandatory codes missing;
+// sort = [column key, direction] applied to the grid (null = clear sort).
+const TILE_ACTIONS = {
+  't-total':  { soon: false, status: '',         mand: false, sort: null },
+  't-miss':   { soon: false, status: 'Mismatch', mand: false, sort: ['Until Dealine', 1] },
+  't-match':  { soon: false, status: 'Match',    mand: false, sort: null },
+  't-mand':   { soon: false, status: '',         mand: true,  sort: ['Mandatory Codes', -1] },
+  't-total2': { soon: true,  status: '',         mand: false, sort: ['Until Dealine', 1] },
+  't-miss2':  { soon: true,  status: 'Mismatch', mand: false, sort: ['Until Dealine', 1] },
+  't-match2': { soon: true,  status: 'Match',    mand: false, sort: null },
+  't-mand2':  { soon: true,  status: '',         mand: true,  sort: ['Mandatory Codes', -1] },
+};
+
+function applyTile(id) {
+  const cfg = TILE_ACTIONS[id];
+  if (!cfg) return;
+  activeTile = id;
+  restrictSoon = cfg.soon;
+  tileMandatory = cfg.mand;
+  $('#statusFilter').value = cfg.status;
+  $('#mismatchOnly').checked = false;
+  if (cfg.sort) { sortKey = cfg.sort[0]; sortDir = cfg.sort[1]; }
+  else { sortKey = null; sortDir = 1; }
+  renderHead();
+  syncTileActive();
+  render();
 }
 
 function renderSummary() {
-  const all = dashStats(DATA.rows);
+  const all = dashStats(overallRows());
   const soon = dashStats(DATA.rows.filter(within2weeks));
   $('#summary').innerHTML = `
     <div class="dash-row">
-      <div class="dash-cap">전체 현황</div>
+      <div class="dash-cap">${t('dash.overall')}</div>
       <div class="tiles">
-        ${tile('t-total', all.total, '전체 Commission')}
-        ${tile('t-miss', all.mismatch, '미스매치')}
-        ${tile('t-match', all.match, '매칭')}
-        ${tile('t-mand', all.mand, 'Mandatory 누락')}
+        ${tile('t-total', all.total, t('tile.total'), 't-total')}
+        ${tile('t-miss', all.mismatch, t('tile.mismatch'), 't-miss')}
+        ${tile('t-match', all.match, t('tile.match'), 't-match')}
+        ${tile('t-mand', all.mand, t('tile.mand'), 't-mand')}
       </div>
     </div>
     <div class="dash-row">
-      <div class="dash-cap">2주 이내 (Changeability D-14)</div>
+      <div class="dash-cap">${t('dash.soon')}</div>
       <div class="tiles">
-        ${tile('t-total2', soon.total, '전체 Commission')}
-        ${tile('t-miss2', soon.mismatch, '미스매치')}
-        ${tile('t-match2', soon.match, '매칭')}
-        ${tile('t-mand2', soon.mand, 'Mandatory 누락')}
+        ${tile('t-total2', soon.total, t('tile.total'), 't-total2')}
+        ${tile('t-miss2', soon.mismatch, t('tile.mismatch'), 't-miss2')}
+        ${tile('t-match2', soon.match, t('tile.match'), 't-match2')}
+        ${tile('t-mand2', soon.mand, t('tile.mand'), 't-mand2')}
       </div>
     </div>`;
+  $('#summary').querySelectorAll('.tile[data-action]').forEach((el) =>
+    el.addEventListener('click', () => applyTile(el.dataset.action)));
+  syncTileActive();
+}
+
+function syncTileActive() {
+  $('#summary').querySelectorAll('.tile').forEach((el) =>
+    el.classList.toggle('active', el.dataset.tile === activeTile));
 }
 
 function fmtMonth(ym) {
@@ -136,16 +326,20 @@ function fmtMonth(ym) {
 
 function fillVehicleFilter() {
   const sel = $('#vehicleFilter');
+  const prev = sel.value;
   const vehicles = [...new Set(DATA.rows.map((r) => r.Vehicle).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">전체 차종</option>' +
+  sel.innerHTML = `<option value="">${esc(t('filter.allVehicle'))}</option>` +
     vehicles.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  sel.value = prev;
 }
 
 function fillProductionFilter() {
   const sel = $('#productionFilter');
+  const prev = sel.value;
   const months = [...new Set(DATA.rows.map(prodMonth).filter(Boolean))].sort().reverse();
-  sel.innerHTML = '<option value="">전체 생산월</option>' +
+  sel.innerHTML = `<option value="">${esc(t('filter.allProd'))}</option>` +
     months.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+  sel.value = prev;
 }
 
 function renderHead() {
@@ -169,7 +363,7 @@ function renderHead() {
 function ddayText(v) {
   const s = String(v ?? '').trim();
   if (!s) return '';
-  if (s.toLowerCase() === 'passed') return '지남';
+  if (s.toLowerCase() === 'passed') return t('dday.passed');
   const n = Number(s);
   if (!Number.isNaN(n)) {
     if (n < 0) return `D+${-n}`;
@@ -182,7 +376,7 @@ function ddayText(v) {
 function ddayHtml(v) {
   const s = String(v ?? '').trim();
   if (!s) return '<span class="empty-cell">—</span>';
-  if (s.toLowerCase() === 'passed') return '<span class="dday passed">지남</span>';
+  if (s.toLowerCase() === 'passed') return `<span class="dday passed">${esc(t('dday.passed'))}</span>`;
   const n = Number(s);
   if (!Number.isNaN(n)) {
     if (n < 0) return `<span class="dday passed">D+${-n}</span>`;
@@ -206,7 +400,7 @@ function hl(text) {
 // Table cell: just the count, color-coded, clickable (opens the row drawer).
 function countCell(csv, cls) {
   const n = countOf(csv);
-  if (!n) return '<span class="cbadge ok" title="이상없음 (차이·누락 없음)">✓</span>';
+  if (!n) return `<span class="cbadge ok" title="${esc(t('cell.ok.title'))}">✓</span>`;
   return `<span class="cbadge ${cls}">${n}</span>`;
 }
 
@@ -219,6 +413,7 @@ function filtered() {
   const mmOnly = $('#mismatchOnly').checked;
   const ptoOnly = $('#ptoOnly').checked;
   let rows = DATA.rows.filter((r) => {
+    if (restrictSoon && !within2weeks(r)) return false;
     if (status && r['SAM Status'] !== status) return false;
     if (vehicle && r.Vehicle !== vehicle) return false;
     if (prod && prodMonth(r) !== prod) return false;
@@ -229,6 +424,7 @@ function filtered() {
     }
     if (ptoOnly && !String(r.PTO || '').trim()) return false;
     if (mmOnly && !(r['Only_in_SAM'] || r['Only_in_WINGS'])) return false;
+    if (tileMandatory && countOf(r['Mandatory Codes']) === 0) return false;
     if (q) {
       const hay = Object.values(r).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
@@ -256,19 +452,19 @@ function filtered() {
 
 function render() {
   const rows = filtered();
-  $('#count').textContent = `${rows.length} / ${DATA.rows.length} 건`;
+  $('#count').textContent = t('count', { n: rows.length, total: DATA.rows.length });
   const tb = $('#grid tbody');
   const msg = $('#statusMsg');
 
   if (!DATA.rows.length) {
     tb.innerHTML = '';
-    msg.textContent = '표시할 데이터가 없습니다. data.json 을 먼저 빌드하세요.';
+    msg.textContent = t('msg.noData');
     msg.classList.remove('hidden');
     return;
   }
   if (!rows.length) {
     tb.innerHTML = '';
-    msg.textContent = '필터 조건에 맞는 항목이 없습니다.';
+    msg.textContent = t('msg.noRows');
     msg.classList.remove('hidden');
     return;
   }
@@ -323,12 +519,12 @@ function codeColHtml(title, csv, opts) {
     if (opts.diff) {
       badge = '<span class="badge ok">✓ 0</span>';
       const ok = opts.okCodes || [];
-      body = `<div class="ok-mark">${opts.okLabel || '✅ 이상없음 — 누락·차이 없음'}</div>`;
+      body = `<div class="ok-mark">${opts.okLabel || t('code.okDiff')}</div>`;
       if (ok.length) body += `<div class="code-list ok-list">${codeRowsHtml(ok, 'ok-row')}</div>`;
       else if (opts.okHint) body += `<div class="hint">${esc(opts.okHint)}</div>`;
     } else {
       badge = '<span class="badge">0</span>';
-      body = '<div class="none">없음</div>';
+      body = `<div class="none">${esc(t('code.none'))}</div>`;
     }
   } else {
     badge = `<span class="badge ${opts.diff ? 'warn' : ''}">${n}</span>`;
@@ -374,8 +570,13 @@ function openDrawer(r) {
     'Order status financial', 'SAM Status', 'FIN']
     .filter((k) => r[k] !== undefined && r[k] !== '')
     .map((k) => {
-      const val = DDAY_KEYS.has(k) ? ddayText(r[k]) : r[k];
-      return `<div class="k">${esc(META_LABELS[k] || k)}</div><div>${esc(val)}</div>`;
+      let val;
+      if (DDAY_KEYS.has(k)) val = ddayHtml(r[k]);                    // colored D-Day (same as grid)
+      else if (k === 'SAM Status') {
+        const s = String(r[k]);
+        val = `<span class="status ${esc(s).replace(/\s+/g, '')}">${esc(s)}</span>`;  // colored badge
+      } else val = esc(r[k]);
+      return `<div class="kv-item"><div class="k">${esc(META_LABELS[k] || k)}</div><div class="v">${val}</div></div>`;
     }).join('');
 
   // Codes verified OK (present in both SAM & WINGS) — shown when a diff is 0.
@@ -388,7 +589,7 @@ function openDrawer(r) {
   $('#drawerBody').innerHTML = `
     <div class="kv">${meta}</div>
     <div class="drawer-actions">
-      <button id="drawerXls" class="icon-btn primary">⬇ 이 차량 Excel</button>
+      <button id="drawerXls" class="icon-btn primary">${esc(t('drawer.xls'))}</button>
     </div>
     <div class="tabs">
       <button class="tab active" data-tab="diff">🔍 Difference Codes</button>
@@ -400,7 +601,7 @@ function openDrawer(r) {
         ${codeColHtml('Codes Only in WINGS', r['Only_in_WINGS'], { diff: true })}
       </div>
       <div class="code-cols" style="margin-top:18px">
-        ${codeColHtml('Mandatory', r['Mandatory Codes'], { diff: true, okCodes: matchedMand, okLabel: '✅ 이상없음 — 아래 필수코드가 양쪽 모두 반영됨' })}
+        ${codeColHtml('Mandatory', r['Mandatory Codes'], { diff: true, okCodes: matchedMand, okLabel: t('code.okMand') })}
         ${codeColHtml('Factory Control', r['Factory Control Codes'])}
       </div>
     </div>
@@ -481,37 +682,184 @@ function exportTableXls() {
   downloadXls(`afab_sam_${_today()}.xls`, `<table>${head}${body}</table>`);
 }
 
-// Export one vehicle's full comparison (the detail view) to Excel.
+// ---- Minimal, dependency-free .xlsx writer (real OOXML, with cell shading) ----
+// The bundled SheetJS community build cannot write fills, so we emit the package
+// ourselves: a STORED (uncompressed) zip of the OOXML parts. Works even when the
+// CDN is blocked. Style indices used below:
+//   1 title(bold) · 2 header(bold+grey+border) · 3 cell(border) ·
+//   4 cell shaded/diff(border) · 5 label(bold+border)
+function _colName(n) {
+  let s = ''; n++;
+  while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+function _crc32(bytes) {
+  let c = ~0;
+  for (let i = 0; i < bytes.length; i++) {
+    c ^= bytes[i];
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1));
+  }
+  return (~c) >>> 0;
+}
+function _zipStore(files) {
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  const u16 = (n) => [n & 255, (n >> 8) & 255];
+  const u32 = (n) => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255];
+  for (const f of files) {
+    const nameB = enc.encode(f.name);
+    const data = f.data;
+    const crc = _crc32(data);
+    const local = new Uint8Array([].concat(
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length), u16(nameB.length), u16(0)));
+    parts.push(local, nameB, data);
+    central.push({ head: new Uint8Array([].concat(
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length),
+      u16(nameB.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset))), name: nameB });
+    offset += local.length + nameB.length + data.length;
+  }
+  const cdStart = offset;
+  for (const c of central) { parts.push(c.head, c.name); offset += c.head.length + c.name.length; }
+  const eocd = new Uint8Array([].concat(
+    u32(0x06054b50), u16(0), u16(0), u16(central.length), u16(central.length),
+    u32(offset - cdStart), u32(cdStart), u16(0)));
+  parts.push(eocd);
+  return new Blob(parts, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const _XLSX_STYLES =
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+  '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+  '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>' +
+  '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+  '<fills count="4"><fill><patternFill patternType="none"/></fill>' +
+  '<fill><patternFill patternType="gray125"/></fill>' +
+  '<fill><patternFill patternType="solid"><fgColor rgb="FFF0F2F5"/></patternFill></fill>' +
+  '<fill><patternFill patternType="solid"><fgColor rgb="FFFCE4E6"/></patternFill></fill></fills>' +
+  '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' +
+  '<border><left style="thin"><color rgb="FFD0D0D0"/></left><right style="thin"><color rgb="FFD0D0D0"/></right>' +
+  '<top style="thin"><color rgb="FFD0D0D0"/></top><bottom style="thin"><color rgb="FFD0D0D0"/></bottom><diagonal/></border></borders>' +
+  '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+  '<cellXfs count="6">' +
+  '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+  '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+  '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>' +
+  '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>' +
+  '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>' +
+  '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+function _cellXml(ref, cell) {
+  const s = cell.s || 0;
+  const v = cell.v;
+  if (v === '' || v == null) return `<c r="${ref}" s="${s}"/>`;
+  return `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${esc(String(v))}</t></is></c>`;
+}
+function _sheetXml(rows, merges, cols) {
+  const colsXml = (cols && cols.length)
+    ? '<cols>' + cols.map((c) => `<col min="${c.min}" max="${c.max}" width="${c.w}" customWidth="1"/>`).join('') + '</cols>'
+    : '';
+  const body = rows.map((row, ri) => {
+    const cells = row.map((cell, ci) => cell == null ? '' : _cellXml(_colName(ci) + (ri + 1), cell)).join('');
+    return `<row r="${ri + 1}">${cells}</row>`;
+  }).join('');
+  const mg = (merges && merges.length)
+    ? `<mergeCells count="${merges.length}">` + merges.map((m) => `<mergeCell ref="${m}"/>`).join('') + '</mergeCells>'
+    : '';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    colsXml + `<sheetData>${body}</sheetData>${mg}</worksheet>`;
+}
+function writeXlsx(filename, sheetName, rows, merges, cols) {
+  const enc = new TextEncoder();
+  const file = (name, str) => ({ name, data: enc.encode(str) });
+  const files = [
+    file('[Content_Types].xml',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'),
+    file('_rels/.rels',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
+    file('xl/workbook.xml',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      `<sheets><sheet name="${esc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`),
+    file('xl/_rels/workbook.xml.rels',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'),
+    file('xl/styles.xml', _XLSX_STYLES),
+    file('xl/worksheets/sheet1.xml', _sheetXml(rows, merges, cols)),
+  ];
+  const blob = _zipStore(files);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// Export one vehicle's comparison to .xlsx: vehicle info spread across columns,
+// then a SAM ↔ WINGS code table aligned by code. A code present on only one side
+// leaves the other two cells blank and shaded (style 4) to flag the difference.
 function exportRowXls(r) {
   if (!r) return;
   const metaKeys = ['Commission no.', 'Model(WINGS)', 'Vehicle', 'Category', 'Type', 'Cab', 'PTO',
     'Production date', 'Changeability Date', 'Until Dealine',
     'SAM Baumuster', 'SAM now', 'SAM Status', 'Compared SAM file name'];
-  const metaTbl = '<table><tr><th colspan="2">Vehicle Info</th></tr>' +
-    metaKeys.filter((k) => r[k] !== undefined && r[k] !== '')
-      .map((k) => {
-        const val = DDAY_KEYS.has(k) ? ddayText(r[k]) : r[k];
-        return `<tr><th>${xc(META_LABELS[k] || k)}</th><td>${xc(val)}</td></tr>`;
-      }).join('') + '</table>';
+  const rows = [];
+  const merges = [];
 
-  const section = (title, csv) => {
-    const codes = splitCodes(csv);
-    const rowsHtml = codes.length
-      ? codes.map((c) => `<tr><td>${xc(c)}</td><td>${xc(describe(c))}</td></tr>`).join('')
-      : '<tr><td colspan="2"></td></tr>';
-    return `<table><tr><th colspan="2">${xc(title)} (${codes.length})</th></tr>` +
-      `<tr><th>Code</th><th>Description</th></tr>${rowsHtml}</table>`;
-  };
+  rows.push([{ v: `${r['Commission no.']}  ·  ${r['Model(WINGS)'] || ''}`, s: 1 }]);
+  rows.push([{ v: r['Compared SAM file name'] || '', s: 0 }]);
+  rows.push([]);
 
-  const sheet = metaTbl + '<br/>' +
-    section('Codes Only in SAM', r['Only_in_SAM']) + '<br/>' +
-    section('Codes Only in WINGS', r['Only_in_WINGS']) + '<br/>' +
-    section('Mandatory', r['Mandatory Codes']) + '<br/>' +
-    section('Factory Control', r['Factory Control Codes']) + '<br/>' +
-    section('All SAM Codes', r['_all_sam_codes']) + '<br/>' +
-    section('All WINGS Codes', r['_all_wings_codes']);
+  // Vehicle info: two label→value pairs per row (uses the full width).
+  const infoKeys = metaKeys.filter((k) => r[k] !== undefined && r[k] !== '');
+  for (let i = 0; i < infoKeys.length; i += 2) {
+    const cells = [];
+    for (let j = 0; j < 2; j++) {
+      const k = infoKeys[i + j];
+      if (!k) { cells.push(null, null); continue; }
+      const val = DDAY_KEYS.has(k) ? ddayText(r[k]) : r[k];
+      cells.push({ v: META_LABELS[k] || k, s: 5 }, { v: String(val), s: 3 });
+    }
+    rows.push(cells);
+  }
+  rows.push([]);
+
+  // Code comparison, aligned by code (union sorted).
+  const sam = new Set(splitCodes(r['_all_sam_codes']));
+  const wings = new Set(splitCodes(r['_all_wings_codes']));
+  const titleRow = rows.length + 1;
+  rows.push([{ v: `Code Comparison — SAM (${sam.size}) ↔ WINGS (${wings.size});  shaded = missing on that side`, s: 1 }]);
+  merges.push(`A${titleRow}:D${titleRow}`);
+  rows.push([{ v: 'SAM Code', s: 2 }, { v: 'SAM Description', s: 2 },
+    { v: 'WINGS Code', s: 2 }, { v: 'WINGS Description', s: 2 }]);
+  const union = [...new Set([...sam, ...wings])].sort();
+  for (const code of union) {
+    const inS = sam.has(code), inW = wings.has(code);
+    rows.push([
+      inS ? { v: code, s: 3 } : { v: '', s: 4 },
+      inS ? { v: describe(code) || '', s: 3 } : { v: '', s: 4 },
+      inW ? { v: code, s: 3 } : { v: '', s: 4 },
+      inW ? { v: describe(code) || '', s: 3 } : { v: '', s: 4 },
+    ]);
+  }
+
+  const cols = [{ min: 1, max: 1, w: 16 }, { min: 2, max: 2, w: 52 },
+    { min: 3, max: 3, w: 16 }, { min: 4, max: 4, w: 52 }];
   const name = String(r['Commission no.'] || 'vehicle').replace(/[^\w.-]/g, '_');
-  downloadXls(`afab_sam_${name}.xls`, sheet);
+  writeXlsx(`afab_sam_${name}.xlsx`, 'Comparison', rows, merges, cols);
 }
 
 // ====================== Rules editor (model-conversion rules) ======================
@@ -571,7 +919,7 @@ async function openRules() {
     const data = await fetch('rules.json?_=' + Date.now()).then((r) => r.json());
     renderRules(data);
   } catch (e) {
-    $('#rulesBody').innerHTML = `<div class="none">rules.json 로드 실패: ${esc(e.message)}</div>`;
+    $('#rulesBody').innerHTML = `<div class="none">${esc(t('rules.loadFail') + e.message)}</div>`;
   }
   $('#rulesModal').classList.remove('hidden');
   $('#rulesBackdrop').classList.remove('hidden');
@@ -634,7 +982,7 @@ function downloadRules() {
     return;
   }
   // Fallback: xlsx lib unavailable (e.g. CDN blocked) -> emit JSON so nothing is lost.
-  alert('엑셀 라이브러리를 불러오지 못해 JSON(rules.json)으로 저장합니다.\n엑셀 편집은 model_rules/model_mapping.xlsx 를 직접 열어 진행하세요.');
+  alert(t('alert.xlsxJson'));
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -646,7 +994,7 @@ function downloadRules() {
 function uploadRulesFile(file) {
   if (!file) return;
   if (!window.XLSX || window.__XLSX_BLOCKED) {
-    alert('엑셀 라이브러리를 불러오지 못했습니다(사내망 차단 가능). model_rules/model_mapping.xlsx 를 엑셀에서 직접 편집하세요.');
+    alert(t('alert.xlsxBlocked'));
     return;
   }
   const reader = new FileReader();
@@ -655,7 +1003,7 @@ function uploadRulesFile(file) {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       renderRules(sheetsToRules(wb));
     } catch (err) {
-      alert('엑셀 읽기 실패: ' + err.message);
+      alert(t('alert.xlsxReadFail') + err.message);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -682,16 +1030,28 @@ $('#drawerClose').addEventListener('click', closeDrawer);
 $('#backdrop').addEventListener('click', closeDrawer);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDrawer(); closeRules(); } });
 $('#themeBtn').addEventListener('click', toggleTheme);
+$('#langBtn').addEventListener('click', toggleLang);
 $('#exportBtn').addEventListener('click', exportCsv);
 $('#exportXlsBtn').addEventListener('click', exportTableXls);
+// Manual edits to the filter controls become the single source of truth: drop the
+// tile-only hidden flags (2-week restriction, mandatory-only) and clear the tile
+// highlight so what the user sees in the controls is exactly what is applied.
+function onManualFilter() {
+  restrictSoon = false;
+  tileMandatory = false;
+  activeTile = null;
+  syncTileActive();
+  render();
+}
 ['#search', '#statusFilter', '#vehicleFilter', '#productionFilter',
   '#upcomingOnly', '#mismatchOnly', '#ptoOnly'].forEach((s) =>
-  $(s).addEventListener('input', render));
+  $(s).addEventListener('input', onManualFilter));
 
 initTheme();
+applyStaticI18n();
 load().catch((e) => {
-  $('#meta').textContent = 'data.json 로드 실패: ' + e.message;
+  $('#meta').textContent = t('meta.loadFail', { err: e.message });
   const msg = $('#statusMsg');
-  msg.textContent = 'data.json 을 불러올 수 없습니다: ' + e.message;
+  msg.textContent = t('msg.loadFail', { err: e.message });
   msg.classList.remove('hidden');
 });

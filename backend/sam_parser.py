@@ -11,9 +11,15 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from option_codes import OPTION_CODE_MAP
+from mandatory_codes import load_mandatory
 from rules import RULES
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+
+# Universe of real SA codes: the option-code database plus hand-maintained
+# mandatory codes (a couple, e.g. S1P/S1W, live only in the mandatory list).
+# Used to reject free-text tokens that merely LOOK like codes.
+KNOWN_CODES = set(OPTION_CODE_MAP) | set(load_mandatory()['set'])
 
 
 def normalize_model(model: str) -> str:
@@ -83,13 +89,18 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                         if m:
                             codes.add(m.group(1))
 
-            full_text_model = re.sub(r'DNA', '', full_text, flags=re.IGNORECASE).upper()
+            # Match the Vehicle type as written, KEEPING a trailing 'DNA' suffix so
+            # the displayed SAM Baumuster reads e.g. '2663 LSDNA' (not '2663 LS').
+            # Matching keys still drop DNA later via normalize_model(), so keeping it
+            # here only affects display. The optional '(?:DNA)?' lets the {1,3}-letter
+            # group match the base suffix and then swallow the DNA tail.
+            full_text_upper = full_text.upper()
             for pattern in [
-                r'VEHICLE\s*TYPE[:\s]+([0-9]{4}\s*[A-Z]{1,3})(?=DRIVETRAIN|SUBCATEGORY|BAUMUSTER|\s|[0-9]|$)',
-                r'TYPE[:\s]+([0-9]{4}\s*[A-Z]{1,3})(?=DRIVETRAIN|SUBCATEGORY|BAUMUSTER|\s|[0-9]|$)',
-                r'MODEL[:\s]+([0-9]{4}\s*[A-Z]{1,3})(?=DRIVETRAIN|SUBCATEGORY|BAUMUSTER|\s|[0-9]|$)',
+                r'VEHICLE\s*TYPE[:\s]+([0-9]{4}\s*[A-Z]{1,3}(?:DNA)?)(?=DRIVETRAIN|SUBCATEGORY|BAUMUSTER|\s|[0-9]|$)',
+                r'\bTYPE[:\s]+([0-9]{4}\s*[A-Z]{1,3}(?:DNA)?)(?=DRIVETRAIN|SUBCATEGORY|BAUMUSTER|\s|[0-9]|$)',
+                r'\bMODEL[:\s]+([0-9]{4}\s*[A-Z]{1,3}(?:DNA)?)(?=DRIVETRAIN|SUBCATEGORY|BAUMUSTER|\s|[0-9]|$)',
             ]:
-                m = re.search(pattern, full_text_model)
+                m = re.search(pattern, full_text_upper)
                 if m:
                     model_raw = m.group(1).strip()
                     break
@@ -101,6 +112,12 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                 text = ''
             raw_codes = re.findall(r'\b[A-Z0-9]{3,4}\b', text.upper())
             codes = set(c for c in raw_codes if any(ch.isdigit() for ch in c))
+
+        # Reject prose words captured by the loose equipment-code regex (e.g. the
+        # section label 'CTT' = Customer Tailored Truck). Codes with a digit are
+        # kept as-is; an all-letter token is kept only when it's a real SA code.
+        codes = {c for c in codes
+                 if any(ch.isdigit() for ch in c) or c in KNOWN_CODES}
     except Exception as e:
         if log_fn:
             log_fn(f'SAM file read error ({name}): {str(e)[:80]}')
