@@ -281,3 +281,36 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .rule-row .del { border: none; background: none; color: var(--danger); cursor: pointer; font-size: 16px; }
 .rule-add { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 2px 0; }
 .rule-toggle { padding: 10px 14px; display: flex; align-items: center; gap: 8px; }
+
+/* ---- M365 로그인 게이트 (auth.js) ---- */
+#authOverlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.auth-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 40px 44px; max-width: 380px; width: calc(100% - 40px);
+  border: 1px solid var(--border); border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+  text-align: center;
+}
+.auth-card .auth-logo { height: 40px; width: auto; margin-bottom: 4px; }
+.auth-card h1 { font-size: 20px; margin: 0; color: var(--text); }
+.auth-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.auth-card .auth-err { color: var(--danger); font-size: 13px; }
+.auth-btn {
+  margin-top: 6px; padding: 11px 20px; width: 100%;
+  border: none; border-radius: 8px; cursor: pointer;
+  background: var(--accent, #0067b8); color: #fff;
+  font-size: 15px; font-weight: 600;
+}
+.auth-btn:hover { filter: brightness(1.06); }
+.auth-btn:disabled { opacity: 0.6; cursor: default; }
+
+.auth-chip { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+.auth-user {
+  font-size: 13px; color: var(--muted); max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
