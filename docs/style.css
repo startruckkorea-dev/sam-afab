@@ -319,8 +319,10 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .acode-cell .d { color: var(--text); }
 .acode-cell.miss { background: var(--accent-soft); border-radius: 4px; }
 @media (max-width: 620px) { .acode-head, .acode-row { grid-template-columns: 1fr; gap: 4px; } }
-.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 28px; font-size: 13px; align-items: start; }
-.kv-item { display: grid; grid-template-columns: 130px 1fr; gap: 4px 12px; align-items: baseline; }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0; font-size: 13px; align-items: stretch;
+  border: 1px solid #c7ccd3; border-radius: 8px; overflow: hidden; }
+.kv-item { display: grid; grid-template-columns: 130px 1fr; gap: 4px 12px; align-items: baseline;
+  padding: 9px 14px; box-shadow: 0 0 0 0.5px #c7ccd3; }
 .kv .k { color: var(--muted); }
 .kv .v .dday, .kv .v .status { font-size: 12px; }
 

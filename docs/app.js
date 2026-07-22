@@ -617,10 +617,13 @@ function alignedFullHtml(samCsv, wingsCsv) {
 // Aligned SAM-vs-WINGS block for a named category (Paint / Tyre). Same two-column
 // layout as alignedFullHtml but with its own heading; returns '' when there is no
 // data on either side so empty groups don't clutter the chart.
-function alignedGroupHtml(title, samCsv, wingsCsv, kind) {
+function alignedGroupHtml(title, samCsv, wingsCsv, kind, diffOnly) {
   const sam = new Set(splitCodes(samCsv));
   const wings = new Set(splitCodes(wingsCsv));
-  const union = [...new Set([...sam, ...wings])].sort();
+  let union = [...new Set([...sam, ...wings])].sort();
+  // diffOnly (Difference Codes tab): keep only codes present on exactly one side,
+  // and hide the whole section when the two sides are identical.
+  if (diffOnly) union = union.filter((c) => sam.has(c) !== wings.has(c));
   if (!union.length) return '';
   const desc = (code) => kind === 'paint' ? `MB ${code}`
     : (kind === 'tyre' ? 'Tyre key' : (describe(code) || '—'));
@@ -646,7 +649,12 @@ function alignedGroupHtml(title, samCsv, wingsCsv, kind) {
 function openDrawer(r) {
   if (!r) return;
   DRAWER_ROW = r;
-  $('#drawerTitle').textContent = `${r['Commission no.']}  ·  ${r['Model(WINGS)'] || ''}`;
+  // Title: Commission · Model · Type · Axle · Cab · PTO · MY (skip blanks).
+  // Column semantics: Model=Vehicle, Type=Model(WINGS), Axle=Type.
+  const _titleParts = [r['Vehicle'], r['Model(WINGS)'], r['Type'], r['Cab'], r['PTO'],
+    r['MY'] ? 'MY' + r['MY'] : '']
+    .map((x) => (x == null ? '' : String(x).trim())).filter(Boolean);
+  $('#drawerTitle').textContent = `${r['Commission no.']}  ·  ${_titleParts.join('  ·  ')}`;
   $('#drawerSub').textContent = r['Compared SAM file name'] || '';
   const meta = ['Vehicle', 'Category', 'Type', 'Cab', 'MY', 'PTO', 'Production date', 'Changeability Date',
     'Until Dealine', 'SAM Baumuster', 'SAM now',
@@ -678,6 +686,8 @@ function openDrawer(r) {
       <button class="tab" data-tab="full">📄 Full Code List</button>
     </div>
     <div class="tab-pane" data-pane="diff">
+      ${alignedGroupHtml('🎨 Paint', r['_paint_sam'], r['_paint_wings'], 'paint', true)}
+      ${alignedGroupHtml('🛞 Tyre', r['_tyre_sam'], r['_tyre_wings'], 'tyre', true)}
       <div class="code-cols">
         ${codeColHtml('Codes Only in SAM', r['Only_in_SAM'], { diff: true })}
         ${codeColHtml('Codes Only in WINGS', r['Only_in_WINGS'], { diff: true })}
