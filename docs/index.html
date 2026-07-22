@@ -91,10 +91,31 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
           onerror="window.__XLSX_BLOCKED=true"></script>
 
-  <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고, auth.js 가 인증에 성공하면
-       app.js 를 동적으로 로드한다. (app.js 는 여기서 직접 로드하지 않는다.) -->
-  <script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"
-          onerror="window.__MSAL_BLOCKED=true"></script>
-  <script src="auth.js?v=20260721a"></script>
+  <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(주 CDN 실패 시 대체 CDN 로 폴백),
+       로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
+       auth.js 가 인증에 성공하면 app.js 를 동적으로 로드한다.
+       ⚠ 버전 2.38.4 는 Microsoft CDN(alcdn.msauth.net)에 게시된 적이 없어 404 였다 → 2.38.1 로 고정. -->
+  <script>
+  (function () {
+    var CDNS = [
+      'https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js',
+      'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.1/lib/msal-browser.min.js'
+    ];
+    function loadAuth() {
+      var a = document.createElement('script');
+      a.src = 'auth.js?v=20260722a';
+      document.body.appendChild(a);
+    }
+    function tryCdn(i) {
+      if (i >= CDNS.length) { window.__MSAL_BLOCKED = true; loadAuth(); return; }
+      var s = document.createElement('script');
+      s.src = CDNS[i];
+      s.onload = loadAuth;
+      s.onerror = function () { tryCdn(i + 1); };
+      document.head.appendChild(s);
+    }
+    tryCdn(0);
+  })();
+  </script>
 </body>
 </html>
