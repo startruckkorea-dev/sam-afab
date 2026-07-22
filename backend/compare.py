@@ -223,6 +223,8 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         model_raw = r.get('Model') or r.get('Baumuster', '')
         baumuster_num = r.get('Baumuster', '') if 'Model' in r else ''
         wings_codes = set(r['WINGS_codes'] or [])
+        wings_paint = set(r.get('WINGS_paint') or []) if 'WINGS_paint' in r.index else set()
+        wings_tyre = set(r.get('WINGS_tyre') or []) if 'WINGS_tyre' in r.index else set()
         model_norm = normalize_model(model_raw)
 
         # Extra match fields — from WINGS columns (SAM side comes from the word body).
@@ -300,6 +302,8 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
 
         sam_codes = sam_data['codes'] if sam_data else set()
         sam_file = sam_data['file'] if sam_data else ''
+        sam_paint = set(sam_data.get('paint') or []) if sam_data else set()
+        sam_tyre = set(sam_data.get('tyre') or []) if sam_data else set()
 
         # Vehicle category (tractor/rigid/tipper) from Baumuster -> which mandatory
         # codes apply. WINGS Baumuster is the vehicle's own factory code; fall back to
@@ -334,6 +338,15 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
                 _group_flag |= (_only_one_side & _em)
         mand_codes_row = sorted(_ungrouped_flag | _group_flag)
 
+        # Paint + Tyre (CTT) are compared SEPARATELY from the 3-char option codes and
+        # shown as their own sections at the top of the detail chart. A paint/tyre
+        # mismatch is only counted when a SAM file matched AND both sides carry that
+        # category (so a source that simply omits the section is not flagged).
+        _paint_mismatch = bool(sam_data and wings_paint and sam_paint
+                               and (wings_paint ^ sam_paint))
+        _tyre_mismatch = bool(sam_data and wings_tyre and sam_tyre
+                              and (wings_tyre ^ sam_tyre))
+
         # Vehicle / axle / cab / PTO from SAM filename.
         _vehicle = _axle_type = _cab_code = _pto_flag = ''
         if sam_file:
@@ -366,7 +379,7 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         # Status: distinguish "no SAM to compare" from "compared but differs".
         if not sam_file:
             sam_status = 'No SAM'
-        elif only_s or only_w:
+        elif only_s or only_w or _paint_mismatch or _tyre_mismatch:
             sam_status = 'Mismatch'
         else:
             sam_status = 'Match'
@@ -403,6 +416,12 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
             'Mandatory Codes': ','.join(mand_codes_row),
             '_all_wings_codes': ','.join(sorted(wings_codes)),
             '_all_sam_codes': ','.join(sorted(sam_codes)),
+            # Paint / Tyre (CTT) — compared and displayed on their own, above the
+            # general codes, in the detail chart.
+            '_paint_wings': ','.join(sorted(wings_paint)),
+            '_paint_sam': ','.join(sorted(sam_paint)),
+            '_tyre_wings': ','.join(sorted(wings_tyre)),
+            '_tyre_sam': ','.join(sorted(sam_tyre)),
             'Compared SAM file name': sam_file,
             'SAM Status': sam_status,
         }

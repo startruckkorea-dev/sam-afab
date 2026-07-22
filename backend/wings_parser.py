@@ -14,7 +14,58 @@ def _extract_codes(text):
         return set()
     text = str(text)
     text = re.sub(r'\bnan\b', '', text, flags=re.IGNORECASE)
-    return set(re.findall(r"[A-Z0-9]{3,4}", text.upper()))
+    # 3-5 chars (word-bounded) so a 4-5 digit CTT code in 'Additional equipment'
+    # survives intact — the old unbounded {3,4} silently truncated a 5-char run to
+    # its first 4 chars. Current option codes are 3-4 chars, so this is a no-op for
+    # them and only rescues longer CTT codes when they appear.
+    return set(re.findall(r"\b[A-Z0-9]{3,5}\b", text.upper()))
+
+
+def _norm_paint(v):
+    """WINGS 'Paint zone N color code' cell -> canonical color code string.
+
+    Values arrive as 4-digit MB color numbers, sometimes as Excel/CSV numerics
+    (e.g. 9676.0). Returns '9676' to match the SAM 'MB 9676' paint code.
+    """
+    if pd.isna(v):
+        return ''
+    s = str(v).strip()
+    if not s or s.lower() == 'nan':
+        return ''
+    s = re.sub(r'\.0+$', '', s)
+    m = re.search(r'\d{3,5}', s)
+    return m.group(0) if m else ''
+
+
+def _norm_tyre(v):
+    """WINGS 'Tyre key N. axle' cell -> canonical 6-char tyre code (e.g. 'F18L96')."""
+    if pd.isna(v):
+        return ''
+    s = re.sub(r'[^A-Za-z0-9]', '', str(v)).upper()
+    return s if (4 <= len(s) <= 8 and s != 'NAN') else ''
+
+
+def _norm_mfr(v):
+    """WINGS 'Tyre manufacturer key N. axle' cell -> 2-digit key (e.g. 80.0 -> '80')."""
+    if pd.isna(v):
+        return ''
+    s = re.sub(r'\.0+$', '', str(v).strip())
+    return s if re.fullmatch(r'\d{1,3}', s) else ''
+
+
+def _axle_no(colname):
+    """Axle number from a column name, e.g. 'Tyre key 2. axle' -> '2'."""
+    m = re.search(r'(\d+)\s*\.?\s*axle', colname.lower())
+    return m.group(1) if m else colname
+
+
+def _collect(row, cols, fn):
+    out = set()
+    for c in cols:
+        v = fn(row[c])
+        if v:
+            out.add(v)
+    return out
 
 
 def parse_wings(file) -> pd.DataFrame:
@@ -92,7 +143,40 @@ def parse_wings(file) -> pd.DataFrame:
         df['WINGS_codes'] = _all_text.apply(_extract_codes)
         df['WINGS_has_pto'] = _all_text.str.contains(r'\bPTO\b', case=False, na=False)
 
-    result_cols = ['Commission no.', model_col, 'WINGS_codes', 'WINGS_has_pto']
+    # Paint / Tyre CTT codes live in their own columns (new WINGS report format):
+    #   'Paint zone 1..4 color code'  and  'Tyre key 1..4. axle'.
+    paint_cols = [c for c in df.columns
+                  if 'paint' in c.lower() and 'zone' in c.lower()]
+    if paint_cols:
+        df['WINGS_paint'] = df.apply(lambda r: _collect(r, paint_cols, _norm_paint), axis=1)
+    else:
+        df['WINGS_paint'] = [set() for _ in range(len(df))]
+
+    # Tyre code lives in 'Tyre key N. axle'; its 2-digit manufacturer/load index in
+    # 'Tyre manufacturer key N. axle'. Pair them PER AXLE -> 'F18L96 81' so the key
+    # matches the SAM Tyres line ('...R 22,5F18L96 81...') in full.
+    tyre_key_cols = {_axle_no(c): c for c in df.columns
+                     if 'tyre key' in c.lower() and 'axle' in c.lower()}
+    mfr_cols = {_axle_no(c): c for c in df.columns
+                if 'manufacturer key' in c.lower() and 'axle' in c.lower()}
+
+    def _row_tyre(row):
+        out = set()
+        for ax, kc in tyre_key_cols.items():
+            key = _norm_tyre(row[kc])
+            if not key:
+                continue
+            mfr = _norm_mfr(row[mfr_cols[ax]]) if ax in mfr_cols else ''
+            out.add(key + ' ' + mfr if mfr else key)
+        return out
+
+    if tyre_key_cols:
+        df['WINGS_tyre'] = df.apply(_row_tyre, axis=1)
+    else:
+        df['WINGS_tyre'] = [set() for _ in range(len(df))]
+
+    result_cols = ['Commission no.', model_col, 'WINGS_codes', 'WINGS_has_pto',
+                   'WINGS_paint', 'WINGS_tyre']
     if 'Baumuster' in df.columns and model_col != 'Baumuster':
         result_cols.insert(2, 'Baumuster')
 

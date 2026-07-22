@@ -69,6 +69,7 @@ DISPLAY_COLS = [
     'Mandatory Codes', 'Order status financial', 'Order status logistical',
     'FIN', 'Subcategory (ID)', 'Compared SAM file name', 'SAM Status',
     '_all_wings_codes', '_all_sam_codes',
+    '_paint_wings', '_paint_sam', '_tyre_wings', '_tyre_sam',
 ]
 
 

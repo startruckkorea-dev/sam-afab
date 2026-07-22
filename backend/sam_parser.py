@@ -49,6 +49,8 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
     """Parse one SAM file (file-like object) and update mapping in place."""
     model_raw = None
     codes = set()
+    paint = set()
+    tyre = set()
     full_text = ''
 
     try:
@@ -88,6 +90,42 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                         m = re.match(r'^([A-Z][A-Z0-9]{2,3})\b', para_upper)
                         if m:
                             codes.add(m.group(1))
+
+            # Paint + Tyre (CTT) codes, from the document's 'Paint' / 'Tyres' sections
+            # (separate from the equipment table). Compared against the WINGS 'Paint
+            # zone' / 'Tyre key' columns:
+            #   Paint  'MB 9676Ice silver...'          -> '9676'  (4-digit color code)
+            #   Tyres  '1st Axle:2 x 315/80 R 22,5F18L96 81...' -> 'F18L96' (6-char key)
+            _EQ_HEADERS = {'STANDARD EQUIPMENT', 'SPECIAL EQUIPMENT',
+                           'ADDITIONAL EQUIPMENT', 'EQUIPMENT OVERVIEW'}
+            _sec = None
+            for para in root.iter(f'{W}p'):
+                ptxt = "".join(t.text or '' for t in para.iter(f'{W}t')).strip()
+                if not ptxt:
+                    continue
+                if ptxt in ('Paint', 'Paints'):
+                    _sec = 'PAINT'
+                    continue
+                if ptxt in ('Tyres', 'Tyre'):
+                    _sec = 'TYRES'
+                    continue
+                if ptxt.upper() in _EQ_HEADERS:
+                    _sec = None
+                    continue
+                if _sec == 'PAINT':
+                    for _m in re.finditer(r'MB\s*(\d{4})', ptxt):
+                        paint.add(_m.group(1))
+                elif _sec == 'TYRES':
+                    # '...R 22,5F18L96 81738.00' -> code 'F18L96' + 2-digit mfr/load
+                    # index '81' -> 'F18L96 81'. The index is glued to the price, so
+                    # take exactly two digits after the space (price follows).
+                    _m = re.search(r'R\s*\d{2,3},\d\s*([A-Z0-9]{6})\s+(\d{2})(?=[\d.,])', ptxt)
+                    if _m:
+                        tyre.add(_m.group(1) + ' ' + _m.group(2))
+                    else:
+                        _m2 = re.search(r'R\s*\d{2,3},\d\s*([A-Z0-9]{6})', ptxt)
+                        if _m2:
+                            tyre.add(_m2.group(1))
 
             # Match the Vehicle type as written, KEEPING a trailing 'DNA' suffix so
             # the displayed SAM Baumuster reads e.g. '2663 LSDNA' (not '2663 LS').
@@ -158,7 +196,7 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
         if not is_pto and re.search(r'\bPTO\b', name, re.IGNORECASE):
             is_pto = True
 
-        data = {'codes': codes, 'file': name,
+        data = {'codes': codes, 'paint': paint, 'tyre': tyre, 'file': name,
                 'model_now': model_now, 'model_baumuster': model_baumuster,
                 'bm': body_bm, 'sub': body_sub}
         # Index the same entry under BOTH numbers so a WINGS row matches on either.

@@ -4,10 +4,11 @@
 
 const COLS = [
   { key: 'Commission no.', label: 'Commission' },
-  { key: 'Model(WINGS)', label: 'Model (WINGS)' },
-  { key: 'Vehicle', label: 'Vehicle' },
-  { key: 'Type', label: 'Type' },
+  { key: 'Vehicle', label: 'Model' },
+  { key: 'Model(WINGS)', label: 'Type' },
+  { key: 'Type', label: 'Axle' },
   { key: 'Cab', label: 'Cab' },
+  { key: 'MY', label: 'MY' },
   { key: 'PTO', label: 'PTO' },
   { key: 'Changeability Date', label: 'Changeability' },
   { key: 'Until Dealine', label: 'Changeability D-Day', dday: true },
@@ -21,11 +22,28 @@ const NUMERIC_KEYS = new Set(['Until Dealine', 'Baumuster',
   'Only_in_SAM', 'Only_in_WINGS', 'Mandatory Codes']);
 
 const META_LABELS = {
+  'Vehicle': 'Model',
+  'Model(WINGS)': 'Type',
+  'Type': 'Axle',
+  'MY': 'MY',
   'Changeability Date': 'Changeability',
   'Until Dealine': 'Changeability D-Day',
   'Category': 'Category (tractor/rigid/tipper)',
 };
 const DDAY_KEYS = new Set(['Until Dealine']);
+
+// Model Year (MY): recognized from SAM codes V8Q..V8Z = "Model year 0..9".
+// The digit is the last digit of the model year (e.g. V8W → 6 → 2026).
+const MY_CODE_DIGIT = {
+  V8Q: 0, V8R: 1, V8S: 2, V8T: 3, V8U: 4,
+  V8V: 5, V8W: 6, V8X: 7, V8Y: 8, V8Z: 9,
+};
+function computeMY(r) {
+  for (const c of splitCodes(r && r['_all_sam_codes'])) {
+    if (c in MY_CODE_DIGIT) return String(2020 + MY_CODE_DIGIT[c]);
+  }
+  return '';
+}
 
 const _now = new Date();
 const CUR_MONTH = _now.getFullYear() + '-' + String(_now.getMonth() + 1).padStart(2, '0');
@@ -278,6 +296,7 @@ async function load() {
     fetch('codes.json?_=' + Date.now()).then((r) => r.json()).catch(() => CODES),
   ]);
   DATA = d; CODES = c;
+  (DATA.rows || []).forEach((r) => { r.MY = computeMY(r); });
   renderMeta();
   renderSummary();
   fillVehicleFilter();
@@ -595,12 +614,41 @@ function alignedFullHtml(samCsv, wingsCsv) {
     </div>`;
 }
 
+// Aligned SAM-vs-WINGS block for a named category (Paint / Tyre). Same two-column
+// layout as alignedFullHtml but with its own heading; returns '' when there is no
+// data on either side so empty groups don't clutter the chart.
+function alignedGroupHtml(title, samCsv, wingsCsv, kind) {
+  const sam = new Set(splitCodes(samCsv));
+  const wings = new Set(splitCodes(wingsCsv));
+  const union = [...new Set([...sam, ...wings])].sort();
+  if (!union.length) return '';
+  const desc = (code) => kind === 'paint' ? `MB ${code}`
+    : (kind === 'tyre' ? 'Tyre key' : (describe(code) || '—'));
+  const cell = (code, present) => present
+    ? `<span class="c">${esc(code)}</span><span class="d">${esc(desc(code))}</span>`
+    : '';
+  const rows = union.map((code) => {
+    const inS = sam.has(code), inW = wings.has(code);
+    return `<div class="acode-row">`
+      + `<div class="acode-cell${inS ? '' : ' miss'}">${cell(code, inS)}</div>`
+      + `<div class="acode-cell${inW ? '' : ' miss'}">${cell(code, inW)}</div>`
+      + `</div>`;
+  }).join('');
+  return `<div class="acode" style="margin-bottom:16px">
+      <div class="acode-head">
+        <h4>${esc(title)} · SAM <span class="badge">${sam.size}</span></h4>
+        <h4>${esc(title)} · WINGS <span class="badge">${wings.size}</span></h4>
+      </div>
+      <div class="acode-body">${rows}</div>
+    </div>`;
+}
+
 function openDrawer(r) {
   if (!r) return;
   DRAWER_ROW = r;
   $('#drawerTitle').textContent = `${r['Commission no.']}  ·  ${r['Model(WINGS)'] || ''}`;
   $('#drawerSub').textContent = r['Compared SAM file name'] || '';
-  const meta = ['Vehicle', 'Category', 'Type', 'Cab', 'PTO', 'Production date', 'Changeability Date',
+  const meta = ['Vehicle', 'Category', 'Type', 'Cab', 'MY', 'PTO', 'Production date', 'Changeability Date',
     'Until Dealine', 'SAM Baumuster', 'SAM now',
     'Order status financial', 'SAM Status', 'FIN']
     .filter((k) => r[k] !== undefined && r[k] !== '')
@@ -640,6 +688,8 @@ function openDrawer(r) {
       </div>
     </div>
     <div class="tab-pane hidden" data-pane="full">
+      ${alignedGroupHtml('🎨 Paint', r['_paint_sam'], r['_paint_wings'], 'paint')}
+      ${alignedGroupHtml('🛞 Tyre', r['_tyre_sam'], r['_tyre_wings'], 'tyre')}
       ${alignedFullHtml(r['_all_sam_codes'], r['_all_wings_codes'])}
     </div>
   `;
@@ -785,7 +835,7 @@ function writeXlsx(filename, sheetName, rows, merges, cols) {
 
 function exportRowXls(r) {
   if (!r) return;
-  const metaKeys = ['Commission no.', 'Model(WINGS)', 'Vehicle', 'Category', 'Type', 'Cab', 'PTO',
+  const metaKeys = ['Commission no.', 'Model(WINGS)', 'Vehicle', 'Category', 'Type', 'Cab', 'MY', 'PTO',
     'Production date', 'Changeability Date', 'Until Dealine',
     'SAM Baumuster', 'SAM now', 'SAM Status', 'Compared SAM file name'];
   const rows = [];
