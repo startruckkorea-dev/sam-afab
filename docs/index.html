@@ -91,19 +91,21 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
           onerror="window.__XLSX_BLOCKED=true"></script>
 
-  <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(주 CDN 실패 시 대체 CDN 로 폴백),
+  <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
        auth.js 가 인증에 성공하면 app.js 를 동적으로 로드한다.
-       ⚠ 버전 2.38.4 는 Microsoft CDN(alcdn.msauth.net)에 게시된 적이 없어 404 였다 → 2.38.1 로 고정. -->
+       ⚠ 회사망이 외부 CDN(alcdn.msauth.net / jsdelivr)을 차단하므로 라이브러리를
+          docs/vendor/ 에 self-host 해 같은 출처에서 먼저 로드한다. (버전 2.38.1) -->
   <script>
   (function () {
     var CDNS = [
+      'vendor/msal-browser-2.38.1.min.js',
       'https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js',
       'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.1/lib/msal-browser.min.js'
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260722a';
+      a.src = 'auth.js?v=20260722b';
       document.body.appendChild(a);
     }
     function tryCdn(i) {
