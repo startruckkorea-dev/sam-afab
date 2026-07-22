@@ -7,6 +7,26 @@
 
 ---
 
+## 데이터 소스 = SharePoint (repo 에 원본 없음)
+
+SAM/WINGS/코드/모델규칙 원본은 **repo 에 커밋하지 않고 SharePoint 에서만** 관리합니다.
+빌드는 실행할 때마다 SharePoint 에서 새로 내려받습니다(앱 전용 Graph):
+
+| SharePoint 폴더 | 용도 |
+|---|---|
+| `SAM-AFAB_Data/01. SAM_files` | SAM 원본 — 빌드는 **가장 최근 생산월** 폴더만 사용 |
+| `SAM-AFAB_Data/02. WINGS_data` | WINGS export — 빌드는 **최신 파일**만 사용 |
+| `SAM-AFAB_Data/03. model_rules` | `model_mapping.xlsx` — **모든 모델 매칭 규칙** |
+| `SAM-AFAB_Data/04. code` | 코드 사전 / 필수코드 / 카테고리 xlsx |
+
+**실행:** 관리자가 대시보드 상단 **⟳ 데이터 빌드** 버튼을 누르면 GitHub Actions
+(`build.yml`)가 돌아 `docs/data.json` 을 갱신·커밋하고 Pages 가 재배포됩니다.
+(자동 스케줄 없음 — 수동 트리거. 웹의 **모델 매칭 / 코드 관리** 메뉴에서 SharePoint xlsx 를
+직접 편집·저장할 수 있습니다.) 최신 월만이 아닌 전체 월 비교는 워크플로 실행 시
+`all_months` 입력을 켜세요. 설정은 [`docs/ENTRA_SETUP.md`](docs/ENTRA_SETUP.md) 참고.
+
+---
+
 ## 왜 이 구조인가 (4가지 문제 해결)
 
 | 문제 | 해결 | 방법 |

@@ -75,14 +75,13 @@ const I18N = {
     'drawer.xls': '⬇ 이 차량 Excel',
     // 모델 매칭
     'matching.title': '모델 매칭',
-    'matching.sub': 'SAM ↔ WINGS 모델 인식 규칙 (model_mapping.xlsx)',
+    'matching.sub': 'SAM ↔ WINGS 모델 인식 규칙 — 모두 03. model_rules/model_mapping.xlsx 에 저장',
+    'matching.loading': 'model_mapping.xlsx 를 불러오는 중…',
     'matching.note':
-      '모델 매칭은 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>, ' +
-      '본문 <code>Vehicle type</code> = <b>SAM Baumuster(원본)</b>. WINGS 번호가 둘 중 하나라도 같으면 매칭됩니다. ' +
-      '<b>잘못 매칭될 때 수정</b>은 아래 <b>매칭 별칭(수동)</b> 표에서: 번호(원본/WINGS) → 추가로 매칭할 번호. ' +
-      '<b>SharePoint에 저장</b>을 누르면 <code>03. model_rules/model_mapping.xlsx</code> 에 바로 반영됩니다.',
-    'matching.aliasTitle': '매칭 별칭 (수동)',
-    'matching.aliasDesc': '파일 제목이 다른 세대 번호를 쓸 때만: 번호 → 추가 매칭 번호 (쉼표 구분)',
+      '모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이 ' +
+      '이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면 ' +
+      '<code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 빌드</b> 때 적용됩니다. ' +
+      '<code>인식모델_대조표</code> 시트는 빌드가 자동 생성하는 확인용 보기입니다.',
     // 코드 관리
     'codes.title': '코드 관리',
     'codes.sub': "SharePoint 04. code 폴더의 Excel 파일을 웹에서 직접 편집·저장",
@@ -113,6 +112,13 @@ const I18N = {
     'op.loaded': '불러왔습니다.',
     'op.saved': '저장 완료 — SharePoint에 반영되었습니다.',
     'op.fail': '실패: {err}',
+    'nav.build': '⟳ 데이터 빌드',
+    'build.btn': '⟳ 데이터 빌드',
+    'build.running': '⟳ 빌드 요청 중…',
+    'build.started': '빌드를 시작했습니다. 2~3분 후 최신 데이터가 자동 반영됩니다.',
+    'build.fail': '빌드 트리거 실패:',
+    'build.tokenPrompt': 'GitHub 파인그레인드 토큰을 입력하세요 (repo: sam-afab, 권한: Actions read/write). 한 번 입력하면 이 브라우저에 저장됩니다.',
+    'build.tokenBad': '토큰이 유효하지 않거나 권한이 부족합니다. 저장된 토큰을 지웠습니다. 다시 시도하세요.',
     'alert.xlsxBlocked':
       '엑셀 라이브러리를 불러오지 못했습니다(사내망 차단 가능). 잠시 후 다시 시도하세요.',
     'alert.xlsxReadFail': '엑셀 읽기 실패: ',
@@ -151,14 +157,13 @@ const I18N = {
     'code.okMand': '✅ No issue — the mandatory codes below are present on both sides',
     'drawer.xls': '⬇ Export this vehicle',
     'matching.title': 'Model Matching',
-    'matching.sub': 'SAM ↔ WINGS recognition rules (model_mapping.xlsx)',
+    'matching.sub': 'SAM ↔ WINGS recognition rules — all stored in 03. model_rules/model_mapping.xlsx',
+    'matching.loading': 'Loading model_mapping.xlsx…',
     'matching.note':
-      'Model matching is done <b>automatically from the SAM file</b> — file title = <b>SAM now</b>, ' +
-      'body <code>Vehicle type</code> = <b>SAM Baumuster</b>. A match is made when either WINGS number agrees. ' +
-      'To <b>fix a wrong match</b>, use the <b>alias</b> table below: number → extra numbers to match. ' +
-      '<b>Save to SharePoint</b> writes straight to <code>03. model_rules/model_mapping.xlsx</code>.',
-    'matching.aliasTitle': 'Match aliases (manual)',
-    'matching.aliasDesc': 'Only when a file title uses a different generation number: number → extra numbers (comma-separated)',
+      'Every model-matching rule (normalization, previous/current model, vehicle keywords, aliases, ' +
+      'manual map, options) lives as a sheet in this workbook. Switch sheet tabs to edit, then ' +
+      '<b>Save to SharePoint</b> to write it back to <code>model_mapping.xlsx</code>; it takes effect on the next ' +
+      '<b>Build data</b>. The <code>인식모델_대조표</code> sheet is an auto-generated verification view.',
     'codes.title': 'Code Manager',
     'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
     'codes.pickFile': 'Loading file list…',
@@ -187,6 +192,13 @@ const I18N = {
     'op.loaded': 'Loaded.',
     'op.saved': 'Saved — written back to SharePoint.',
     'op.fail': 'Failed: {err}',
+    'nav.build': '⟳ Build data',
+    'build.btn': '⟳ Build data',
+    'build.running': '⟳ Requesting…',
+    'build.started': 'Build started. The latest data will appear automatically in 2–3 minutes.',
+    'build.fail': 'Build trigger failed:',
+    'build.tokenPrompt': 'Enter a GitHub fine-grained token (repo: sam-afab, permission: Actions read/write). Stored in this browser once entered.',
+    'build.tokenBad': 'Token invalid or missing permission. The stored token was cleared. Try again.',
     'alert.xlsxBlocked': 'The Excel library could not be loaded (corporate network may block it). Try again shortly.',
     'alert.xlsxReadFail': 'Failed to read Excel: ',
     'rules.loadFail': 'Failed to load rules.json: ',
@@ -234,10 +246,13 @@ const VIEW_INIT = { matching: false, codes: false };
 
 function switchView(view) {
   if (!['dashboard', 'matching', 'codes'].includes(view)) return;
-  // 코드 관리에서 저장 안 한 변경이 있으면 이탈 확인
-  if (CUR_VIEW === 'codes' && view !== 'codes' && CODE.dirty) {
-    if (!confirm(t('codes.confirmLeave'))) return;
-    CODE.dirty = false;
+  // 저장 안 한 편집이 있으면 이탈 확인 (모델 매칭 / 코드 관리)
+  if (view !== CUR_VIEW) {
+    const leavingEd = CUR_VIEW === 'codes' ? codeEditor : (CUR_VIEW === 'matching' ? matchEditor : null);
+    if (leavingEd && leavingEd.S.dirty) {
+      if (!confirm(t('codes.confirmLeave'))) return;
+      leavingEd.S.dirty = false;
+    }
   }
   CUR_VIEW = view;
   document.querySelectorAll('.view').forEach((el) =>
@@ -813,381 +828,214 @@ function exportRowXls(r) {
   writeXlsx(`afab_sam_${name}.xlsx`, 'Comparison', rows, merges, cols);
 }
 
-// ====================== 모델 매칭 (model_mapping.xlsx, Graph R/W) ======================
-const ALIAS_SHEET = '매칭_별칭(수동)';
+// ====================== 공용 시트 에디터 (모델 매칭 · 코드 관리 공유) ======================
 const MODEL_MAPPING_FILE = 'model_mapping.xlsx';
-let RULES_RAW = null;
-
-function mapRowHtml(k, v) {
-  return `<div class="rule-row">
-    <input type="text" class="k-in" value="${esc(k)}" placeholder="번호(원본/WINGS)" />
-    <span class="arrow-i">→</span>
-    <input type="text" class="v-in" value="${esc(v)}" placeholder="추가로 매칭할 번호 (쉼표 구분)" />
-    <button class="del" title="삭제">×</button></div>`;
-}
-
-function renderRules(data) {
-  RULES_RAW = data;
-  const obj = data.reverse_aliases || {};
-  const rows = Object.entries(obj).map(([k, v]) =>
-    mapRowHtml(k, Array.isArray(v) ? v.join(', ') : v)).join('');
-  $('#rulesBody').innerHTML = `
-    <div class="rule-group">
-      <div class="rule-group-head">
-        <span class="rule-group-title">${esc(t('matching.aliasTitle'))}</span>
-        <span class="desc">${esc(t('matching.aliasDesc'))}</span>
-      </div>
-      <div class="rule-table" data-group="reverse_aliases">
-        ${rows}<button class="rule-add">${esc(t('btn.addRow'))}</button>
-      </div>
-    </div>`;
-}
-
-function collectRules() {
-  const out = {};
-  if (RULES_RAW && RULES_RAW._comment) out._comment = RULES_RAW._comment;
-  // 편집 대상이 아닌 나머지 규칙은 원본 그대로 보존.
-  if (RULES_RAW) for (const [k, v] of Object.entries(RULES_RAW)) {
-    if (k !== 'reverse_aliases' && k !== '_comment') out[k] = v;
-  }
-  const obj = {};
-  $('#rulesBody').querySelectorAll('.rule-table .rule-row').forEach((row) => {
-    const k = row.querySelector('.k-in').value.trim();
-    const v = row.querySelector('.v-in').value.trim();
-    if (!k) return;
-    obj[k] = v.split(',').map((s) => s.trim()).filter(Boolean);
-  });
-  out.reverse_aliases = obj;
-  return out;
-}
-
-function rulesToSheets(data) {
-  const sheets = [];
-  const ref = [['차종(Vehicle)', 'WINGS 모델', 'SAM Baumuster(원본)', 'SAM now(수정)', '매칭상태', 'PTO', 'SAM 파일']];
-  const seen = new Set();
-  for (const r of DATA.rows || []) {
-    const w = String(r['Model(WINGS)'] || '').trim();
-    if (!w) continue;
-    const samf = String(r['Compared SAM file name'] || '').split(/[\\/]/).pop();
-    const row = [String(r.Vehicle || '').trim(), w,
-      String(r['SAM Baumuster'] || '').trim(), String(r['SAM now'] || '').trim(),
-      String(r['SAM Status'] || '').trim(), String(r.PTO || '').trim(), samf];
-    const key = row.join('|');
-    if (seen.has(key)) continue;
-    seen.add(key); ref.push(row);
-  }
-  sheets.push(['인식모델_대조표', ref]);
-  const aoa = [['번호(원본/WINGS)', '추가로 매칭할 번호(쉼표 구분)']];
-  for (const [k, v] of Object.entries(data.reverse_aliases || {}))
-    aoa.push([k, Array.isArray(v) ? v.join(', ') : v]);
-  sheets.push([ALIAS_SHEET, aoa]);
-  return sheets;
-}
-
-function sheetsToRules(wb) {
-  const out = {};
-  const ws = wb.Sheets[ALIAS_SHEET];
-  if (ws) {
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false }).slice(1);
-    const obj = {};
-    for (const r of rows) {
-      const k = String(r[0] ?? '').trim();
-      if (k) obj[k] = String(r[1] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-    }
-    out.reverse_aliases = obj;
-  }
-  return out;
-}
-
 function xlsxReady() { return window.XLSX && !window.__XLSX_BLOCKED; }
 
-function rulesWorkbookBlob(data) {
-  const wb = XLSX.utils.book_new();
-  for (const [name, aoa] of rulesToSheets(data))
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
-  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  return out;  // ArrayBuffer
-}
+// 하나의 xlsx(다중 시트)를 편집 가능한 그리드로 다루는 재사용 에디터.
+// cfg: { folderKey, fixedFile?, onSaved?, els:{tabs,grid,addRow,revert,saveSp,download,dirty,status,search,main,empty} }
+function makeSheetEditor(cfg) {
+  const S = { file: cfg.fixedFile || null, sheets: {}, order: [], sheet: null, dirty: false };
+  const el = (k) => (cfg.els[k] ? document.getElementById(cfg.els[k]) : null);
+  const stSel = '#' + cfg.els.status;
 
-async function initMatching() {
-  // 폴더 링크
-  const link = $('#matchFolderLink');
-  if (window.Graph) link.href = Graph.folders.model_rules.shareUrl;
-  // 우선 서버(rules.json)에서 초기 표시
-  try {
-    const data = await fetch('rules.json?_=' + Date.now()).then((r) => r.json());
-    renderRules(data);
-  } catch (e) {
-    renderRules({ reverse_aliases: {} });
+  function setDirty(v) { S.dirty = v; const d = el('dirty'); if (d) d.classList.toggle('hidden', !v); }
+  function curAoa() { return S.sheets[S.sheet] || []; }
+
+  function renderTabs() {
+    const tabs = el('tabs');
+    tabs.innerHTML = S.order.map((n) =>
+      `<button class="sheet-tab${n === S.sheet ? ' active' : ''}" data-sheet="${esc(n)}">${esc(n)}</button>`).join('');
+    tabs.querySelectorAll('.sheet-tab').forEach((b) =>
+      b.addEventListener('click', () => {
+        S.sheet = b.dataset.sheet; renderTabs(); renderGrid();
+        const s = el('search'); if (s) s.value = '';
+      }));
   }
-  wireMatchingEvents();
-}
 
-let _matchWired = false;
-function wireMatchingEvents() {
-  if (_matchWired) return; _matchWired = true;
-  $('#rulesBody').addEventListener('click', (e) => {
-    if (e.target.classList.contains('del')) e.target.closest('.rule-row').remove();
-    if (e.target.classList.contains('rule-add'))
-      e.target.insertAdjacentHTML('beforebegin', mapRowHtml('', ''));
-  });
-  $('#matchLoadSp').addEventListener('click', matchLoadFromSharePoint);
-  $('#matchSaveSp').addEventListener('click', matchSaveToSharePoint);
-  $('#rulesUploadInput').addEventListener('change', (e) => {
-    uploadRulesFile(e.target.files[0]);
-    e.target.value = '';
-  });
-  $('#rulesDownload').addEventListener('click', downloadRulesLocal);
-}
-
-async function matchLoadFromSharePoint() {
-  const st = '#matchStatus';
-  if (!window.Graph || !Graph.available()) { setStatus(st, t('op.needLogin'), 'err'); return; }
-  if (!xlsxReady()) { setStatus(st, t('alert.xlsxBlocked'), 'err'); return; }
-  setStatus(st, t('op.loading'), 'info');
-  try {
-    const buf = await Graph.download('model_rules', MODEL_MAPPING_FILE);
-    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
-    renderRules(sheetsToRules(wb));
-    setStatus(st, t('op.loaded'), 'ok');
-  } catch (e) {
-    setStatus(st, t('op.fail', { err: e.message }), 'err');
-  }
-}
-
-async function matchSaveToSharePoint() {
-  const st = '#matchStatus';
-  if (!window.Graph || !Graph.available()) { setStatus(st, t('op.needLogin'), 'err'); return; }
-  if (!xlsxReady()) { setStatus(st, t('alert.xlsxBlocked'), 'err'); return; }
-  setStatus(st, t('codes.saving'), 'info');
-  try {
-    const buf = rulesWorkbookBlob(collectRules());
-    await Graph.upload('model_rules', MODEL_MAPPING_FILE, buf);
-    setStatus(st, t('op.saved'), 'ok');
-  } catch (e) {
-    setStatus(st, t('op.fail', { err: e.message }), 'err');
-  }
-}
-
-function downloadRulesLocal() {
-  if (!xlsxReady()) { alert(t('alert.xlsxBlocked')); return; }
-  const wb = XLSX.utils.book_new();
-  for (const [name, aoa] of rulesToSheets(collectRules()))
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
-  XLSX.writeFile(wb, MODEL_MAPPING_FILE);
-}
-
-function uploadRulesFile(file) {
-  if (!file) return;
-  if (!xlsxReady()) { alert(t('alert.xlsxBlocked')); return; }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-      renderRules(sheetsToRules(wb));
-      setStatus('#matchStatus', t('op.loaded'), 'ok');
-    } catch (err) {
-      alert(t('alert.xlsxReadFail') + err.message);
+  function renderGrid() {
+    const aoa = curAoa();
+    const grid = el('grid');
+    if (!aoa.length) {
+      grid.querySelector('thead').innerHTML = '';
+      grid.querySelector('tbody').innerHTML = `<tr><td class="none">— 빈 시트 —</td></tr>`;
+      return;
     }
-  };
-  reader.readAsArrayBuffer(file);
+    const ncol = aoa.reduce((m, r) => Math.max(m, r.length), 1);
+    const header = aoa[0] || [];
+    let thead = '<tr><th class="rownum">#</th>';
+    for (let c = 0; c < ncol; c++)
+      thead += `<th><div class="cell-edit hdr" contenteditable="true" data-r="0" data-c="${c}">${esc(header[c] ?? '')}</div></th>`;
+    thead += '<th class="rowact"></th></tr>';
+    grid.querySelector('thead').innerHTML = thead;
+    let body = '';
+    for (let r = 1; r < aoa.length; r++) {
+      const row = aoa[r] || [];
+      body += `<tr data-r="${r}"><td class="rownum">${r}</td>`;
+      for (let c = 0; c < ncol; c++)
+        body += `<td><div class="cell-edit" contenteditable="true" data-r="${r}" data-c="${c}">${esc(row[c] ?? '')}</div></td>`;
+      body += `<td class="rowact"><button class="row-del" data-r="${r}" title="행 삭제">🗑</button></td></tr>`;
+    }
+    grid.querySelector('tbody').innerHTML = body;
+  }
+
+  function onInput(e) {
+    const cell = e.target.closest('.cell-edit'); if (!cell) return;
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+    const aoa = curAoa();
+    while (aoa.length <= r) aoa.push([]);
+    while (aoa[r].length <= c) aoa[r].push('');
+    aoa[r][c] = cell.textContent;
+    if (!S.dirty) setDirty(true);
+  }
+  function onClick(e) {
+    const del = e.target.closest('.row-del'); if (!del) return;
+    if (!confirm(t('codes.delRow'))) return;
+    curAoa().splice(+del.dataset.r, 1);
+    setDirty(true); renderGrid(); applySearch();
+  }
+  function addRow() {
+    const aoa = curAoa();
+    if (!aoa.length) aoa.push(['']);
+    const ncol = aoa.reduce((m, r) => Math.max(m, r.length), 1);
+    aoa.push(new Array(ncol).fill(''));
+    setDirty(true); renderGrid();
+    const gs = el('grid').closest('.grid-scroll'); if (gs) gs.scrollTop = gs.scrollHeight;
+  }
+  function applySearch() {
+    const s = el('search'); if (!s) return;
+    const q = s.value.trim().toLowerCase();
+    el('grid').querySelector('tbody').querySelectorAll('tr').forEach((tr) => {
+      tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none';
+    });
+  }
+
+  async function open(filename, isRevert) {
+    if (!window.Graph || !Graph.available()) { setStatus(stSel, t('op.needLogin'), 'err'); return; }
+    if (!xlsxReady()) { setStatus(stSel, t('alert.xlsxBlocked'), 'err'); return; }
+    setStatus(stSel, t('codes.loadingFile'), 'info');
+    try {
+      const buf = await Graph.download(cfg.folderKey, filename);
+      const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+      S.file = filename; S.sheets = {}; S.order = wb.SheetNames.slice();
+      for (const n of wb.SheetNames)
+        S.sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
+      S.sheet = S.order[0] || null;
+      setDirty(false);
+      const emp = el('empty'); if (emp) emp.classList.add('hidden');
+      const mn = el('main'); if (mn) mn.classList.remove('hidden');
+      renderTabs(); renderGrid();
+      setStatus(stSel, isRevert ? t('op.loaded') : '', isRevert ? 'ok' : 'info');
+    } catch (e) { setStatus(stSel, t('op.fail', { err: e.message }), 'err'); }
+  }
+
+  function workbook() {
+    const wb = XLSX.utils.book_new();
+    for (const n of S.order) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(S.sheets[n] || [[]]), n);
+    return wb;
+  }
+  async function saveSp() {
+    if (!window.Graph || !Graph.available()) { setStatus(stSel, t('op.needLogin'), 'err'); return; }
+    if (!S.file || !xlsxReady()) { setStatus(stSel, t('alert.xlsxBlocked'), 'err'); return; }
+    setStatus(stSel, t('codes.saving'), 'info');
+    try {
+      const buf = XLSX.write(workbook(), { bookType: 'xlsx', type: 'array' });
+      await Graph.upload(cfg.folderKey, S.file, buf);
+      setDirty(false); setStatus(stSel, t('codes.saved'), 'ok');
+      if (cfg.onSaved) cfg.onSaved();
+    } catch (e) { setStatus(stSel, t('op.fail', { err: e.message }), 'err'); }
+  }
+  function downloadLocal() { if (S.file && xlsxReady()) XLSX.writeFile(workbook(), S.file); }
+
+  function wire() {
+    el('grid').addEventListener('input', onInput);
+    el('grid').addEventListener('click', onClick);
+    const bind = (k, fn) => { const e = el(k); if (e) e.addEventListener('click', fn); };
+    bind('addRow', addRow);
+    bind('revert', () => { if (S.file) open(S.file, true); });
+    bind('saveSp', saveSp);
+    bind('download', downloadLocal);
+    const s = el('search'); if (s) s.addEventListener('input', applySearch);
+  }
+  return { S, open, saveSp, wire };
 }
 
-// ====================== 코드 관리 (04. code 폴더 Excel, Graph R/W) ======================
-const CODE = {
-  files: [],        // Graph 목록 [{name,size,modified}]
-  file: null,       // 현재 파일명
-  sheets: {},       // sheetName -> aoa (array-of-arrays)
-  order: [],        // 시트 이름 순서
-  sheet: null,      // 현재 시트명
-  dirty: false,
-};
+// ---- 모델 매칭: model_mapping.xlsx (03. model_rules) 전체 시트 편집 ----
+const matchEditor = makeSheetEditor({
+  folderKey: 'model_rules', fixedFile: MODEL_MAPPING_FILE,
+  els: { tabs: 'matchTabs', grid: 'matchGrid', addRow: 'matchAddRow', revert: 'matchLoadSp',
+         saveSp: 'matchSaveSp', download: 'matchDownload', dirty: 'matchDirty',
+         status: 'matchStatus', search: 'matchSearch', main: 'matchMain', empty: 'matchEmpty' },
+});
+function initMatching() {
+  const link = $('#matchFolderLink'); if (window.Graph) link.href = Graph.folders.model_rules.shareUrl;
+  matchEditor.wire();
+  matchEditor.open(MODEL_MAPPING_FILE);
+}
 
+// ---- 코드 관리: 04. code 폴더의 모든 xlsx ----
+const codeEditor = makeSheetEditor({
+  folderKey: 'code',
+  els: { tabs: 'sheetTabs', grid: 'editGrid', addRow: 'codeAddRow', revert: 'codeReloadFile',
+         saveSp: 'codeSaveSp', download: 'codeDownload', dirty: 'codeDirty',
+         status: 'codeStatus', search: 'codeSearch', main: 'codeMain', empty: 'codeEmpty' },
+  onSaved: () => loadCodeFileList(),
+});
+let CODE_FILES = [];
 async function initCodes() {
-  const link = $('#codeFolderLink');
-  if (window.Graph) link.href = Graph.folders.code.shareUrl;
-  await loadCodeFileList();
+  const link = $('#codeFolderLink'); if (window.Graph) link.href = Graph.folders.code.shareUrl;
+  codeEditor.wire();
   $('#codeRefresh').addEventListener('click', loadCodeFileList);
-  $('#codeAddRow').addEventListener('click', codeAddRow);
-  $('#codeReloadFile').addEventListener('click', () => { if (CODE.file) openCodeFile(CODE.file, true); });
-  $('#codeSaveSp').addEventListener('click', codeSaveToSharePoint);
-  $('#codeDownload').addEventListener('click', codeDownloadLocal);
-  $('#codeSearch').addEventListener('input', codeApplySearch);
+  await loadCodeFileList();
 }
-
 async function loadCodeFileList() {
   const box = $('#codeFileList');
-  if (!window.Graph || !Graph.available()) {
-    box.innerHTML = `<div class="none">${esc(t('op.needLogin'))}</div>`;
-    return;
-  }
+  if (!window.Graph || !Graph.available()) { box.innerHTML = `<div class="none">${esc(t('op.needLogin'))}</div>`; return; }
   box.innerHTML = `<div class="none">${esc(t('codes.pickFile'))}</div>`;
   try {
     const items = await Graph.list('code');
-    CODE.files = items.filter((i) => !i.isFolder && /\.xlsx?$/i.test(i.name));
-    if (!CODE.files.length) { box.innerHTML = `<div class="none">${esc(t('codes.noXlsx'))}</div>`; return; }
-    box.innerHTML = CODE.files.map((f) => {
+    CODE_FILES = items.filter((i) => !i.isFolder && /\.xlsx?$/i.test(i.name));
+    if (!CODE_FILES.length) { box.innerHTML = `<div class="none">${esc(t('codes.noXlsx'))}</div>`; return; }
+    box.innerHTML = CODE_FILES.map((f) => {
       const kb = f.size ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : '';
-      return `<button class="file-item${f.name === CODE.file ? ' active' : ''}" data-file="${esc(f.name)}">
-        <span class="fi-name">📄 ${esc(f.name)}</span>
-        <span class="fi-meta">${esc(kb)}</span></button>`;
+      return `<button class="file-item${f.name === codeEditor.S.file ? ' active' : ''}" data-file="${esc(f.name)}"><span class="fi-name">📄 ${esc(f.name)}</span><span class="fi-meta">${esc(kb)}</span></button>`;
     }).join('');
-    box.querySelectorAll('.file-item').forEach((b) =>
-      b.addEventListener('click', () => {
-        if (CODE.dirty && b.dataset.file !== CODE.file && !confirm(t('codes.confirmLeave'))) return;
-        openCodeFile(b.dataset.file);
-      }));
-  } catch (e) {
-    box.innerHTML = `<div class="none err">${esc(t('codes.listFail', { err: e.message }))}</div>`;
-  }
+    box.querySelectorAll('.file-item').forEach((b) => b.addEventListener('click', () => {
+      if (codeEditor.S.dirty && b.dataset.file !== codeEditor.S.file && !confirm(t('codes.confirmLeave'))) return;
+      codeEditor.open(b.dataset.file).then(() =>
+        box.querySelectorAll('.file-item').forEach((x) => x.classList.toggle('active', x.dataset.file === b.dataset.file)));
+    }));
+  } catch (e) { box.innerHTML = `<div class="none err">${esc(t('codes.listFail', { err: e.message }))}</div>`; }
 }
 
-async function openCodeFile(filename, isRevert) {
-  const st = '#codeStatus';
-  if (!xlsxReady()) { setStatus(st, t('alert.xlsxBlocked'), 'err'); return; }
-  setStatus(st, t('codes.loadingFile'), 'info');
+// ====================== 데이터 빌드 트리거 (관리자) ======================
+// 정적 사이트라 GitHub Actions 를 직접 트리거하려면 토큰이 필요하다. 관리자가 자신의
+// 파인그레인드 PAT(해당 repo, Actions: read/write)을 1회 입력하면 브라우저(localStorage)에
+// 저장되고, 이후 버튼으로 workflow_dispatch 를 호출한다. 빌드가 끝나면 data.json 이
+// 커밋되고 GitHub Pages 가 갱신된다.
+const BUILD_REPO = 'startruckkorea-dev/sam-afab';
+const BUILD_WORKFLOW = 'build.yml';
+async function triggerBuild() {
+  let token = localStorage.getItem('gh_pat') || '';
+  if (!token) {
+    token = (prompt(t('build.tokenPrompt')) || '').trim();
+    if (!token) return;
+    localStorage.setItem('gh_pat', token);
+  }
+  const btn = $('#buildBtn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('build.running'); }
   try {
-    const buf = await Graph.download('code', filename);
-    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
-    CODE.file = filename;
-    CODE.sheets = {};
-    CODE.order = wb.SheetNames.slice();
-    for (const name of wb.SheetNames) {
-      CODE.sheets[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, defval: '' });
-    }
-    CODE.sheet = CODE.order[0] || null;
-    CODE.dirty = false;
-    $('#codeEmpty').classList.add('hidden');
-    $('#codeMain').classList.remove('hidden');
-    // 파일 목록 활성 표시
-    $('#codeFileList').querySelectorAll('.file-item').forEach((b) =>
-      b.classList.toggle('active', b.dataset.file === filename));
-    renderSheetTabs();
-    renderGrid();
-    updateDirty();
-    setStatus(st, isRevert ? t('op.loaded') : '', isRevert ? 'ok' : 'info');
-  } catch (e) {
-    setStatus(st, t('op.fail', { err: e.message }), 'err');
-  }
-}
-
-function renderSheetTabs() {
-  const tabs = $('#sheetTabs');
-  tabs.innerHTML = CODE.order.map((name) =>
-    `<button class="sheet-tab${name === CODE.sheet ? ' active' : ''}" data-sheet="${esc(name)}">${esc(name)}</button>`).join('');
-  tabs.querySelectorAll('.sheet-tab').forEach((b) =>
-    b.addEventListener('click', () => { CODE.sheet = b.dataset.sheet; renderSheetTabs(); renderGrid(); $('#codeSearch').value = ''; }));
-}
-
-function curAoa() { return CODE.sheets[CODE.sheet] || []; }
-
-function renderGrid() {
-  const aoa = curAoa();
-  const grid = $('#editGrid');
-  if (!aoa.length) {
-    grid.querySelector('thead').innerHTML = '';
-    grid.querySelector('tbody').innerHTML = `<tr><td class="none">— 빈 시트 —</td></tr>`;
-    return;
-  }
-  const ncol = aoa.reduce((m, r) => Math.max(m, r.length), 1);
-  const header = aoa[0] || [];
-  // 헤더 행: 편집 가능 + 행번호 헤더 셀
-  let thead = '<tr><th class="rownum">#</th>';
-  for (let c = 0; c < ncol; c++) {
-    thead += `<th><div class="cell-edit hdr" contenteditable="true" data-r="0" data-c="${c}">${esc(header[c] ?? '')}</div></th>`;
-  }
-  thead += '<th class="rowact"></th></tr>';
-  grid.querySelector('thead').innerHTML = thead;
-
-  let body = '';
-  for (let r = 1; r < aoa.length; r++) {
-    const row = aoa[r] || [];
-    body += `<tr data-r="${r}"><td class="rownum">${r}</td>`;
-    for (let c = 0; c < ncol; c++) {
-      body += `<td><div class="cell-edit" contenteditable="true" data-r="${r}" data-c="${c}">${esc(row[c] ?? '')}</div></td>`;
-    }
-    body += `<td class="rowact"><button class="row-del" data-r="${r}" title="행 삭제">🗑</button></td></tr>`;
-  }
-  grid.querySelector('tbody').innerHTML = body;
-}
-
-// 셀 편집 → 모델에 반영 (이벤트 위임)
-function onGridInput(e) {
-  const cell = e.target.closest('.cell-edit');
-  if (!cell) return;
-  const r = Number(cell.dataset.r), c = Number(cell.dataset.c);
-  const aoa = curAoa();
-  while (aoa.length <= r) aoa.push([]);
-  const row = aoa[r];
-  while (row.length <= c) row.push('');
-  row[c] = cell.textContent;
-  if (!CODE.dirty) { CODE.dirty = true; updateDirty(); }
-}
-
-function onGridClick(e) {
-  const del = e.target.closest('.row-del');
-  if (!del) return;
-  if (!confirm(t('codes.delRow'))) return;
-  const r = Number(del.dataset.r);
-  curAoa().splice(r, 1);
-  CODE.dirty = true; updateDirty();
-  renderGrid();
-  codeApplySearch();
-}
-
-function codeAddRow() {
-  const aoa = curAoa();
-  if (!aoa.length) aoa.push(['']);
-  const ncol = aoa.reduce((m, r) => Math.max(m, r.length), 1);
-  aoa.push(new Array(ncol).fill(''));
-  CODE.dirty = true; updateDirty();
-  renderGrid();
-  // 새 행으로 스크롤
-  const gs = document.querySelector('#view-codes .grid-scroll');
-  if (gs) gs.scrollTop = gs.scrollHeight;
-}
-
-function codeApplySearch() {
-  const q = $('#codeSearch').value.trim().toLowerCase();
-  $('#editGrid tbody').querySelectorAll('tr').forEach((tr) => {
-    if (!q) { tr.style.display = ''; return; }
-    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-}
-
-function updateDirty() {
-  $('#codeDirty').classList.toggle('hidden', !CODE.dirty);
-}
-
-function codeWorkbook() {
-  const wb = XLSX.utils.book_new();
-  for (const name of CODE.order) {
-    const ws = XLSX.utils.aoa_to_sheet(CODE.sheets[name] || [[]]);
-    XLSX.utils.book_append_sheet(wb, ws, name);
-  }
-  return wb;
-}
-
-async function codeSaveToSharePoint() {
-  const st = '#codeStatus';
-  if (!window.Graph || !Graph.available()) { setStatus(st, t('op.needLogin'), 'err'); return; }
-  if (!CODE.file) return;
-  if (!xlsxReady()) { setStatus(st, t('alert.xlsxBlocked'), 'err'); return; }
-  setStatus(st, t('codes.saving'), 'info');
-  try {
-    const buf = XLSX.write(codeWorkbook(), { bookType: 'xlsx', type: 'array' });
-    await Graph.upload('code', CODE.file, buf);
-    CODE.dirty = false; updateDirty();
-    setStatus(st, t('codes.saved'), 'ok');
-    loadCodeFileList();  // 크기/수정일 갱신
-  } catch (e) {
-    setStatus(st, t('op.fail', { err: e.message }), 'err');
-  }
-}
-
-function codeDownloadLocal() {
-  if (!CODE.file || !xlsxReady()) return;
-  XLSX.writeFile(codeWorkbook(), CODE.file);
+    const res = await fetch(`https://api.github.com/repos/${BUILD_REPO}/actions/workflows/${BUILD_WORKFLOW}/dispatches`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' },
+      body: JSON.stringify({ ref: 'main' }),
+    });
+    if (res.status === 204) alert(t('build.started'));
+    else if (res.status === 401 || res.status === 403) { localStorage.removeItem('gh_pat'); alert(t('build.tokenBad')); }
+    else { const tx = await res.text(); alert(t('build.fail') + ' ' + res.status + ' ' + tx.slice(0, 200)); }
+  } catch (e) { alert(t('build.fail') + ' ' + e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = orig || t('build.btn'); } }
 }
 
 // ====================== 이벤트 & 초기화 ======================
@@ -1200,13 +1048,13 @@ $('#langBtn').addEventListener('click', toggleLang);
 document.querySelectorAll('[data-view]').forEach((el) =>
   el.addEventListener('click', (e) => { e.preventDefault(); switchView(el.dataset.view); }));
 
-// 코드 그리드 이벤트 위임 (그리드는 자주 리렌더되므로 컨테이너에 바인딩)
-$('#editGrid').addEventListener('input', onGridInput);
-$('#editGrid').addEventListener('click', onGridClick);
+// 데이터 빌드 트리거 (관리자)
+const _buildBtn = $('#buildBtn');
+if (_buildBtn) _buildBtn.addEventListener('click', triggerBuild);
 
-// 저장 안 한 코드 변경이 있으면 페이지 이탈 경고
+// 저장 안 한 편집이 있으면 페이지 이탈 경고 (모델 매칭 / 코드 관리)
 window.addEventListener('beforeunload', (e) => {
-  if (CODE.dirty) { e.preventDefault(); e.returnValue = ''; }
+  if (codeEditor.S.dirty || matchEditor.S.dirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
 function onManualFilter() {

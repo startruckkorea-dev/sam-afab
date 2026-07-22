@@ -109,6 +109,41 @@ def build():
     _autofit(sa, [20, 34])
     sa.cell(row=1, column=4, value='※ 대부분 비워두면 됩니다. 파일 제목이 다른 세대 번호를 쓸 때만 여기에 별칭 추가.').font = Font(italic=True, color='777777')
 
+    # --- Sheets 4..: all model-matching rules (single source of truth) --------
+    # Every matching rule now lives in this workbook so nothing is hardcoded in the
+    # repo. rules.py reads these sheet names back at build time (xlsx wins).
+    def _map_sheet(title, key, headers, widths, note=''):
+        s = wb.create_sheet(title)
+        s.append(headers)
+        for k, v in (rules.get(key) or {}).items():
+            s.append([k, ', '.join(v) if isinstance(v, list) else str(v)])
+        _style_header(s, len(headers), fill=ALIAS_FILL)
+        _autofit(s, widths)
+        if note:
+            s.cell(row=1, column=len(headers) + 2, value=note).font = Font(italic=True, color='777777')
+
+    _map_sheet('정규화_과거번호', 'normalize_historic',
+               ['과거/대체 번호', '정규 번호'], [16, 16],
+               '※ 서로 다른 세대 번호를 같은 것으로 정규화 (예: 3253→4153).')
+    _map_sheet('이전모델', 'previous_model',
+               ['현재 번호', '이전 세대 번호'], [16, 16])
+    _map_sheet('현재모델', 'current_model',
+               ['이전 번호', '현재 세대 번호'], [16, 16])
+    _map_sheet('WINGS표시치환', 'wings_display_replace',
+               ['WINGS 표기', '표시로 치환'], [18, 18],
+               '※ 화면 표기용 치환 (예: "2651 LS"→"2851 LS").')
+    _map_sheet('차종키워드', 'vehicle_keywords',
+               ['차종(Vehicle)', '매칭 번호들(쉼표 구분)'], [16, 60],
+               '※ 번호로 차종(Actros/Arocs 등)을 분류.')
+
+    so = wb.create_sheet('옵션')
+    so.append(['옵션', '값'])
+    so.append(['normalize_28xx_to_26xx',
+               'true' if rules.get('normalize_28xx_to_26xx') else 'false'])
+    _style_header(so, 2, fill=ALIAS_FILL)
+    _autofit(so, [26, 12])
+    so.cell(row=1, column=4, value='※ true/false. 28xx 번호를 26xx로 정규화할지.').font = Font(italic=True, color='777777')
+
     wb.save(OUT_PATH)
     print(f'Wrote {OUT_PATH}  (rows: {ws.max_row - 1})')
 

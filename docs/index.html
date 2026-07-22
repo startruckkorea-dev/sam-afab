@@ -19,6 +19,7 @@
       <button class="nav-link" data-view="codes" data-i18n="nav.codes">코드 관리</button>
     </nav>
     <div class="nav-right">
+      <button id="buildBtn" class="icon-btn primary" data-i18n="build.btn" title="SharePoint 최신 데이터로 비교를 다시 계산">⟳ 데이터 빌드</button>
       <button id="langBtn" class="icon-btn ghost" title="한국어 / English">🌐 EN</button>
       <div id="navUser" class="nav-user"></div>
     </div>
@@ -65,7 +66,7 @@
         <div class="page-head">
           <div>
             <h1 data-i18n="matching.title">모델 매칭</h1>
-            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 규칙 (model_mapping.xlsx)</p>
+            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 규칙 — 모두 <code>03. model_rules/model_mapping.xlsx</code> 에 저장</p>
           </div>
           <div class="page-actions">
             <a id="matchFolderLink" class="icon-btn" target="_blank" rel="noopener" data-i18n="btn.openFolder">📂 SharePoint 폴더 열기</a>
@@ -73,23 +74,37 @@
         </div>
 
         <p class="note" data-i18n-html="matching.note">
-          모델 매칭은 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>,
-          본문 <code>Vehicle type</code> = <b>SAM Baumuster(원본)</b>. WINGS 번호가 둘 중 하나라도 같으면 매칭됩니다.
-          <b>잘못 매칭될 때 수정</b>은 아래 <b>매칭 별칭(수동)</b> 표에서: 번호(원본/WINGS) → 추가로 매칭할 번호.
-          <b>SharePoint에 저장</b>을 누르면 <code>03. model_rules/model_mapping.xlsx</code> 에 바로 반영됩니다.
+          모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이
+          이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면
+          <code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 빌드</b> 때 적용됩니다.
+          <code>인식모델_대조표</code> 시트는 빌드가 자동 생성하는 확인용 보기입니다.
         </p>
 
-        <div class="toolbar">
-          <button id="matchLoadSp" class="icon-btn primary" data-i18n="btn.loadSp">⭳ SharePoint에서 불러오기</button>
-          <button id="matchSaveSp" class="icon-btn primary" data-i18n="btn.saveSp">⭱ SharePoint에 저장</button>
-          <span class="spacer"></span>
-          <label class="icon-btn" data-i18n-title="modal.upload.title" title="PC의 model_mapping.xlsx 불러오기"><span data-i18n="modal.upload">⬆ 엑셀 불러오기(로컬)</span>
-            <input type="file" id="rulesUploadInput" accept=".xlsx" hidden />
-          </label>
-          <button id="rulesDownload" class="icon-btn" data-i18n="modal.download">⬇ 엑셀 저장(로컬)</button>
+        <div class="code-editor" id="matchEditor">
+          <div class="editor-empty" id="matchEmpty" data-i18n="matching.loading">model_mapping.xlsx 를 불러오는 중…</div>
+          <div class="editor-main hidden" id="matchMain">
+            <div class="editor-bar">
+              <div class="sheet-tabs" id="matchTabs"></div>
+              <span class="spacer"></span>
+              <input type="search" id="matchSearch" class="grid-search" data-i18n-ph="codes.searchPh" placeholder="이 시트에서 검색…" />
+            </div>
+            <div class="editor-toolbar">
+              <button id="matchAddRow" class="icon-btn" data-i18n="btn.addRow">＋ 행 추가</button>
+              <button id="matchLoadSp" class="icon-btn" data-i18n="btn.reloadFile">↺ 되돌리기</button>
+              <span class="spacer"></span>
+              <span id="matchDirty" class="dirty-flag hidden" data-i18n="codes.unsaved">● 저장되지 않은 변경</span>
+              <button id="matchSaveSp" class="icon-btn primary" data-i18n="btn.saveSp">⭱ SharePoint에 저장</button>
+              <button id="matchDownload" class="icon-btn" data-i18n="btn.download">⬇ 다운로드</button>
+            </div>
+            <div id="matchStatus" class="op-status"></div>
+            <div class="grid-scroll">
+              <table class="edit-grid" id="matchGrid">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
         </div>
-        <div id="matchStatus" class="op-status"></div>
-        <div id="rulesBody" class="rules-body"></div>
       </div>
     </section>
 

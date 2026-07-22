@@ -17,11 +17,17 @@ RULES_PATH = ROOT / 'docs' / 'rules.json'
 XLSX_PATH = ROOT / 'model_rules' / 'model_mapping.xlsx'
 
 # model_mapping.xlsx editable sheets -> rules key. The '인식모델_대조표' sheet is an
-# auto-generated recognition view and is ignored here. Matching is data-driven from
-# the SAM files, so only the manual alias-override sheet feeds back into the rules.
-_XLSX_MAP_SHEETS: dict = {}
+# auto-generated recognition view and is ignored here. Every other matching rule now
+# lives in this workbook (single source of truth), so the build reads them all back.
+_XLSX_MAP_SHEETS = {
+    '정규화_과거번호': 'normalize_historic',
+    '이전모델': 'previous_model',
+    '현재모델': 'current_model',
+    'WINGS표시치환': 'wings_display_replace',
+}
 _XLSX_LIST_SHEETS = {
     '매칭_별칭(수동)': 'reverse_aliases',
+    '차종키워드': 'vehicle_keywords',
 }
 
 # Built-in defaults == the original hardcoded values (fallback only).

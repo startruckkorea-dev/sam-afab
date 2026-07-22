@@ -1,20 +1,26 @@
 name: Build comparison data
 
 # "계산은 Actions에서, 표시만 GitHub Pages에서"
-# 1) WINGS 스크래핑  2) SAM/WINGS 파싱 + 비교  3) docs/data.json 커밋
-# 토큰/자격증명은 GitHub Secrets 에만 존재하며 클라이언트 HTML 에는 노출되지 않음.
+# 소스는 모두 SharePoint(앱 전용 Graph)에서 매 실행마다 새로 내려받는다:
+#   01. SAM_files (최신 생산월) · 02. WINGS_data (최신 파일) · 03. model_rules · 04. code
+# repo 에는 원본 데이터가 없다. 관리자가 웹의 "데이터 빌드" 버튼(또는 아래 Run workflow)으로
+# 수동 실행한다. 토큰/시크릿은 GitHub Secrets 에만 존재한다.
 
-# wings_data/ 는 .gitignore 대상이라 러너에는 WINGS 파일이 없다.
-# 따라서 Actions 실행은 항상 WINGS 스크래핑을 동반해야 하며, 수동 실행 전용이다.
 on:
   workflow_dispatch:
     inputs:
-      months:
-        description: 'WINGS 스크래핑 월 (예: "2026_04 2026_05")'
-        required: true
+      all_months:
+        description: '모든 생산월 비교(기본: 최신 생산월만)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-data
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -29,18 +35,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install pandas openpyxl requests
 
-      - name: Install Playwright
-        run: python -m playwright install --with-deps chromium
-
-      - name: Build data.json
+      - name: Build data.json (source = SharePoint)
         env:
-          WINGS_USER: ${{ secrets.WINGS_USER }}
-          WINGS_PASSWORD: ${{ secrets.WINGS_PASSWORD }}
-          WINGS_TOTP_SECRET: ${{ secrets.WINGS_TOTP_SECRET }}
-          MONTHS: ${{ inputs.months }}
-        run: python backend/build_data.py --scrape $MONTHS
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+        run: |
+          python backend/build_data.py --source sharepoint ${{ inputs.all_months && '--all-months' || '' }}
 
       - name: Commit results
         run: |

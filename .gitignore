@@ -18,6 +18,15 @@ wings_data/*.xlsx
 wings_data/*.xls
 wings_data/*.csv
 
+# 원본 데이터는 SharePoint 에서만 관리한다 — repo 에 커밋 금지.
+# 빌드가 SharePoint 에서 내려받아 아래 폴더를 채운다(로컬 파일은 유지되나 추적 안 함).
+sam_files/
+code/*.xlsx
+code/*.xls
+model_rules/*.xlsx
+docs/rules.json
+.sp_stage/
+
 # Debug
 _wings_*.log
 _debug_*

@@ -160,13 +160,18 @@ def _find_latest_wings(wings_dir: Path) -> Path | None:
     return chosen
 
 
-def build(wings_path: Path, sam_root: Path) -> dict:
+def build(wings_path: Path, sam_root: Path, latest_month_only: bool = False) -> dict:
     print(f'[build] WINGS file : {wings_path}')
     print(f'[build] SAM folder : {sam_root}')
     df_wings = parse_wings(str(wings_path))
     print(f'[build] WINGS rows : {len(df_wings)}')
 
     sam_maps = load_sam_by_month(sam_root, log_fn=lambda m: print('  [sam]', m))
+    # "가장 최근 생산월 기준으로 비교": keep only the newest production-month SAM map.
+    if latest_month_only and sam_maps:
+        newest = max(sam_maps.keys())
+        sam_maps = {newest: sam_maps[newest]}
+        print(f'[build] SAM latest month only -> {newest}')
     print(f'[build] SAM months : {sorted(sam_maps.keys())}')
 
     result = compare(df_wings, sam_maps)
@@ -194,38 +199,79 @@ def build(wings_path: Path, sam_root: Path) -> dict:
     }
 
 
+def _fetch_from_sharepoint(all_months: bool):
+    """Pull SAM(latest month)/WINGS(latest)/code/model_rules fresh from SharePoint.
+
+    Populates the repo-relative code/ and model_rules/ folders (so the existing code
+    dictionary / mandatory / category / rules loaders find them unchanged), and stages
+    WINGS + the latest SAM month under .sp_stage/. Returns (wings_path, sam_root, graph).
+    """
+    from sharepoint import (Graph, fetch_latest_wings, fetch_latest_sam_month,
+                            fetch_folder)  # noqa: E402
+    g = Graph()
+    log = lambda m: print('  [sp]', m)
+    print('[sp] resolving site + downloading SharePoint sources…')
+    # Reference workbooks into the paths the loaders already expect.
+    fetch_folder(g, 'code', ROOT / 'code', exts={'.xlsx', '.xls'}, log=log)
+    fetch_folder(g, 'model_rules', ROOT / 'model_rules', exts={'.xlsx'}, log=log)
+    # Rules are loaded at import time (rules.RULES); now that model_mapping.xlsx is
+    # present, reload it IN PLACE so sam_parser/compare (which did `from rules import
+    # RULES`) see the SharePoint-sourced rules rather than built-in defaults.
+    import rules as _rules  # noqa: E402
+    _rules.RULES.clear()
+    _rules.RULES.update(_rules.load_rules())
+    log('rules reloaded from model_rules/model_mapping.xlsx')
+    stage = ROOT / '.sp_stage'
+    wings_path = fetch_latest_wings(g, stage / 'wings', log=log)
+    sam_root = stage / 'sam'
+    fetch_latest_sam_month(g, sam_root, log=log)  # downloads a single YYYY-MM subfolder
+    return Path(wings_path), sam_root, g
+
+
+def _writeback(g, log=print):
+    """Best-effort: push refreshed workbooks back to SharePoint so model_rules holds
+    the latest recognition view and code/ keeps newly-seen categories. Needs
+    Sites.ReadWrite.All; any failure is non-fatal."""
+    targets = [
+        ('model_rules', ROOT / 'model_rules' / 'model_mapping.xlsx'),
+        ('code',        ROOT / 'code' / 'model-category.xlsx'),
+    ]
+    for folder_key, path in targets:
+        try:
+            if path.exists():
+                g.upload_file(folder_key, path.name, path.read_bytes())
+                log(f'[sp] wrote back {path.name} -> {folder_key}')
+        except Exception as e:
+            log(f'[warn] writeback {path.name} skipped: {str(e)[:120]}')
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--wings', help='Path to a WINGS CSV/Excel export.')
-    ap.add_argument('--sam-dir', help='SAM source folder (overrides config.json/SAM_DIR).')
-    ap.add_argument('--wings-dir', help='WINGS folder to auto-pick latest from (overrides config.json/WINGS_DIR).')
-    ap.add_argument('--scrape', nargs='*', metavar='YYYY_MM',
-                    help='Scrape WINGS for the given months before building.')
+    ap.add_argument('--source', choices=['sharepoint', 'local'], default='sharepoint',
+                    help='Where to read SAM/WINGS/code/model_rules from (default: sharepoint).')
+    ap.add_argument('--wings', help='(local) Path to a WINGS CSV/Excel export.')
+    ap.add_argument('--sam-dir', help='(local) SAM source folder (overrides config.json/SAM_DIR).')
+    ap.add_argument('--wings-dir', help='(local) WINGS folder to auto-pick latest from.')
+    ap.add_argument('--all-months', action='store_true',
+                    help='Compare against every SAM month (default: latest production month only).')
+    ap.add_argument('--no-writeback', action='store_true',
+                    help='(sharepoint) Do not push refreshed workbooks back to SharePoint.')
     ap.add_argument('--out', default=str(OUT_JSON), help='Output JSON path.')
     args = ap.parse_args()
 
-    sam_root = _resolve_dir(args.sam_dir, 'SAM_DIR', 'sam_dir', 'sam_files')
-    wings_dir = _resolve_dir(args.wings_dir, 'WINGS_DIR', 'wings_dir', 'wings_data')
-
-    wings_path = None
-    if args.scrape:
-        from wings_scraper import download_wings_excel
-        months = [m.replace('_', '-') for m in args.scrape]
-        wings_dir.mkdir(parents=True, exist_ok=True)
-        print(f'[scrape] months: {months}')
-        wings_path = Path(download_wings_excel(months, download_dir=str(wings_dir),
-                                               on_status=lambda m: print('  [wings]', m)))
-    elif args.wings:
-        wings_path = Path(args.wings)
+    graph = None
+    if args.source == 'sharepoint':
+        wings_path, sam_root, graph = _fetch_from_sharepoint(args.all_months)
     else:
-        wings_path = _find_latest_wings(wings_dir)
+        sam_root = _resolve_dir(args.sam_dir, 'SAM_DIR', 'sam_dir', 'sam_files')
+        wings_dir = _resolve_dir(args.wings_dir, 'WINGS_DIR', 'wings_dir', 'wings_data')
+        wings_path = Path(args.wings) if args.wings else _find_latest_wings(wings_dir)
 
     if not wings_path or not Path(wings_path).exists():
-        print('[error] No WINGS file found. Use --wings <path> or --scrape <months>.',
-              file=sys.stderr)
+        print('[error] No WINGS file found (source=%s).' % args.source, file=sys.stderr)
         sys.exit(1)
 
-    data = build(Path(wings_path), sam_root)
+    data = build(Path(wings_path), sam_root, latest_month_only=not args.all_months)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -261,6 +307,11 @@ def main():
         build_model_category_xlsx.build()
     except Exception as e:
         print(f'[warn] model-category.xlsx refresh skipped: {str(e)[:100]}')
+
+    # Push the refreshed workbooks back to SharePoint so model_rules/model_mapping.xlsx
+    # keeps the latest recognition view (all model-matching info lives there).
+    if graph is not None and not args.no_writeback:
+        _writeback(graph)
 
 
 if __name__ == '__main__':
