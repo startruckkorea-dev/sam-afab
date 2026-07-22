@@ -1,18 +1,25 @@
 // M365 (Microsoft Entra ID) 로그인 게이트.
 // ------------------------------------------------------------------
-// 인증되지 않은 사용자에게는 로그인 화면만 보여주고, 로그인에 성공하면
-// 비로소 app.js 를 동적으로 로드해 대시보드를 렌더링한다.
+// 로그인은 회사 운영 도메인에서만 작동한다(PROTECTED_HOSTS).
+//   - localhost / 127.0.0.1 / 개인 *.github.io  → 로그인 없이 바로 app.js 로드
+//   - sam-afab.startruckkorea.com (회사 운영)    → M365 로그인 필수
+// 덕분에 개인 repo·회사 repo 에 같은 코드를 올려도 동작이 자동으로 갈린다.
 //
 // ⚠ 이 사이트는 GitHub Pages(정적)라서 이 로그인은 "화면 게이트(UX)"다.
 //    docs/data.json 자체는 URL 을 알면 로그인 없이도 받아질 수 있다.
 //    데이터 자체 접근 제어가 필요하면 별도 게이트웨이(호스팅) 가 필요하다.
 //
-// Entra 앱 등록(SPA)에 아래 Redirect URI 들을 등록해야 동작한다:
-//   - https://sam-afab.startruckkorea.com/            (운영)
-//   - https://sunghanchostk.github.io/SAM_AFAB_Github/ (개인 테스트)
-//   플랫폼 유형은 반드시 "Single-page application(SPA)" 여야 한다(암시적 X, PKCE O).
+// 로그인이 작동하는 도메인은 Entra 앱 등록(SPA)에 Redirect URI 로 등록돼야 한다:
+//   - https://sam-afab.startruckkorea.com/   (운영, 끝 슬래시 포함, 플랫폼 유형 SPA)
 (function () {
   'use strict';
+
+  // 로그인을 강제할 호스트명 목록. 여기에 없으면(=localhost·개인 github.io 등)
+  // 로그인 없이 대시보드를 바로 띄운다.
+  var PROTECTED_HOSTS = ['sam-afab.startruckkorea.com'];
+  function loginRequired() {
+    return PROTECTED_HOSTS.indexOf(window.location.hostname) !== -1;
+  }
 
   var MSAL_CONFIG = {
     auth: {
@@ -107,6 +114,12 @@
 
   // ---- 메인 흐름 -----------------------------------------------------
   async function main() {
+    // localhost·개인 github.io 등 보호 대상이 아니면 로그인 없이 바로 로드.
+    if (!loginRequired()) {
+      loadApp();
+      return;
+    }
+
     if (typeof msal === 'undefined') {
       // MSAL 라이브러리(CDN) 로드 실패 — 회사망 차단 등.
       showLogin(null, 'Microsoft 로그인 라이브러리를 불러오지 못했습니다 (네트워크/CDN 차단). 관리자에게 문의하세요.');
