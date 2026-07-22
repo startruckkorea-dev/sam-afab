@@ -626,7 +626,7 @@ function alignedGroupHtml(title, samCsv, wingsCsv, kind, diffOnly) {
   if (diffOnly) union = union.filter((c) => sam.has(c) !== wings.has(c));
   if (!union.length) return '';
   const desc = (code) => kind === 'paint' ? `MB ${code}`
-    : (kind === 'tyre' ? 'Tyre key' : (describe(code) || '—'));
+    : (kind === 'tyre' ? '' : (describe(code) || '—'));
   const cell = (code, present) => present
     ? `<span class="c">${esc(code)}</span><span class="d">${esc(desc(code))}</span>`
     : '';
