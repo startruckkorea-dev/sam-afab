@@ -1,5 +1,6 @@
 // AFAB x SAM comparison viewer — reads data.json + codes.json produced by the
-// backend (GitHub Actions). No computation here; display only.
+// backend (GitHub Actions). Display only for the dashboard; the 모델 매칭 / 코드
+// 관리 views read & write SharePoint Excel via Graph (graph.js + auth.js).
 
 const COLS = [
   { key: 'Commission no.', label: 'Commission' },
@@ -19,38 +20,33 @@ const COLS = [
 const NUMERIC_KEYS = new Set(['Until Dealine', 'Baumuster',
   'Only_in_SAM', 'Only_in_WINGS', 'Mandatory Codes']);
 
-// Friendly labels for the detail card / Excel export (data keys stay unchanged).
 const META_LABELS = {
   'Changeability Date': 'Changeability',
   'Until Dealine': 'Changeability D-Day',
   'Category': 'Category (tractor/rigid/tipper)',
 };
-// Keys whose value should render as a D-day (D-9 / D-Day / D+9).
 const DDAY_KEYS = new Set(['Until Dealine']);
 
-// current month "YYYY-MM" (browser today) — used for the "이번달 이후" filter.
 const _now = new Date();
 const CUR_MONTH = _now.getFullYear() + '-' + String(_now.getMonth() + 1).padStart(2, '0');
 
 let DATA = { rows: [] };
 let CODES = { options: {}, mandatory: {} };
 let sortKey = null, sortDir = 1;
-let restrictSoon = false;  // "2주 이내 전체 Commission" 타일로 목록을 2주 이내로 제한
-let tileMandatory = false; // Mandatory 누락 타일: mandatory 코드가 있는 행만
-let activeTile = 't-total'; // 현재 활성 대시보드 타일 (하이라이트용)
+let restrictSoon = false;
+let tileMandatory = false;
+let activeTile = 't-total';
 
 const $ = (s) => document.querySelector(s);
 
 // ====================== i18n (한국어 / English) ======================
 const I18N = {
   ko: {
+    'nav.dashboard': '대시보드',
+    'nav.matching': '모델 매칭',
+    'nav.codes': '코드 관리',
     'meta.loading': '불러오는 중…',
     'meta.generated': '생성: {when}  ·  WINGS: {file}',
-    'btn.rules': '⚙ 규칙',
-    'btn.rules.title': '모델 변환 규칙 보기/편집',
-    'btn.xls.title': '현재 필터된 결과를 Excel로 저장',
-    'btn.csv.title': '현재 필터된 결과를 CSV로 저장',
-    'btn.theme.title': '라이트/다크 전환',
     'search.ph': 'Commission no. / 모델 / 코드 검색…',
     'filter.allStatus': '전체 상태',
     'filter.allVehicle': '전체 차종',
@@ -77,32 +73,57 @@ const I18N = {
     'code.okDiff': '✅ 이상없음 — 누락·차이 없음',
     'code.okMand': '✅ 이상없음 — 아래 필수코드가 양쪽 모두 반영됨',
     'drawer.xls': '⬇ 이 차량 Excel',
-    'modal.title': '모델 인식 (model_mapping.xlsx)',
-    'modal.note':
-      '모델 매칭은 이제 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>, ' +
+    // 모델 매칭
+    'matching.title': '모델 매칭',
+    'matching.sub': 'SAM ↔ WINGS 모델 인식 규칙 (model_mapping.xlsx)',
+    'matching.note':
+      '모델 매칭은 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>, ' +
       '본문 <code>Vehicle type</code> = <b>SAM Baumuster(원본)</b>. WINGS 번호가 둘 중 하나라도 같으면 매칭됩니다. ' +
-      '인식 결과는 <code>model_rules/model_mapping.xlsx</code> 의 <b>인식모델_대조표</b> 시트에서 확인하세요(빌드 시 자동 갱신). ' +
-      '<b>잘못 매칭될 때 수정</b>은 엑셀에서: <b>수동매핑</b> 시트(WINGS 모델 → SAM Baumuster/now 강제, 또는 SAM 파일 지정으로 특정 파일과 강제 비교), ' +
-      '<b>매칭_별칭(수동)</b> 시트(파일 제목이 다른 세대 번호일 때 연결). 수정 후 <code>python backend/build_data.py</code> 재실행하면 반영·보존됩니다.',
-    'modal.reload': '↺ 서버 규칙 다시 불러오기',
-    'modal.upload': '⬆ 엑셀 불러오기',
+      '<b>잘못 매칭될 때 수정</b>은 아래 <b>매칭 별칭(수동)</b> 표에서: 번호(원본/WINGS) → 추가로 매칭할 번호. ' +
+      '<b>SharePoint에 저장</b>을 누르면 <code>03. model_rules/model_mapping.xlsx</code> 에 바로 반영됩니다.',
+    'matching.aliasTitle': '매칭 별칭 (수동)',
+    'matching.aliasDesc': '파일 제목이 다른 세대 번호를 쓸 때만: 번호 → 추가 매칭 번호 (쉼표 구분)',
+    // 코드 관리
+    'codes.title': '코드 관리',
+    'codes.sub': "SharePoint 04. code 폴더의 Excel 파일을 웹에서 직접 편집·저장",
+    'codes.pickFile': '파일 목록을 불러오는 중…',
+    'codes.empty': '왼쪽에서 편집할 Excel 파일을 선택하세요.',
+    'codes.searchPh': '이 시트에서 검색…',
+    'codes.unsaved': '● 저장되지 않은 변경',
+    'codes.loadingFile': '파일 여는 중…',
+    'codes.saving': 'SharePoint에 저장 중…',
+    'codes.saved': '저장 완료 — SharePoint에 반영되었습니다.',
+    'codes.listFail': '파일 목록을 불러오지 못했습니다: {err}',
+    'codes.noXlsx': '이 폴더에 Excel(.xlsx) 파일이 없습니다.',
+    'codes.confirmLeave': '저장하지 않은 변경이 있습니다. 이동하면 사라집니다. 계속할까요?',
+    'codes.delRow': '이 행을 삭제할까요?',
+    // 버튼
+    'btn.openFolder': '📂 SharePoint 폴더 열기',
+    'btn.refresh': '↻ 목록 새로고침',
+    'btn.loadSp': '⭳ SharePoint에서 불러오기',
+    'btn.saveSp': '⭱ SharePoint에 저장',
+    'btn.addRow': '＋ 행 추가',
+    'btn.reloadFile': '↺ 되돌리기',
+    'btn.download': '⬇ 다운로드',
+    'modal.upload': '⬆ 엑셀 불러오기(로컬)',
     'modal.upload.title': 'PC의 model_mapping.xlsx 불러오기',
-    'modal.download': '⬇ 엑셀 저장 (model_mapping.xlsx)',
-    'alert.xlsxJson':
-      '엑셀 라이브러리를 불러오지 못해 JSON(rules.json)으로 저장합니다.\n엑셀 편집은 model_rules/model_mapping.xlsx 를 직접 열어 진행하세요.',
+    'modal.download': '⬇ 엑셀 저장(로컬)',
+    'op.loading': '처리 중…',
+    'op.needLogin': 'SharePoint 연동은 회사 계정 로그인 후 사용할 수 있습니다.',
+    'op.loaded': '불러왔습니다.',
+    'op.saved': '저장 완료 — SharePoint에 반영되었습니다.',
+    'op.fail': '실패: {err}',
     'alert.xlsxBlocked':
-      '엑셀 라이브러리를 불러오지 못했습니다(사내망 차단 가능). model_rules/model_mapping.xlsx 를 엑셀에서 직접 편집하세요.',
+      '엑셀 라이브러리를 불러오지 못했습니다(사내망 차단 가능). 잠시 후 다시 시도하세요.',
     'alert.xlsxReadFail': '엑셀 읽기 실패: ',
     'rules.loadFail': 'rules.json 로드 실패: ',
   },
   en: {
+    'nav.dashboard': 'Dashboard',
+    'nav.matching': 'Model Matching',
+    'nav.codes': 'Code Manager',
     'meta.loading': 'Loading…',
     'meta.generated': 'Generated: {when}  ·  WINGS: {file}',
-    'btn.rules': '⚙ Rules',
-    'btn.rules.title': 'View / edit model-conversion rules',
-    'btn.xls.title': 'Export the current filtered result to Excel',
-    'btn.csv.title': 'Export the current filtered result to CSV',
-    'btn.theme.title': 'Toggle light / dark',
     'search.ph': 'Search commission no. / model / code…',
     'filter.allStatus': 'All statuses',
     'filter.allVehicle': 'All vehicles',
@@ -129,21 +150,44 @@ const I18N = {
     'code.okDiff': '✅ No issue — nothing missing or different',
     'code.okMand': '✅ No issue — the mandatory codes below are present on both sides',
     'drawer.xls': '⬇ Export this vehicle',
-    'modal.title': 'Model recognition (model_mapping.xlsx)',
-    'modal.note':
-      'Model matching is now done <b>automatically from the SAM file</b> — file title = <b>SAM now (revised)</b>, ' +
-      'body <code>Vehicle type</code> = <b>SAM Baumuster (original)</b>. A match is made when either WINGS number agrees. ' +
-      'Check the recognition result in the <b>인식모델_대조표</b> sheet of <code>model_rules/model_mapping.xlsx</code> (auto-refreshed at build time). ' +
-      'To <b>fix a wrong match</b>, edit the Excel: the <b>수동매핑</b> sheet (force a WINGS model → SAM Baumuster/now, or pin a specific SAM file for comparison), ' +
-      'and the <b>매칭_별칭(수동)</b> sheet (link a file title that uses a different generation number). After editing, re-run <code>python backend/build_data.py</code> to apply and preserve the changes.',
-    'modal.reload': '↺ Reload server rules',
-    'modal.upload': '⬆ Load Excel',
+    'matching.title': 'Model Matching',
+    'matching.sub': 'SAM ↔ WINGS recognition rules (model_mapping.xlsx)',
+    'matching.note':
+      'Model matching is done <b>automatically from the SAM file</b> — file title = <b>SAM now</b>, ' +
+      'body <code>Vehicle type</code> = <b>SAM Baumuster</b>. A match is made when either WINGS number agrees. ' +
+      'To <b>fix a wrong match</b>, use the <b>alias</b> table below: number → extra numbers to match. ' +
+      '<b>Save to SharePoint</b> writes straight to <code>03. model_rules/model_mapping.xlsx</code>.',
+    'matching.aliasTitle': 'Match aliases (manual)',
+    'matching.aliasDesc': 'Only when a file title uses a different generation number: number → extra numbers (comma-separated)',
+    'codes.title': 'Code Manager',
+    'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
+    'codes.pickFile': 'Loading file list…',
+    'codes.empty': 'Pick an Excel file on the left to edit.',
+    'codes.searchPh': 'Search this sheet…',
+    'codes.unsaved': '● Unsaved changes',
+    'codes.loadingFile': 'Opening file…',
+    'codes.saving': 'Saving to SharePoint…',
+    'codes.saved': 'Saved — written back to SharePoint.',
+    'codes.listFail': 'Could not load the file list: {err}',
+    'codes.noXlsx': 'No Excel (.xlsx) files in this folder.',
+    'codes.confirmLeave': 'You have unsaved changes. Leaving will discard them. Continue?',
+    'codes.delRow': 'Delete this row?',
+    'btn.openFolder': '📂 Open SharePoint folder',
+    'btn.refresh': '↻ Refresh list',
+    'btn.loadSp': '⭳ Load from SharePoint',
+    'btn.saveSp': '⭱ Save to SharePoint',
+    'btn.addRow': '＋ Add row',
+    'btn.reloadFile': '↺ Revert',
+    'btn.download': '⬇ Download',
+    'modal.upload': '⬆ Load Excel (local)',
     'modal.upload.title': 'Load model_mapping.xlsx from your PC',
-    'modal.download': '⬇ Save Excel (model_mapping.xlsx)',
-    'alert.xlsxJson':
-      'The Excel library could not be loaded, so saving as JSON (rules.json).\nTo edit in Excel, open model_rules/model_mapping.xlsx directly.',
-    'alert.xlsxBlocked':
-      'The Excel library could not be loaded (corporate network may block it). Edit model_rules/model_mapping.xlsx directly in Excel.',
+    'modal.download': '⬇ Save Excel (local)',
+    'op.loading': 'Working…',
+    'op.needLogin': 'SharePoint sync is available after signing in with your company account.',
+    'op.loaded': 'Loaded.',
+    'op.saved': 'Saved — written back to SharePoint.',
+    'op.fail': 'Failed: {err}',
+    'alert.xlsxBlocked': 'The Excel library could not be loaded (corporate network may block it). Try again shortly.',
     'alert.xlsxReadFail': 'Failed to read Excel: ',
     'rules.loadFail': 'Failed to load rules.json: ',
   },
@@ -157,7 +201,6 @@ function t(key, params) {
   return s;
 }
 
-// Apply translations to all static elements carrying data-i18n* attributes.
 function applyStaticI18n() {
   document.documentElement.lang = LANG;
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
@@ -180,28 +223,40 @@ function toggleLang() {
   if (DRAWER_ROW && !$('#drawer').classList.contains('hidden')) openDrawer(DRAWER_ROW);
 }
 
-// ---- HTML escaping (rows come from .docx; never trust raw) ----
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// ---- init ----
-function initTheme() {
-  const saved = localStorage.getItem('theme');
-  if (saved) document.documentElement.dataset.theme = saved;
-  syncThemeBtn();
-}
-function syncThemeBtn() {
-  $('#themeBtn').textContent = document.documentElement.dataset.theme === 'dark' ? '☀' : '🌙';
-}
-function toggleTheme() {
-  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem('theme', next);
-  syncThemeBtn();
+// ====================== 뷰 전환 (대시보드 / 모델 매칭 / 코드 관리) ======================
+let CUR_VIEW = 'dashboard';
+const VIEW_INIT = { matching: false, codes: false };
+
+function switchView(view) {
+  if (!['dashboard', 'matching', 'codes'].includes(view)) return;
+  // 코드 관리에서 저장 안 한 변경이 있으면 이탈 확인
+  if (CUR_VIEW === 'codes' && view !== 'codes' && CODE.dirty) {
+    if (!confirm(t('codes.confirmLeave'))) return;
+    CODE.dirty = false;
+  }
+  CUR_VIEW = view;
+  document.querySelectorAll('.view').forEach((el) =>
+    el.classList.toggle('active', el.id === 'view-' + view));
+  document.querySelectorAll('.nav-link').forEach((el) =>
+    el.classList.toggle('active', el.dataset.view === view));
+  if (view === 'matching' && !VIEW_INIT.matching) { VIEW_INIT.matching = true; initMatching(); }
+  if (view === 'codes' && !VIEW_INIT.codes) { VIEW_INIT.codes = true; initCodes(); }
 }
 
+// op-status 배지 (info/ok/err)
+function setStatus(el, msg, type) {
+  if (typeof el === 'string') el = $(el);
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'op-status' + (msg ? ' show ' + (type || 'info') : '');
+}
+
+// ====================== 대시보드 ======================
 async function load() {
   const [d, c] = await Promise.all([
     fetch('data.json?_=' + Date.now()).then((r) => r.json()),
@@ -216,9 +271,7 @@ async function load() {
   render();
 }
 
-function prodMonth(r) {
-  return String(r['Production date'] || '').slice(0, 7);  // YYYY-MM
-}
+function prodMonth(r) { return String(r['Production date'] || '').slice(0, 7); }
 function changeMonth(r) {
   const s = String(r['Changeability Date'] || '');
   return /^\d{4}-\d{2}/.test(s) ? s.slice(0, 7) : '';
@@ -244,13 +297,8 @@ function within2weeks(r) {
   return !Number.isNaN(n) && n >= 0 && n <= 14;
 }
 
-// "전체 현황" counts only vehicles produced this month or later (current
-// production month onward), not the entire WINGS file.
 function overallRows() {
-  return DATA.rows.filter((r) => {
-    const pm = prodMonth(r);
-    return pm && pm >= CUR_MONTH;
-  });
+  return DATA.rows.filter((r) => { const pm = prodMonth(r); return pm && pm >= CUR_MONTH; });
 }
 
 function tile(cls, n, label, action) {
@@ -258,9 +306,6 @@ function tile(cls, n, label, action) {
     `<div class="n">${esc(n)}</div><div class="l">${label}</div></div>`;
 }
 
-// Each tile applies a filter/sort combination. soon = restrict to Changeability
-// D-14; status = SAM Status filter; mand = only rows with mandatory codes missing;
-// sort = [column key, direction] applied to the grid (null = clear sort).
 const TILE_ACTIONS = {
   't-total':  { soon: false, status: '',         mand: false, sort: null },
   't-miss':   { soon: false, status: 'Mismatch', mand: false, sort: ['Until Dealine', 1] },
@@ -319,11 +364,6 @@ function syncTileActive() {
     el.classList.toggle('active', el.dataset.tile === activeTile));
 }
 
-function fmtMonth(ym) {
-  const s = String(ym);
-  return s.length === 6 ? `${s.slice(0, 4)}-${s.slice(4)}` : s;
-}
-
 function fillVehicleFilter() {
   const sel = $('#vehicleFilter');
   const prev = sel.value;
@@ -359,7 +399,6 @@ function renderHead() {
   );
 }
 
-// Plain-text D-day: future = "D-9", today = "D-Day", passed = "D+9" (days since).
 function ddayText(v) {
   const s = String(v ?? '').trim();
   if (!s) return '';
@@ -386,7 +425,6 @@ function ddayHtml(v) {
   return esc(s);
 }
 
-// highlight current search term inside escaped text
 function hl(text) {
   const q = $('#search').value.trim();
   const safe = esc(text);
@@ -397,7 +435,6 @@ function hl(text) {
   } catch { return safe; }
 }
 
-// Table cell: just the count, color-coded, clickable (opens the row drawer).
 function countCell(csv, cls) {
   const n = countOf(csv);
   if (!n) return `<span class="cbadge ok" title="${esc(t('cell.ok.title'))}">✓</span>`;
@@ -417,7 +454,6 @@ function filtered() {
     if (status && r['SAM Status'] !== status) return false;
     if (vehicle && r.Vehicle !== vehicle) return false;
     if (prod && prodMonth(r) !== prod) return false;
-    // "이번달 이후만": keep rows whose changeability month >= current month.
     if (upcoming) {
       const cm = changeMonth(r);
       if (!cm || cm < CUR_MONTH) return false;
@@ -486,17 +522,9 @@ function render() {
   );
 }
 
-function describe(code) {
-  return CODES.options[code] || CODES.mandatory[code] || '';
-}
-
-function countOf(csv) {
-  return (csv || '').split(',').map((c) => c.trim()).filter(Boolean).length;
-}
-
-function splitCodes(csv) {
-  return (csv || '').split(',').map((c) => c.trim()).filter(Boolean);
-}
+function describe(code) { return CODES.options[code] || CODES.mandatory[code] || ''; }
+function countOf(csv) { return (csv || '').split(',').map((c) => c.trim()).filter(Boolean).length; }
+function splitCodes(csv) { return (csv || '').split(',').map((c) => c.trim()).filter(Boolean); }
 
 let DRAWER_ROW = null;
 
@@ -506,10 +534,6 @@ function codeRowsHtml(codes, extraClass) {
     `<div class="code-row${cls}"><span class="c">${esc(c)}</span><span class="d">${esc(describe(c) || '—')}</span></div>`).join('');
 }
 
-// One side of a two-column code block: title + count + code/description rows.
-// opts.diff=true → column represents a discrepancy (0 = good, mark with ✅).
-// opts.okCodes → codes to show as "verified OK" when the discrepancy is 0.
-// opts.okLabel / opts.okHint → texts shown in the 0 case.
 function codeColHtml(title, csv, opts) {
   opts = opts || {};
   const codes = splitCodes(csv);
@@ -533,10 +557,6 @@ function codeColHtml(title, csv, opts) {
   return `<div class="code-col"><h4>${esc(title)} ${badge}</h4>${body}</div>`;
 }
 
-// Full Code List: SAM vs WINGS aligned by code. Union of both sides, sorted, so
-// the SAME code always sits on the SAME row. A code present on only one side
-// leaves the other cell blank and shades it light blue (--accent-soft) to flag
-// the gap (e.g. A0B only in WINGS -> blank, shaded SAM cell).
 function alignedFullHtml(samCsv, wingsCsv) {
   const sam = new Set(splitCodes(samCsv));
   const wings = new Set(splitCodes(wingsCsv));
@@ -571,15 +591,14 @@ function openDrawer(r) {
     .filter((k) => r[k] !== undefined && r[k] !== '')
     .map((k) => {
       let val;
-      if (DDAY_KEYS.has(k)) val = ddayHtml(r[k]);                    // colored D-Day (same as grid)
+      if (DDAY_KEYS.has(k)) val = ddayHtml(r[k]);
       else if (k === 'SAM Status') {
         const s = String(r[k]);
-        val = `<span class="status ${esc(s).replace(/\s+/g, '')}">${esc(s)}</span>`;  // colored badge
+        val = `<span class="status ${esc(s).replace(/\s+/g, '')}">${esc(s)}</span>`;
       } else val = esc(r[k]);
       return `<div class="kv-item"><div class="k">${esc(META_LABELS[k] || k)}</div><div class="v">${val}</div></div>`;
     }).join('');
 
-  // Codes verified OK (present in both SAM & WINGS) — shown when a diff is 0.
   const allSam = new Set(splitCodes(r['_all_sam_codes']));
   const allWings = new Set(splitCodes(r['_all_wings_codes']));
   const mandSet = CODES.mandatory || {};
@@ -609,16 +628,16 @@ function openDrawer(r) {
       ${alignedFullHtml(r['_all_sam_codes'], r['_all_wings_codes'])}
     </div>
   `;
-  $('#drawerBody').querySelectorAll('.tab').forEach((t) =>
-    t.addEventListener('click', () => switchTab(t.dataset.tab)));
+  $('#drawerBody').querySelectorAll('.tab').forEach((tb) =>
+    tb.addEventListener('click', () => switchTab(tb.dataset.tab)));
   $('#drawerXls').addEventListener('click', () => exportRowXls(r));
   $('#drawer').classList.remove('hidden');
   $('#backdrop').classList.remove('hidden');
 }
 
 function switchTab(name) {
-  $('#drawerBody').querySelectorAll('.tab').forEach((t) =>
-    t.classList.toggle('active', t.dataset.tab === name));
+  $('#drawerBody').querySelectorAll('.tab').forEach((tb) =>
+    tb.classList.toggle('active', tb.dataset.tab === name));
   $('#drawerBody').querySelectorAll('.tab-pane').forEach((p) =>
     p.classList.toggle('hidden', p.dataset.pane !== name));
 }
@@ -628,66 +647,8 @@ function closeDrawer() {
   $('#backdrop').classList.add('hidden');
 }
 
-// ---- CSV export of the currently filtered view ----
-function exportCsv() {
-  const rows = filtered();
-  if (!rows.length) return;
-  const keys = COLS.map((c) => c.key);
-  const headers = COLS.map((c) => c.label);
-  const cell = (v) => {
-    const s = v == null ? '' : String(v);
-    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  };
-  const lines = [headers.map(cell).join(',')];
-  for (const r of rows) lines.push(keys.map((k) => cell(r[k])).join(','));
-  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `afab_sam_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-// ---- Excel export (dependency-free: HTML-table .xls that Excel opens natively) ----
+// ---- Dependency-free .xlsx writer (per-vehicle drawer export) ----
 const _today = () => new Date().toISOString().slice(0, 10);
-
-function downloadXls(filename, sheetHtml) {
-  const html =
-    `<html xmlns:o="urn:schemas-microsoft-com:office:office" ` +
-    `xmlns:x="urn:schemas-microsoft-com:office:excel" ` +
-    `xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">` +
-    `<style>td,th{border:1px solid #ccc;padding:3px 6px;mso-number-format:"\\@";} ` +
-    `th{background:#f0f2f5;font-weight:bold;}</style></head><body>${sheetHtml}</body></html>`;
-  const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function xc(v) {  // escaped cell text
-  return esc(v == null ? '' : String(v));
-}
-
-// Export the currently filtered table to Excel.
-function exportTableXls() {
-  const rows = filtered();
-  if (!rows.length) return;
-  const head = '<tr>' + COLS.map((c) => `<th>${xc(c.label)}</th>`).join('') + '</tr>';
-  const body = rows.map((r) => '<tr>' + COLS.map((c) => {
-    if (c.count) return `<td>${countOf(r[c.key])}</td>`;       // numeric count
-    return `<td>${xc(r[c.key])}</td>`;
-  }).join('') + '</tr>').join('');
-  downloadXls(`afab_sam_${_today()}.xls`, `<table>${head}${body}</table>`);
-}
-
-// ---- Minimal, dependency-free .xlsx writer (real OOXML, with cell shading) ----
-// The bundled SheetJS community build cannot write fills, so we emit the package
-// ourselves: a STORED (uncompressed) zip of the OOXML parts. Works even when the
-// CDN is blocked. Style indices used below:
-//   1 title(bold) · 2 header(bold+grey+border) · 3 cell(border) ·
-//   4 cell shaded/diff(border) · 5 label(bold+border)
 function _colName(n) {
   let s = ''; n++;
   while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
@@ -750,7 +711,6 @@ const _XLSX_STYLES =
   '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>' +
   '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>' +
   '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
-
 function _cellXml(ref, cell) {
   const s = cell.s || 0;
   const v = cell.v;
@@ -808,9 +768,6 @@ function writeXlsx(filename, sheetName, rows, merges, cols) {
   URL.revokeObjectURL(a.href);
 }
 
-// Export one vehicle's comparison to .xlsx: vehicle info spread across columns,
-// then a SAM ↔ WINGS code table aligned by code. A code present on only one side
-// leaves the other two cells blank and shaded (style 4) to flag the difference.
 function exportRowXls(r) {
   if (!r) return;
   const metaKeys = ['Commission no.', 'Model(WINGS)', 'Vehicle', 'Category', 'Type', 'Cab', 'PTO',
@@ -818,12 +775,9 @@ function exportRowXls(r) {
     'SAM Baumuster', 'SAM now', 'SAM Status', 'Compared SAM file name'];
   const rows = [];
   const merges = [];
-
   rows.push([{ v: `${r['Commission no.']}  ·  ${r['Model(WINGS)'] || ''}`, s: 1 }]);
   rows.push([{ v: r['Compared SAM file name'] || '', s: 0 }]);
   rows.push([]);
-
-  // Vehicle info: two label→value pairs per row (uses the full width).
   const infoKeys = metaKeys.filter((k) => r[k] !== undefined && r[k] !== '');
   for (let i = 0; i < infoKeys.length; i += 2) {
     const cells = [];
@@ -836,8 +790,6 @@ function exportRowXls(r) {
     rows.push(cells);
   }
   rows.push([]);
-
-  // Code comparison, aligned by code (union sorted).
   const sam = new Set(splitCodes(r['_all_sam_codes']));
   const wings = new Set(splitCodes(r['_all_wings_codes']));
   const titleRow = rows.length + 1;
@@ -855,86 +807,62 @@ function exportRowXls(r) {
       inW ? { v: describe(code) || '', s: 3 } : { v: '', s: 4 },
     ]);
   }
-
   const cols = [{ min: 1, max: 1, w: 16 }, { min: 2, max: 2, w: 52 },
     { min: 3, max: 3, w: 16 }, { min: 4, max: 4, w: 52 }];
   const name = String(r['Commission no.'] || 'vehicle').replace(/[^\w.-]/g, '_');
   writeXlsx(`afab_sam_${name}.xlsx`, 'Comparison', rows, merges, cols);
 }
 
-// ====================== Rules editor (model-conversion rules) ======================
-// Matching is now data-driven: each SAM file carries both its numbers (파일제목=SAM now,
-// 본문 Vehicle type=SAM Baumuster). The only editable rule is a manual alias override.
-const RULE_MAPS = [];
-const RULE_LISTS = [
-  ['reverse_aliases', '매칭 별칭 (수동)', '파일 제목이 다른 세대 번호를 쓸 때만: 번호 → 추가 매칭 번호 (쉼표 구분)'],
-];
+// ====================== 모델 매칭 (model_mapping.xlsx, Graph R/W) ======================
+const ALIAS_SHEET = '매칭_별칭(수동)';
+const MODEL_MAPPING_FILE = 'model_mapping.xlsx';
 let RULES_RAW = null;
 
 function mapRowHtml(k, v) {
   return `<div class="rule-row">
-    <input type="text" class="k-in" value="${esc(k)}" placeholder="키" />
+    <input type="text" class="k-in" value="${esc(k)}" placeholder="번호(원본/WINGS)" />
     <span class="arrow-i">→</span>
-    <input type="text" class="v-in" value="${esc(v)}" placeholder="값" />
+    <input type="text" class="v-in" value="${esc(v)}" placeholder="추가로 매칭할 번호 (쉼표 구분)" />
     <button class="del" title="삭제">×</button></div>`;
-}
-
-function groupHtml(key, title, desc, type, obj) {
-  const rows = Object.entries(obj || {}).map(([k, v]) =>
-    mapRowHtml(k, type === 'list' ? (Array.isArray(v) ? v.join(', ') : v) : v)).join('');
-  return `<details class="rule-group" open>
-    <summary>${title} <span class="desc">${desc}</span></summary>
-    <div class="rule-table" data-group="${key}" data-type="${type}">
-      ${rows}<button class="rule-add">+ 행 추가</button>
-    </div></details>`;
 }
 
 function renderRules(data) {
   RULES_RAW = data;
-  let html = '';
-  for (const [key, title, desc] of RULE_MAPS) html += groupHtml(key, title, desc, 'map', data[key]);
-  for (const [key, title, desc] of RULE_LISTS) html += groupHtml(key, title, desc, 'list', data[key]);
-  $('#rulesBody').innerHTML = html;
+  const obj = data.reverse_aliases || {};
+  const rows = Object.entries(obj).map(([k, v]) =>
+    mapRowHtml(k, Array.isArray(v) ? v.join(', ') : v)).join('');
+  $('#rulesBody').innerHTML = `
+    <div class="rule-group">
+      <div class="rule-group-head">
+        <span class="rule-group-title">${esc(t('matching.aliasTitle'))}</span>
+        <span class="desc">${esc(t('matching.aliasDesc'))}</span>
+      </div>
+      <div class="rule-table" data-group="reverse_aliases">
+        ${rows}<button class="rule-add">${esc(t('btn.addRow'))}</button>
+      </div>
+    </div>`;
 }
 
 function collectRules() {
   const out = {};
   if (RULES_RAW && RULES_RAW._comment) out._comment = RULES_RAW._comment;
-  $('#rulesBody').querySelectorAll('.rule-table').forEach((tbl) => {
-    const g = tbl.dataset.group, type = tbl.dataset.type;
-    const obj = {};
-    tbl.querySelectorAll('.rule-row').forEach((row) => {
-      const k = row.querySelector('.k-in').value.trim();
-      const v = row.querySelector('.v-in').value.trim();
-      if (!k) return;
-      obj[k] = type === 'list' ? v.split(',').map((s) => s.trim()).filter(Boolean) : v;
-    });
-    out[g] = obj;
+  // 편집 대상이 아닌 나머지 규칙은 원본 그대로 보존.
+  if (RULES_RAW) for (const [k, v] of Object.entries(RULES_RAW)) {
+    if (k !== 'reverse_aliases' && k !== '_comment') out[k] = v;
+  }
+  const obj = {};
+  $('#rulesBody').querySelectorAll('.rule-table .rule-row').forEach((row) => {
+    const k = row.querySelector('.k-in').value.trim();
+    const v = row.querySelector('.v-in').value.trim();
+    if (!k) return;
+    obj[k] = v.split(',').map((s) => s.trim()).filter(Boolean);
   });
+  out.reverse_aliases = obj;
   return out;
 }
 
-async function openRules() {
-  try {
-    const data = await fetch('rules.json?_=' + Date.now()).then((r) => r.json());
-    renderRules(data);
-  } catch (e) {
-    $('#rulesBody').innerHTML = `<div class="none">${esc(t('rules.loadFail') + e.message)}</div>`;
-  }
-  $('#rulesModal').classList.remove('hidden');
-  $('#rulesBackdrop').classList.remove('hidden');
-}
-function closeRules() {
-  $('#rulesModal').classList.add('hidden');
-  $('#rulesBackdrop').classList.add('hidden');
-}
-// ---- xlsx <-> rules bridge (sheet names must match backend/rules.py & generator) ----
-const ALIAS_SHEET = '매칭_별칭(수동)';
-
 function rulesToSheets(data) {
-  // Returns [ [sheetName, aoa], ... ]; aoa = array-of-arrays incl. header row.
   const sheets = [];
-  // 1) recognition table from the currently-loaded grid (informational; matches backend cols)
   const ref = [['차종(Vehicle)', 'WINGS 모델', 'SAM Baumuster(원본)', 'SAM now(수정)', '매칭상태', 'PTO', 'SAM 파일']];
   const seen = new Set();
   for (const r of DATA.rows || []) {
@@ -949,7 +877,6 @@ function rulesToSheets(data) {
     seen.add(key); ref.push(row);
   }
   sheets.push(['인식모델_대조표', ref]);
-  // 2) editable manual alias sheet
   const aoa = [['번호(원본/WINGS)', '추가로 매칭할 번호(쉼표 구분)']];
   for (const [k, v] of Object.entries(data.reverse_aliases || {}))
     aoa.push([k, Array.isArray(v) ? v.join(', ') : v]);
@@ -972,36 +899,93 @@ function sheetsToRules(wb) {
   return out;
 }
 
-function downloadRules() {
-  const data = collectRules();
-  if (window.XLSX && !window.__XLSX_BLOCKED) {
-    const wb = XLSX.utils.book_new();
-    for (const [name, aoa] of rulesToSheets(data))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
-    XLSX.writeFile(wb, 'model_mapping.xlsx');
-    return;
+function xlsxReady() { return window.XLSX && !window.__XLSX_BLOCKED; }
+
+function rulesWorkbookBlob(data) {
+  const wb = XLSX.utils.book_new();
+  for (const [name, aoa] of rulesToSheets(data))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  return out;  // ArrayBuffer
+}
+
+async function initMatching() {
+  // 폴더 링크
+  const link = $('#matchFolderLink');
+  if (window.Graph) link.href = Graph.folders.model_rules.shareUrl;
+  // 우선 서버(rules.json)에서 초기 표시
+  try {
+    const data = await fetch('rules.json?_=' + Date.now()).then((r) => r.json());
+    renderRules(data);
+  } catch (e) {
+    renderRules({ reverse_aliases: {} });
   }
-  // Fallback: xlsx lib unavailable (e.g. CDN blocked) -> emit JSON so nothing is lost.
-  alert(t('alert.xlsxJson'));
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'rules.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
+  wireMatchingEvents();
+}
+
+let _matchWired = false;
+function wireMatchingEvents() {
+  if (_matchWired) return; _matchWired = true;
+  $('#rulesBody').addEventListener('click', (e) => {
+    if (e.target.classList.contains('del')) e.target.closest('.rule-row').remove();
+    if (e.target.classList.contains('rule-add'))
+      e.target.insertAdjacentHTML('beforebegin', mapRowHtml('', ''));
+  });
+  $('#matchLoadSp').addEventListener('click', matchLoadFromSharePoint);
+  $('#matchSaveSp').addEventListener('click', matchSaveToSharePoint);
+  $('#rulesUploadInput').addEventListener('change', (e) => {
+    uploadRulesFile(e.target.files[0]);
+    e.target.value = '';
+  });
+  $('#rulesDownload').addEventListener('click', downloadRulesLocal);
+}
+
+async function matchLoadFromSharePoint() {
+  const st = '#matchStatus';
+  if (!window.Graph || !Graph.available()) { setStatus(st, t('op.needLogin'), 'err'); return; }
+  if (!xlsxReady()) { setStatus(st, t('alert.xlsxBlocked'), 'err'); return; }
+  setStatus(st, t('op.loading'), 'info');
+  try {
+    const buf = await Graph.download('model_rules', MODEL_MAPPING_FILE);
+    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    renderRules(sheetsToRules(wb));
+    setStatus(st, t('op.loaded'), 'ok');
+  } catch (e) {
+    setStatus(st, t('op.fail', { err: e.message }), 'err');
+  }
+}
+
+async function matchSaveToSharePoint() {
+  const st = '#matchStatus';
+  if (!window.Graph || !Graph.available()) { setStatus(st, t('op.needLogin'), 'err'); return; }
+  if (!xlsxReady()) { setStatus(st, t('alert.xlsxBlocked'), 'err'); return; }
+  setStatus(st, t('codes.saving'), 'info');
+  try {
+    const buf = rulesWorkbookBlob(collectRules());
+    await Graph.upload('model_rules', MODEL_MAPPING_FILE, buf);
+    setStatus(st, t('op.saved'), 'ok');
+  } catch (e) {
+    setStatus(st, t('op.fail', { err: e.message }), 'err');
+  }
+}
+
+function downloadRulesLocal() {
+  if (!xlsxReady()) { alert(t('alert.xlsxBlocked')); return; }
+  const wb = XLSX.utils.book_new();
+  for (const [name, aoa] of rulesToSheets(collectRules()))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
+  XLSX.writeFile(wb, MODEL_MAPPING_FILE);
 }
 
 function uploadRulesFile(file) {
   if (!file) return;
-  if (!window.XLSX || window.__XLSX_BLOCKED) {
-    alert(t('alert.xlsxBlocked'));
-    return;
-  }
+  if (!xlsxReady()) { alert(t('alert.xlsxBlocked')); return; }
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       renderRules(sheetsToRules(wb));
+      setStatus('#matchStatus', t('op.loaded'), 'ok');
     } catch (err) {
       alert(t('alert.xlsxReadFail') + err.message);
     }
@@ -1009,33 +993,222 @@ function uploadRulesFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
-$('#rulesBtn').addEventListener('click', openRules);
-$('#rulesClose').addEventListener('click', closeRules);
-$('#rulesBackdrop').addEventListener('click', closeRules);
-$('#rulesReload').addEventListener('click', openRules);
-$('#rulesDownload').addEventListener('click', downloadRules);
-$('#rulesUploadInput').addEventListener('change', (e) => {
-  uploadRulesFile(e.target.files[0]);
-  e.target.value = '';
-});
-$('#rulesBody').addEventListener('click', (e) => {
-  if (e.target.classList.contains('del')) e.target.closest('.rule-row').remove();
-  if (e.target.classList.contains('rule-add')) {
-    e.target.insertAdjacentHTML('beforebegin', mapRowHtml('', ''));
-  }
-});
+// ====================== 코드 관리 (04. code 폴더 Excel, Graph R/W) ======================
+const CODE = {
+  files: [],        // Graph 목록 [{name,size,modified}]
+  file: null,       // 현재 파일명
+  sheets: {},       // sheetName -> aoa (array-of-arrays)
+  order: [],        // 시트 이름 순서
+  sheet: null,      // 현재 시트명
+  dirty: false,
+};
 
-// ---- events ----
+async function initCodes() {
+  const link = $('#codeFolderLink');
+  if (window.Graph) link.href = Graph.folders.code.shareUrl;
+  await loadCodeFileList();
+  $('#codeRefresh').addEventListener('click', loadCodeFileList);
+  $('#codeAddRow').addEventListener('click', codeAddRow);
+  $('#codeReloadFile').addEventListener('click', () => { if (CODE.file) openCodeFile(CODE.file, true); });
+  $('#codeSaveSp').addEventListener('click', codeSaveToSharePoint);
+  $('#codeDownload').addEventListener('click', codeDownloadLocal);
+  $('#codeSearch').addEventListener('input', codeApplySearch);
+}
+
+async function loadCodeFileList() {
+  const box = $('#codeFileList');
+  if (!window.Graph || !Graph.available()) {
+    box.innerHTML = `<div class="none">${esc(t('op.needLogin'))}</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="none">${esc(t('codes.pickFile'))}</div>`;
+  try {
+    const items = await Graph.list('code');
+    CODE.files = items.filter((i) => !i.isFolder && /\.xlsx?$/i.test(i.name));
+    if (!CODE.files.length) { box.innerHTML = `<div class="none">${esc(t('codes.noXlsx'))}</div>`; return; }
+    box.innerHTML = CODE.files.map((f) => {
+      const kb = f.size ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : '';
+      return `<button class="file-item${f.name === CODE.file ? ' active' : ''}" data-file="${esc(f.name)}">
+        <span class="fi-name">📄 ${esc(f.name)}</span>
+        <span class="fi-meta">${esc(kb)}</span></button>`;
+    }).join('');
+    box.querySelectorAll('.file-item').forEach((b) =>
+      b.addEventListener('click', () => {
+        if (CODE.dirty && b.dataset.file !== CODE.file && !confirm(t('codes.confirmLeave'))) return;
+        openCodeFile(b.dataset.file);
+      }));
+  } catch (e) {
+    box.innerHTML = `<div class="none err">${esc(t('codes.listFail', { err: e.message }))}</div>`;
+  }
+}
+
+async function openCodeFile(filename, isRevert) {
+  const st = '#codeStatus';
+  if (!xlsxReady()) { setStatus(st, t('alert.xlsxBlocked'), 'err'); return; }
+  setStatus(st, t('codes.loadingFile'), 'info');
+  try {
+    const buf = await Graph.download('code', filename);
+    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    CODE.file = filename;
+    CODE.sheets = {};
+    CODE.order = wb.SheetNames.slice();
+    for (const name of wb.SheetNames) {
+      CODE.sheets[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, defval: '' });
+    }
+    CODE.sheet = CODE.order[0] || null;
+    CODE.dirty = false;
+    $('#codeEmpty').classList.add('hidden');
+    $('#codeMain').classList.remove('hidden');
+    // 파일 목록 활성 표시
+    $('#codeFileList').querySelectorAll('.file-item').forEach((b) =>
+      b.classList.toggle('active', b.dataset.file === filename));
+    renderSheetTabs();
+    renderGrid();
+    updateDirty();
+    setStatus(st, isRevert ? t('op.loaded') : '', isRevert ? 'ok' : 'info');
+  } catch (e) {
+    setStatus(st, t('op.fail', { err: e.message }), 'err');
+  }
+}
+
+function renderSheetTabs() {
+  const tabs = $('#sheetTabs');
+  tabs.innerHTML = CODE.order.map((name) =>
+    `<button class="sheet-tab${name === CODE.sheet ? ' active' : ''}" data-sheet="${esc(name)}">${esc(name)}</button>`).join('');
+  tabs.querySelectorAll('.sheet-tab').forEach((b) =>
+    b.addEventListener('click', () => { CODE.sheet = b.dataset.sheet; renderSheetTabs(); renderGrid(); $('#codeSearch').value = ''; }));
+}
+
+function curAoa() { return CODE.sheets[CODE.sheet] || []; }
+
+function renderGrid() {
+  const aoa = curAoa();
+  const grid = $('#editGrid');
+  if (!aoa.length) {
+    grid.querySelector('thead').innerHTML = '';
+    grid.querySelector('tbody').innerHTML = `<tr><td class="none">— 빈 시트 —</td></tr>`;
+    return;
+  }
+  const ncol = aoa.reduce((m, r) => Math.max(m, r.length), 1);
+  const header = aoa[0] || [];
+  // 헤더 행: 편집 가능 + 행번호 헤더 셀
+  let thead = '<tr><th class="rownum">#</th>';
+  for (let c = 0; c < ncol; c++) {
+    thead += `<th><div class="cell-edit hdr" contenteditable="true" data-r="0" data-c="${c}">${esc(header[c] ?? '')}</div></th>`;
+  }
+  thead += '<th class="rowact"></th></tr>';
+  grid.querySelector('thead').innerHTML = thead;
+
+  let body = '';
+  for (let r = 1; r < aoa.length; r++) {
+    const row = aoa[r] || [];
+    body += `<tr data-r="${r}"><td class="rownum">${r}</td>`;
+    for (let c = 0; c < ncol; c++) {
+      body += `<td><div class="cell-edit" contenteditable="true" data-r="${r}" data-c="${c}">${esc(row[c] ?? '')}</div></td>`;
+    }
+    body += `<td class="rowact"><button class="row-del" data-r="${r}" title="행 삭제">🗑</button></td></tr>`;
+  }
+  grid.querySelector('tbody').innerHTML = body;
+}
+
+// 셀 편집 → 모델에 반영 (이벤트 위임)
+function onGridInput(e) {
+  const cell = e.target.closest('.cell-edit');
+  if (!cell) return;
+  const r = Number(cell.dataset.r), c = Number(cell.dataset.c);
+  const aoa = curAoa();
+  while (aoa.length <= r) aoa.push([]);
+  const row = aoa[r];
+  while (row.length <= c) row.push('');
+  row[c] = cell.textContent;
+  if (!CODE.dirty) { CODE.dirty = true; updateDirty(); }
+}
+
+function onGridClick(e) {
+  const del = e.target.closest('.row-del');
+  if (!del) return;
+  if (!confirm(t('codes.delRow'))) return;
+  const r = Number(del.dataset.r);
+  curAoa().splice(r, 1);
+  CODE.dirty = true; updateDirty();
+  renderGrid();
+  codeApplySearch();
+}
+
+function codeAddRow() {
+  const aoa = curAoa();
+  if (!aoa.length) aoa.push(['']);
+  const ncol = aoa.reduce((m, r) => Math.max(m, r.length), 1);
+  aoa.push(new Array(ncol).fill(''));
+  CODE.dirty = true; updateDirty();
+  renderGrid();
+  // 새 행으로 스크롤
+  const gs = document.querySelector('#view-codes .grid-scroll');
+  if (gs) gs.scrollTop = gs.scrollHeight;
+}
+
+function codeApplySearch() {
+  const q = $('#codeSearch').value.trim().toLowerCase();
+  $('#editGrid tbody').querySelectorAll('tr').forEach((tr) => {
+    if (!q) { tr.style.display = ''; return; }
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function updateDirty() {
+  $('#codeDirty').classList.toggle('hidden', !CODE.dirty);
+}
+
+function codeWorkbook() {
+  const wb = XLSX.utils.book_new();
+  for (const name of CODE.order) {
+    const ws = XLSX.utils.aoa_to_sheet(CODE.sheets[name] || [[]]);
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
+  return wb;
+}
+
+async function codeSaveToSharePoint() {
+  const st = '#codeStatus';
+  if (!window.Graph || !Graph.available()) { setStatus(st, t('op.needLogin'), 'err'); return; }
+  if (!CODE.file) return;
+  if (!xlsxReady()) { setStatus(st, t('alert.xlsxBlocked'), 'err'); return; }
+  setStatus(st, t('codes.saving'), 'info');
+  try {
+    const buf = XLSX.write(codeWorkbook(), { bookType: 'xlsx', type: 'array' });
+    await Graph.upload('code', CODE.file, buf);
+    CODE.dirty = false; updateDirty();
+    setStatus(st, t('codes.saved'), 'ok');
+    loadCodeFileList();  // 크기/수정일 갱신
+  } catch (e) {
+    setStatus(st, t('op.fail', { err: e.message }), 'err');
+  }
+}
+
+function codeDownloadLocal() {
+  if (!CODE.file || !xlsxReady()) return;
+  XLSX.writeFile(codeWorkbook(), CODE.file);
+}
+
+// ====================== 이벤트 & 초기화 ======================
 $('#drawerClose').addEventListener('click', closeDrawer);
 $('#backdrop').addEventListener('click', closeDrawer);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDrawer(); closeRules(); } });
-$('#themeBtn').addEventListener('click', toggleTheme);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
 $('#langBtn').addEventListener('click', toggleLang);
-$('#exportBtn').addEventListener('click', exportCsv);
-$('#exportXlsBtn').addEventListener('click', exportTableXls);
-// Manual edits to the filter controls become the single source of truth: drop the
-// tile-only hidden flags (2-week restriction, mandatory-only) and clear the tile
-// highlight so what the user sees in the controls is exactly what is applied.
+
+// 뷰 전환 (네비 + 브랜드)
+document.querySelectorAll('[data-view]').forEach((el) =>
+  el.addEventListener('click', (e) => { e.preventDefault(); switchView(el.dataset.view); }));
+
+// 코드 그리드 이벤트 위임 (그리드는 자주 리렌더되므로 컨테이너에 바인딩)
+$('#editGrid').addEventListener('input', onGridInput);
+$('#editGrid').addEventListener('click', onGridClick);
+
+// 저장 안 한 코드 변경이 있으면 페이지 이탈 경고
+window.addEventListener('beforeunload', (e) => {
+  if (CODE.dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
 function onManualFilter() {
   restrictSoon = false;
   tileMandatory = false;
@@ -1047,7 +1220,6 @@ function onManualFilter() {
   '#upcomingOnly', '#mismatchOnly', '#ptoOnly'].forEach((s) =>
   $(s).addEventListener('input', onManualFilter));
 
-initTheme();
 applyStaticI18n();
 load().catch((e) => {
   $('#meta').textContent = t('meta.loadFail', { err: e.message });

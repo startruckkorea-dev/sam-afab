@@ -3,79 +3,148 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AFAB vs SAM Comparison</title>
-  <link rel="stylesheet" href="style.css?v=20260721a" />
+  <title>SAM × AFAB Comparison</title>
+  <link rel="stylesheet" href="style.css?v=20260722c" />
 </head>
 <body>
-  <header>
-    <img class="mb-logo" src="logo.png" alt="Mercedes-Benz · Trucks you can trust" />
-    <h1>SAM &times; AFAB Comparison Dashboard</h1>
-    <div id="meta" class="meta" data-i18n="meta.loading">불러오는 중&hellip;</div>
-    <span class="spacer"></span>
-    <button id="langBtn" class="icon-btn" title="한국어 / English">🌐 EN</button>
-    <button id="rulesBtn" class="icon-btn" data-i18n="btn.rules" data-i18n-title="btn.rules.title" title="모델 변환 규칙 보기/편집">⚙ 규칙</button>
-    <button id="exportXlsBtn" class="icon-btn" data-i18n-title="btn.xls.title" title="현재 필터된 결과를 Excel로 저장">⬇ Excel</button>
-    <button id="exportBtn" class="icon-btn" data-i18n-title="btn.csv.title" title="현재 필터된 결과를 CSV로 저장">⬇ CSV</button>
-    <button id="themeBtn" class="icon-btn" data-i18n-title="btn.theme.title" title="라이트/다크 전환">🌙</button>
+  <!-- ===== 상단 네비게이션 바 ===== -->
+  <header class="topnav">
+    <a class="brand" href="#dashboard" data-view="dashboard">
+      <img class="mb-logo" src="logo.png" alt="Mercedes-Benz · Trucks you can trust" />
+      <span class="brand-title">SAM &times; AFAB <b>Dashboard</b></span>
+    </a>
+    <nav class="nav" id="nav">
+      <button class="nav-link active" data-view="dashboard" data-i18n="nav.dashboard">대시보드</button>
+      <button class="nav-link" data-view="matching" data-i18n="nav.matching">모델 매칭</button>
+      <button class="nav-link" data-view="codes" data-i18n="nav.codes">코드 관리</button>
+    </nav>
+    <div class="nav-right">
+      <button id="langBtn" class="icon-btn ghost" title="한국어 / English">🌐 EN</button>
+      <div id="navUser" class="nav-user"></div>
+    </div>
   </header>
 
-  <section class="summary" id="summary"></section>
+  <main id="main">
+    <!-- ===================== 대시보드 뷰 ===================== -->
+    <section class="view active" id="view-dashboard">
+      <section class="summary" id="summary"></section>
+      <div id="meta" class="meta" data-i18n="meta.loading">불러오는 중&hellip;</div>
 
-  <section class="controls">
-    <input type="search" id="search" data-i18n-ph="search.ph" placeholder="Commission no. / 모델 / 코드 검색&hellip;" />
-    <select id="statusFilter">
-      <option value="" data-i18n="filter.allStatus">전체 상태</option>
-      <option value="Match">Match</option>
-      <option value="Mismatch">Mismatch</option>
-      <option value="No SAM">No SAM</option>
-    </select>
-    <select id="vehicleFilter">
-      <option value="">전체 차종</option>
-    </select>
-    <select id="productionFilter" data-i18n-title="filter.prod.title" title="생산월(Requested delivery) 선택">
-      <option value="">전체 생산월</option>
-    </select>
-    <label class="chk" data-i18n-title="chk.upcoming.title" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> <span data-i18n="chk.upcoming">이번달 이후만</span></label>
-    <label class="chk"><input type="checkbox" id="ptoOnly" /> <span data-i18n="chk.pto">PTO만</span></label>
-    <label class="chk"><input type="checkbox" id="mismatchOnly" /> <span data-i18n="chk.mismatch">불일치만</span></label>
-    <span id="count" class="count"></span>
-  </section>
+      <section class="controls">
+        <input type="search" id="search" data-i18n-ph="search.ph" placeholder="Commission no. / 모델 / 코드 검색&hellip;" />
+        <select id="statusFilter">
+          <option value="" data-i18n="filter.allStatus">전체 상태</option>
+          <option value="Match">Match</option>
+          <option value="Mismatch">Mismatch</option>
+          <option value="No SAM">No SAM</option>
+        </select>
+        <select id="vehicleFilter">
+          <option value="">전체 차종</option>
+        </select>
+        <select id="productionFilter" data-i18n-title="filter.prod.title" title="생산월(Requested delivery) 선택">
+          <option value="">전체 생산월</option>
+        </select>
+        <label class="chk" data-i18n-title="chk.upcoming.title" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> <span data-i18n="chk.upcoming">이번달 이후만</span></label>
+        <label class="chk"><input type="checkbox" id="ptoOnly" /> <span data-i18n="chk.pto">PTO만</span></label>
+        <label class="chk"><input type="checkbox" id="mismatchOnly" /> <span data-i18n="chk.mismatch">불일치만</span></label>
+        <span id="count" class="count"></span>
+      </section>
 
-  <section class="table-wrap">
-    <table id="grid">
-      <thead></thead>
-      <tbody></tbody>
-    </table>
-    <div id="statusMsg" class="status-msg hidden"></div>
-  </section>
+      <section class="table-wrap">
+        <table id="grid">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+        <div id="statusMsg" class="status-msg hidden"></div>
+      </section>
+    </section>
 
-  <!-- Rules editor modal -->
-  <div id="rulesBackdrop" class="backdrop hidden"></div>
-  <div id="rulesModal" class="modal hidden">
-    <div class="modal-inner">
-      <button class="close" id="rulesClose">&times;</button>
-      <h2 data-i18n="modal.title">모델 인식 (model_mapping.xlsx)</h2>
-      <p class="modal-note" data-i18n-html="modal.note">
-        모델 매칭은 이제 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>,
-        본문 <code>Vehicle type</code> = <b>SAM Baumuster(원본)</b>. WINGS 번호가 둘 중 하나라도 같으면 매칭됩니다.
-        인식 결과는 <code>model_rules/model_mapping.xlsx</code> 의 <b>인식모델_대조표</b> 시트에서 확인하세요(빌드 시 자동 갱신).
-        <b>잘못 매칭될 때 수정</b>은 엑셀에서:
-        <b>수동매핑</b> 시트(WINGS 모델 → SAM Baumuster/now 강제, 또는 SAM 파일 지정으로 특정 파일과 강제 비교),
-        <b>매칭_별칭(수동)</b> 시트(파일 제목이 다른 세대 번호일 때 연결). 수정 후 <code>python backend/build_data.py</code> 재실행하면 반영·보존됩니다.
-      </p>
-      <div id="rulesBody"></div>
-      <div class="modal-actions">
-        <button id="rulesReload" class="icon-btn" data-i18n="modal.reload">↺ 서버 규칙 다시 불러오기</button>
-        <label id="rulesUpload" class="icon-btn" data-i18n-title="modal.upload.title" title="PC의 model_mapping.xlsx 불러오기"><span data-i18n="modal.upload">⬆ 엑셀 불러오기</span>
-          <input type="file" id="rulesUploadInput" accept=".xlsx" hidden />
-        </label>
-        <span class="spacer"></span>
-        <button id="rulesDownload" class="icon-btn primary" data-i18n="modal.download">⬇ 엑셀 저장 (model_mapping.xlsx)</button>
+    <!-- ===================== 모델 매칭 뷰 ===================== -->
+    <section class="view" id="view-matching">
+      <div class="page">
+        <div class="page-head">
+          <div>
+            <h1 data-i18n="matching.title">모델 매칭</h1>
+            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 규칙 (model_mapping.xlsx)</p>
+          </div>
+          <div class="page-actions">
+            <a id="matchFolderLink" class="icon-btn" target="_blank" rel="noopener" data-i18n="btn.openFolder">📂 SharePoint 폴더 열기</a>
+          </div>
+        </div>
+
+        <p class="note" data-i18n-html="matching.note">
+          모델 매칭은 <b>SAM 파일에서 자동</b>으로 이뤄집니다 — 파일 제목 = <b>SAM now(수정)</b>,
+          본문 <code>Vehicle type</code> = <b>SAM Baumuster(원본)</b>. WINGS 번호가 둘 중 하나라도 같으면 매칭됩니다.
+          <b>잘못 매칭될 때 수정</b>은 아래 <b>매칭 별칭(수동)</b> 표에서: 번호(원본/WINGS) → 추가로 매칭할 번호.
+          <b>SharePoint에 저장</b>을 누르면 <code>03. model_rules/model_mapping.xlsx</code> 에 바로 반영됩니다.
+        </p>
+
+        <div class="toolbar">
+          <button id="matchLoadSp" class="icon-btn primary" data-i18n="btn.loadSp">⭳ SharePoint에서 불러오기</button>
+          <button id="matchSaveSp" class="icon-btn primary" data-i18n="btn.saveSp">⭱ SharePoint에 저장</button>
+          <span class="spacer"></span>
+          <label class="icon-btn" data-i18n-title="modal.upload.title" title="PC의 model_mapping.xlsx 불러오기"><span data-i18n="modal.upload">⬆ 엑셀 불러오기(로컬)</span>
+            <input type="file" id="rulesUploadInput" accept=".xlsx" hidden />
+          </label>
+          <button id="rulesDownload" class="icon-btn" data-i18n="modal.download">⬇ 엑셀 저장(로컬)</button>
+        </div>
+        <div id="matchStatus" class="op-status"></div>
+        <div id="rulesBody" class="rules-body"></div>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <!-- Detail drawer -->
+    <!-- ===================== 코드 관리 뷰 ===================== -->
+    <section class="view" id="view-codes">
+      <div class="page">
+        <div class="page-head">
+          <div>
+            <h1 data-i18n="codes.title">코드 관리</h1>
+            <p class="page-sub" data-i18n="codes.sub">SharePoint <code>04. code</code> 폴더의 Excel 파일을 웹에서 직접 편집·저장</p>
+          </div>
+          <div class="page-actions">
+            <a id="codeFolderLink" class="icon-btn" target="_blank" rel="noopener" data-i18n="btn.openFolder">📂 SharePoint 폴더 열기</a>
+            <button id="codeRefresh" class="icon-btn" data-i18n="btn.refresh">↻ 목록 새로고침</button>
+          </div>
+        </div>
+
+        <div class="code-layout">
+          <aside class="file-list" id="codeFileList">
+            <div class="none" data-i18n="codes.pickFile">파일 목록을 불러오는 중…</div>
+          </aside>
+
+          <div class="code-editor" id="codeEditor">
+            <div class="editor-empty" id="codeEmpty" data-i18n="codes.empty">
+              왼쪽에서 편집할 Excel 파일을 선택하세요.
+            </div>
+            <div class="editor-main hidden" id="codeMain">
+              <div class="editor-bar">
+                <div class="sheet-tabs" id="sheetTabs"></div>
+                <span class="spacer"></span>
+                <input type="search" id="codeSearch" class="grid-search" data-i18n-ph="codes.searchPh" placeholder="이 시트에서 검색…" />
+              </div>
+              <div class="editor-toolbar">
+                <button id="codeAddRow" class="icon-btn" data-i18n="btn.addRow">＋ 행 추가</button>
+                <span class="spacer"></span>
+                <span id="codeDirty" class="dirty-flag hidden" data-i18n="codes.unsaved">● 저장되지 않은 변경</span>
+                <button id="codeReloadFile" class="icon-btn" data-i18n="btn.reloadFile">↺ 되돌리기</button>
+                <button id="codeSaveSp" class="icon-btn primary" data-i18n="btn.saveSp">⭱ SharePoint에 저장</button>
+                <button id="codeDownload" class="icon-btn" data-i18n="btn.download">⬇ 다운로드</button>
+              </div>
+              <div id="codeStatus" class="op-status"></div>
+              <div class="grid-scroll">
+                <table class="edit-grid" id="editGrid">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Detail drawer (대시보드 행 상세) -->
   <div id="backdrop" class="backdrop hidden"></div>
   <div id="drawer" class="drawer hidden">
     <div class="drawer-inner">
@@ -86,16 +155,16 @@
     </div>
   </div>
 
-  <!-- SheetJS: xlsx read/write for the rules editor. Loaded lazily; if blocked
-       (e.g. corporate network), the editor falls back to editing the .xlsx in Excel. -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
-          onerror="window.__XLSX_BLOCKED=true"></script>
+  <!-- SheetJS: xlsx 읽기/쓰기. 회사망 CDN 차단 대비 로컬 self-host 우선. -->
+  <script src="vendor/xlsx.full.min.js"
+          onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onerror=function(){window.__XLSX_BLOCKED=true;};document.head.appendChild(s);})()"></script>
+
+  <!-- Graph 클라이언트 (auth.js 의 MB_AUTH 토큰 사용) -->
+  <script src="graph.js?v=20260722c"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
-       auth.js 가 인증에 성공하면 app.js 를 동적으로 로드한다.
-       ⚠ 회사망이 외부 CDN(alcdn.msauth.net / jsdelivr)을 차단하므로 라이브러리를
-          docs/vendor/ 에 self-host 해 같은 출처에서 먼저 로드한다. (버전 2.38.1) -->
+       auth.js 가 (게이트 통과/스킵) 후 app.js 를 동적으로 로드한다. -->
   <script>
   (function () {
     var CDNS = [
@@ -105,7 +174,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260722b';
+      a.src = 'auth.js?v=20260722c';
       document.body.appendChild(a);
     }
     function tryCdn(i) {
