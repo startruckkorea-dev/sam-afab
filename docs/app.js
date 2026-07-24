@@ -122,8 +122,32 @@ const I18N = {
     'btn.loadSp': '⭳ SharePoint에서 불러오기',
     'btn.saveSp': '⭱ SharePoint에 저장',
     'btn.addRow': '＋ 행 추가',
+    'btn.addRec': '＋ 등록',
     'btn.reloadFile': '↺ 되돌리기',
     'btn.download': '⬇ 다운로드',
+    'btn.delete': '삭제',
+    'btn.cancel': '취소',
+    'btn.apply': '저장',
+    'btn.edit': '편집',
+    // 레코드(카드) 편집
+    'mode.record': '🗂 카드 편집',
+    'mode.grid': '▦ 표 편집',
+    'rec.actions': '액션',
+    'rec.count': '{n} / {total} 건',
+    'rec.empty': '표시할 항목이 없습니다.',
+    'rec.emptySheet': '— 빈 시트 —',
+    'rec.new': '새 항목 등록',
+    'rec.edit': '항목 편집',
+    'rec.page': '{page} / {pages} 페이지',
+    'rec.prev': '‹ 이전',
+    'rec.next': '다음 ›',
+    'rec.allOf': '전체 · {col}',
+    'rec.blank': '(비어 있음)',
+    'rec.on': '예',
+    'rec.off': '아니오',
+    'rec.colFallback': '열 {n}',
+    'rec.delConfirm': '이 항목을 삭제할까요?',
+    'rec.hint': '행을 클릭하면 편집 창이 열립니다. 열(컬럼) 자체를 바꾸려면 표 편집으로 전환하세요.',
     'modal.upload': '⬆ 엑셀 불러오기(로컬)',
     'modal.upload.title': 'PC의 model_mapping.xlsx 불러오기',
     'modal.download': '⬇ 엑셀 저장(로컬)',
@@ -209,8 +233,31 @@ const I18N = {
     'btn.loadSp': '⭳ Load from SharePoint',
     'btn.saveSp': '⭱ Save to SharePoint',
     'btn.addRow': '＋ Add row',
+    'btn.addRec': '＋ New',
     'btn.reloadFile': '↺ Revert',
     'btn.download': '⬇ Download',
+    'btn.delete': 'Delete',
+    'btn.cancel': 'Cancel',
+    'btn.apply': 'Save',
+    'btn.edit': 'Edit',
+    'mode.record': '🗂 Form editing',
+    'mode.grid': '▦ Table editing',
+    'rec.actions': 'Actions',
+    'rec.count': '{n} / {total} records',
+    'rec.empty': 'No records to show.',
+    'rec.emptySheet': '— empty sheet —',
+    'rec.new': 'New record',
+    'rec.edit': 'Edit record',
+    'rec.page': 'Page {page} / {pages}',
+    'rec.prev': '‹ Prev',
+    'rec.next': 'Next ›',
+    'rec.allOf': 'All · {col}',
+    'rec.blank': '(blank)',
+    'rec.on': 'Yes',
+    'rec.off': 'No',
+    'rec.colFallback': 'Column {n}',
+    'rec.delConfirm': 'Delete this record?',
+    'rec.hint': 'Click a row to open the edit form. To change the columns themselves, switch to table editing.',
     'modal.upload': '⬆ Load Excel (local)',
     'modal.upload.title': 'Load model_mapping.xlsx from your PC',
     'modal.download': '⬇ Save Excel (local)',
@@ -267,6 +314,8 @@ function toggleLang() {
   fillVehicleFilter();
   fillProductionFilter();
   render();
+  if (typeof codeEditor !== 'undefined') codeEditor.refresh();
+  if (typeof matchEditor !== 'undefined') matchEditor.refresh();
   if (DRAWER_ROW && !$('#drawer').classList.contains('hidden')) openDrawer(DRAWER_ROW);
 }
 
@@ -944,10 +993,141 @@ function exportRowXls(r) {
 const MODEL_MAPPING_FILE = 'model_mapping.xlsx';
 function xlsxReady() { return window.XLSX && !window.__XLSX_BLOCKED; }
 
+// ---- 값 도우미: 시트 셀에는 문자열/불리언/숫자가 섞여 들어온다 ----
+function isTrue(v) {
+  if (typeof v === 'boolean') return v;
+  return /^(true|1|y|yes|예|o|on)$/i.test(String(v ?? '').trim());
+}
+function isBoolCell(v) {
+  if (typeof v === 'boolean') return true;
+  return /^(true|false)$/i.test(String(v ?? '').trim());
+}
+function cellText(v) { return v == null ? '' : String(v); }
+
+// 시트 한 장의 열(컬럼) 성격을 표본으로 추정한다 — 편집 폼의 입력 위젯과
+// 목록 셀 표현(토글/색상칩/말줄임)을 고르는 데 쓴다.
+function inferCols(aoa) {
+  const header = aoa[0] || [];
+  const ncol = aoa.reduce((m, r) => Math.max(m, (r || []).length), header.length || 1);
+  const sample = aoa.slice(1, 301);
+  const cols = [];
+  for (let c = 0; c < ncol; c++) {
+    const raw = sample.map((r) => (r || [])[c]);
+    const vals = raw.map(cellText).map((s) => s.trim()).filter((s) => s !== '');
+    const name = cellText(header[c]).trim();
+    const lname = name.toLowerCase();
+    let type = 'text';
+    if (vals.length && raw.filter((v) => cellText(v).trim() !== '').every(isBoolCell)) type = 'bool';
+    else if (/hex|colou?r|컬러|색상/.test(lname) || (vals.length && vals.every((v) => /^#[0-9a-f]{3,8}$/i.test(v)))) type = 'color';
+    else if (vals.length && vals.reduce((a, v) => a + v.length, 0) / vals.length > 55) type = 'long';
+    const distinct = [...new Set(vals)].sort();
+    const numeric = type === 'text' && vals.length > 0 && vals.every((v) => /^-?\d+(\.\d+)?$/.test(v));
+    // 코드성 열(code / 코드 / 접두어 …)은 목록에서 모노스페이스 + 강조색으로 보여준다.
+    const mono = type === 'text' && !numeric && /(^|[_\s(])code|코드|prefix|접두어|baumuster/i.test(lname);
+    cols.push({ c, type, numeric, mono, distinct, label: name || t('rec.colFallback', { n: c + 1 }) });
+  }
+  return cols;
+}
+
+// 목록 위 "필터" 드롭다운에 쓸 열: 값 종류가 적고 짧은 텍스트 열(카테고리 성격).
+function pickFilterCol(cols, nrows) {
+  for (const col of cols) {
+    if (col.type !== 'text') continue;
+    const d = col.distinct;
+    if (d.length < 2 || d.length > 25) continue;
+    if (nrows > 4 && d.length > Math.max(2, nrows / 2)) continue;
+    if (d.some((v) => v.length > 24)) continue;
+    return col;
+  }
+  return null;
+}
+
+// ---- 레코드 편집 모달 (코드 관리 · 모델 매칭 공용) ----
+const RecModal = (function () {
+  let cur = null;   // { cols, values, onSave, onDelete }
+
+  function close() { cur = null; $('#recModal').classList.add('hidden'); $('#recBackdrop').classList.add('hidden'); }
+
+  function fieldHtml(col, v, i) {
+    const id = 'rmf' + i;
+    let input;
+    if (col.type === 'bool') {
+      input = `<label class="switch"><input type="checkbox" id="${id}" data-i="${i}"${isTrue(v) ? ' checked' : ''} /><span class="track"></span></label>`;
+    } else if (col.type === 'color') {
+      const s = cellText(v).trim();
+      const hex = /^#[0-9a-f]{6}$/i.test(s) ? s : '#ffffff';
+      input = `<div class="color-field"><input type="color" class="rm-swatch" data-for="${id}" value="${esc(hex)}" />` +
+        `<input type="text" id="${id}" data-i="${i}" value="${esc(cellText(v))}" placeholder="#1a1a1a" /></div>`;
+    } else if (col.type === 'long') {
+      input = `<textarea id="${id}" data-i="${i}" rows="3">${esc(cellText(v))}</textarea>`;
+    } else {
+      const useList = col.distinct.length > 1 && col.distinct.length <= 60;
+      const dl = useList
+        ? `<datalist id="${id}-dl">${col.distinct.map((d) => `<option value="${esc(d)}"></option>`).join('')}</datalist>` : '';
+      input = `<input type="text" id="${id}" data-i="${i}" value="${esc(cellText(v))}"${useList ? ` list="${id}-dl"` : ''} />${dl}`;
+    }
+    return `<div class="rm-field${col.type === 'long' ? ' wide' : ''}">` +
+      `<label for="${id}">${esc(col.label)}</label>${input}</div>`;
+  }
+
+  function open(o) {
+    cur = o;
+    $('#recModalTitle').textContent = o.title;
+    $('#recModalBody').innerHTML =
+      `<div class="rm-fields">${o.cols.map((col, i) => fieldHtml(col, o.values[col.c], i)).join('')}</div>`;
+    $('#recModalDel').classList.toggle('hidden', !o.onDelete);
+    $('#recModal').classList.remove('hidden');
+    $('#recBackdrop').classList.remove('hidden');
+    // id·정렬순서 같은 숫자 칸은 건너뛰고 첫 텍스트 칸에 포커스
+    const idx = o.cols.findIndex((col) => col.type !== 'bool' && !col.numeric);
+    const first = $('#recModalBody').querySelector(
+      idx >= 0 ? `[data-i="${idx}"]` : 'input[type="text"], textarea');
+    if (first) first.focus();
+  }
+
+  function collect() {
+    const out = {};
+    $('#recModalBody').querySelectorAll('[data-i]').forEach((inp) => {
+      const col = cur.cols[+inp.dataset.i];
+      out[col.c] = col.type === 'bool' ? inp.checked : inp.value;
+    });
+    return out;
+  }
+
+  // 색상 피커 ↔ 텍스트 입력 동기화
+  document.addEventListener('input', (e) => {
+    const sw = e.target.closest('.rm-swatch');
+    if (sw) { const tx = document.getElementById(sw.dataset.for); if (tx) tx.value = sw.value; return; }
+    const tx = e.target.closest('.color-field input[type="text"]');
+    if (tx) {
+      const sw2 = tx.parentElement.querySelector('.rm-swatch');
+      if (sw2 && /^#[0-9a-f]{6}$/i.test(tx.value.trim())) sw2.value = tx.value.trim();
+    }
+  });
+  $('#recModalClose').addEventListener('click', close);
+  $('#recModalCancel').addEventListener('click', close);
+  $('#recBackdrop').addEventListener('click', close);
+  $('#recModalSave').addEventListener('click', () => { const o = cur; const v = collect(); close(); o.onSave(v); });
+  $('#recModalDel').addEventListener('click', () => {
+    if (!cur.onDelete || !confirm(t('rec.delConfirm'))) return;
+    const o = cur; close(); o.onDelete();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (cur && e.key === 'Escape') close();
+  });
+  return { open, close, isOpen: () => !!cur };
+})();
+
 // 하나의 xlsx(다중 시트)를 편집 가능한 그리드로 다루는 재사용 에디터.
-// cfg: { folderKey, fixedFile?, onSaved?, els:{tabs,grid,addRow,revert,saveSp,download,dirty,status,search,main,empty} }
+// 두 가지 편집 모드를 제공한다:
+//   record — 행 = 한 건의 레코드. 목록 + 검색/필터/페이지 + 폼 모달로 등록·편집·삭제 (기본)
+//   grid   — 기존 스프레드시트식 셀 직접 편집 (열 추가·헤더 변경 등 구조 수정용)
+// cfg: { folderKey, fixedFile?, onSaved?, els:{...} }
+const REC_PAGE_SIZE = 50;
 function makeSheetEditor(cfg) {
-  const S = { file: cfg.fixedFile || null, sheets: {}, order: [], sheet: null, dirty: false };
+  const S = { file: cfg.fixedFile || null, sheets: {}, order: [], sheet: null, dirty: false,
+              mode: localStorage.getItem('editMode.' + cfg.folderKey) || 'record',
+              cols: [], filterCol: null, page: 1 };
   const el = (k) => (cfg.els[k] ? document.getElementById(cfg.els[k]) : null);
   const stSel = '#' + cfg.els.status;
 
@@ -960,9 +1140,177 @@ function makeSheetEditor(cfg) {
       `<button class="sheet-tab${n === S.sheet ? ' active' : ''}" data-sheet="${esc(n)}">${esc(n)}</button>`).join('');
     tabs.querySelectorAll('.sheet-tab').forEach((b) =>
       b.addEventListener('click', () => {
-        S.sheet = b.dataset.sheet; renderTabs(); renderGrid();
+        S.sheet = b.dataset.sheet;
         const s = el('search'); if (s) s.value = '';
+        renderTabs(); refreshSheet();
       }));
+  }
+
+  // 시트가 바뀌었을 때: 열 성격 재추정 → 필터 드롭다운 재구성 → 현재 모드로 그리기
+  function refreshSheet() {
+    S.cols = inferCols(curAoa());
+    S.page = 1;
+    buildFilter();
+    renderAll();
+  }
+
+  function buildFilter() {
+    const sel = el('filter'); if (!sel) return;
+    const aoa = curAoa();
+    S.filterCol = S.mode === 'record' ? pickFilterCol(S.cols, Math.max(0, aoa.length - 1)) : null;
+    if (!S.filterCol) { sel.classList.add('hidden'); sel.innerHTML = ''; return; }
+    sel.classList.remove('hidden');
+    sel.innerHTML = `<option value="">${esc(t('rec.allOf', { col: S.filterCol.label }))}</option>` +
+      S.filterCol.distinct.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  }
+
+  // 검색어·필터를 통과한 데이터 행 인덱스(헤더 제외)
+  function matchedRows() {
+    const aoa = curAoa();
+    const s = el('search');
+    const q = s ? s.value.trim().toLowerCase() : '';
+    const fsel = el('filter');
+    const fv = (S.filterCol && fsel && !fsel.classList.contains('hidden')) ? fsel.value : '';
+    const out = [];
+    for (let r = 1; r < aoa.length; r++) {
+      const row = aoa[r] || [];
+      if (fv && cellText(row[S.filterCol.c]).trim() !== fv) continue;
+      if (q && !row.map(cellText).join(' ').toLowerCase().includes(q)) continue;
+      out.push(r);
+    }
+    return out;
+  }
+
+  function recCellHtml(col, v, r) {
+    if (col.type === 'bool') {
+      return `<label class="switch sm" title="${esc(isTrue(v) ? t('rec.on') : t('rec.off'))}">` +
+        `<input type="checkbox" class="rec-toggle" data-r="${r}" data-c="${col.c}"${isTrue(v) ? ' checked' : ''} />` +
+        `<span class="track"></span></label>`;
+    }
+    const s = cellText(v);
+    if (!s.trim()) return '<span class="empty-cell">—</span>';
+    if (col.type === 'color') {
+      const hex = /^#[0-9a-f]{3,8}$/i.test(s.trim()) ? s.trim() : '';
+      return (hex ? `<span class="swatch" style="background:${esc(hex)}"></span>` : '') +
+        `<span class="mono">${esc(s)}</span>`;
+    }
+    return `<span class="rec-text" title="${esc(s)}">${esc(s)}</span>`;
+  }
+
+  function renderRecords() {
+    const aoa = curAoa();
+    const table = el('recs');
+    const thead = table.querySelector('thead'), tbody = table.querySelector('tbody');
+    const pager = el('pager'), cnt = el('count');
+    if (!aoa.length) {
+      thead.innerHTML = '';
+      tbody.innerHTML = `<tr><td class="none">${esc(t('rec.emptySheet'))}</td></tr>`;
+      if (pager) pager.classList.add('hidden');
+      if (cnt) cnt.textContent = '';
+      return;
+    }
+    const rows = matchedRows();
+    const pages = Math.max(1, Math.ceil(rows.length / REC_PAGE_SIZE));
+    if (S.page > pages) S.page = pages;
+    const slice = rows.slice((S.page - 1) * REC_PAGE_SIZE, S.page * REC_PAGE_SIZE);
+
+    thead.innerHTML = '<tr><th class="rownum">#</th>' +
+      S.cols.map((col) => `<th${col.type === 'bool' ? ' class="tight"' : (col.mono ? ' class="code-col-cell"' : '')}>${esc(col.label)}</th>`).join('') +
+      `<th class="rowact">${esc(t('rec.actions'))}</th></tr>`;
+
+    if (!slice.length) {
+      tbody.innerHTML = `<tr><td class="none" colspan="${S.cols.length + 2}">${esc(t('rec.empty'))}</td></tr>`;
+    } else {
+      tbody.innerHTML = slice.map((r) => {
+        const row = aoa[r] || [];
+        return `<tr data-r="${r}"><td class="rownum">${r}</td>` +
+          S.cols.map((col) => `<td${col.type === 'bool' ? ' class="tight"' : (col.mono ? ' class="code-col-cell"' : '')}>${recCellHtml(col, row[col.c], r)}</td>`).join('') +
+          `<td class="rowact"><button type="button" class="link-btn rec-edit" data-r="${r}">${esc(t('btn.edit'))}</button>` +
+          `<button type="button" class="link-btn danger rec-del" data-r="${r}">${esc(t('btn.delete'))}</button></td></tr>`;
+      }).join('');
+    }
+
+    if (cnt) cnt.textContent = t('rec.count', { n: rows.length, total: Math.max(0, aoa.length - 1) });
+    if (pager) {
+      if (pages <= 1) { pager.classList.add('hidden'); pager.innerHTML = ''; }
+      else {
+        pager.classList.remove('hidden');
+        pager.innerHTML =
+          `<button type="button" class="icon-btn pg-prev"${S.page <= 1 ? ' disabled' : ''}>${esc(t('rec.prev'))}</button>` +
+          `<span class="pg-label">${esc(t('rec.page', { page: S.page, pages }))}</span>` +
+          `<button type="button" class="icon-btn pg-next"${S.page >= pages ? ' disabled' : ''}>${esc(t('rec.next'))}</button>`;
+      }
+    }
+  }
+
+  // 폼 모달로 한 건 편집 / 신규 등록
+  function editRecord(r) {
+    const aoa = curAoa();
+    const isNew = r == null;
+    const row = isNew ? [] : (aoa[r] || []);
+    RecModal.open({
+      title: isNew ? t('rec.new') : t('rec.edit'),
+      cols: S.cols,
+      values: row,
+      onDelete: isNew ? null : () => { aoa.splice(r, 1); setDirty(true); renderAll(); },
+      onSave: (vals) => {
+        const target = isNew ? [] : row;
+        for (const col of S.cols) {
+          while (target.length <= col.c) target.push('');
+          // 원래 숫자였던 칸(id·정렬순서 등)은 숫자로 되돌려 저장한다 — 폼 입력은 항상 문자열이므로.
+          const nv = vals[col.c];
+          const wasNum = typeof target[col.c] === 'number';
+          target[col.c] = (typeof nv === 'string' && nv.trim() !== '' && (wasNum || col.numeric)
+            && /^-?\d+(\.\d+)?$/.test(nv.trim())) ? Number(nv.trim()) : nv;
+        }
+        if (isNew) aoa.push(target);
+        setDirty(true);
+        if (isNew) { S.page = Math.max(1, Math.ceil(matchedRows().length / REC_PAGE_SIZE)); }
+        renderAll();
+      },
+    });
+  }
+
+  function onRecClick(e) {
+    const tg = e.target.closest('.rec-toggle');
+    if (tg) {
+      const aoa = curAoa(); const r = +tg.dataset.r, c = +tg.dataset.c;
+      const row = aoa[r] || (aoa[r] = []);
+      while (row.length <= c) row.push('');
+      row[c] = tg.checked;
+      setDirty(true);
+      return;
+    }
+    const del = e.target.closest('.rec-del');
+    if (del) {
+      if (!confirm(t('rec.delConfirm'))) return;
+      curAoa().splice(+del.dataset.r, 1); setDirty(true); renderAll(); return;
+    }
+    const ed = e.target.closest('.rec-edit');
+    if (ed) { editRecord(+ed.dataset.r); return; }
+    const tr = e.target.closest('tr[data-r]');
+    if (tr) editRecord(+tr.dataset.r);
+  }
+
+  function setMode(mode) {
+    S.mode = mode;
+    localStorage.setItem('editMode.' + cfg.folderKey, mode);
+    const ms = el('mode');
+    if (ms) ms.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    const show = (k, on) => { const e2 = el(k); if (e2) e2.classList.toggle('hidden', !on); };
+    show('recWrap', mode === 'record');
+    show('gridWrap', mode === 'grid');
+    show('addRec', mode === 'record');
+    show('addRow', mode === 'grid');
+    if (mode !== 'record') { const pg = el('pager'); if (pg) { pg.classList.add('hidden'); pg.innerHTML = ''; } }
+    const cnt = el('count'); if (cnt && mode !== 'record') cnt.textContent = '';
+    buildFilter();
+    renderAll();
+  }
+
+  function renderAll() {
+    if (S.mode === 'record') { renderRecords(); }
+    else { renderGrid(); applySearch(); }
   }
 
   function renderGrid() {
@@ -1021,6 +1369,10 @@ function makeSheetEditor(cfg) {
       tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none';
     });
   }
+  function onSearch() {
+    if (S.mode === 'record') { S.page = 1; renderRecords(); }
+    else applySearch();
+  }
 
   async function open(filename, isRevert) {
     if (!window.Graph || !Graph.available()) { setStatus(stSel, t('op.needLogin'), 'err'); return; }
@@ -1036,7 +1388,11 @@ function makeSheetEditor(cfg) {
       setDirty(false);
       const emp = el('empty'); if (emp) emp.classList.add('hidden');
       const mn = el('main'); if (mn) mn.classList.remove('hidden');
-      renderTabs(); renderGrid();
+      const sb = el('search'); if (sb) sb.value = '';
+      renderTabs();
+      S.cols = inferCols(curAoa());
+      S.page = 1;
+      setMode(S.mode);
       setStatus(stSel, isRevert ? t('op.loaded') : '', isRevert ? 'ok' : 'info');
     } catch (e) { setStatus(stSel, t('op.fail', { err: e.message }), 'err'); }
   }
@@ -1064,12 +1420,28 @@ function makeSheetEditor(cfg) {
     el('grid').addEventListener('click', onClick);
     const bind = (k, fn) => { const e = el(k); if (e) e.addEventListener('click', fn); };
     bind('addRow', addRow);
+    bind('addRec', () => editRecord(null));
     bind('revert', () => { if (S.file) open(S.file, true); });
     bind('saveSp', saveSp);
     bind('download', downloadLocal);
-    const s = el('search'); if (s) s.addEventListener('input', applySearch);
+    const s = el('search'); if (s) s.addEventListener('input', onSearch);
+    const recs = el('recs'); if (recs) recs.addEventListener('click', onRecClick);
+    const f = el('filter');
+    if (f) f.addEventListener('change', () => { S.page = 1; renderRecords(); });
+    const ms = el('mode');
+    if (ms) ms.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-mode]'); if (b) setMode(b.dataset.mode);
+    });
+    const pg = el('pager');
+    if (pg) pg.addEventListener('click', (e) => {
+      if (e.target.closest('.pg-prev')) { S.page = Math.max(1, S.page - 1); renderRecords(); }
+      else if (e.target.closest('.pg-next')) { S.page += 1; renderRecords(); }
+      const rw = el('recWrap'); if (rw) rw.scrollTop = 0;
+    });
   }
-  return { S, open, saveSp, wire };
+  // 언어 전환 등으로 라벨을 다시 그려야 할 때
+  function refresh() { if (!S.sheet) return; S.cols = inferCols(curAoa()); buildFilter(); renderAll(); }
+  return { S, open, saveSp, wire, refresh };
 }
 
 // ---- 모델 매칭: model_mapping.xlsx (03. model_rules) 전체 시트 편집 ----
@@ -1077,7 +1449,9 @@ const matchEditor = makeSheetEditor({
   folderKey: 'model_rules', fixedFile: MODEL_MAPPING_FILE,
   els: { tabs: 'matchTabs', grid: 'matchGrid', addRow: 'matchAddRow', revert: 'matchLoadSp',
          saveSp: 'matchSaveSp', download: 'matchDownload', dirty: 'matchDirty',
-         status: 'matchStatus', search: 'matchSearch', main: 'matchMain', empty: 'matchEmpty' },
+         status: 'matchStatus', search: 'matchSearch', main: 'matchMain', empty: 'matchEmpty',
+         recs: 'matchRecs', recWrap: 'matchRecWrap', gridWrap: 'matchGridWrap', pager: 'matchPager',
+         mode: 'matchMode', filter: 'matchFilter', count: 'matchCount', addRec: 'matchAddRec' },
 });
 function initMatching() {
   const link = $('#matchFolderLink'); if (window.Graph) link.href = Graph.folders.model_rules.shareUrl;
@@ -1090,7 +1464,9 @@ const codeEditor = makeSheetEditor({
   folderKey: 'code',
   els: { tabs: 'sheetTabs', grid: 'editGrid', addRow: 'codeAddRow', revert: 'codeReloadFile',
          saveSp: 'codeSaveSp', download: 'codeDownload', dirty: 'codeDirty',
-         status: 'codeStatus', search: 'codeSearch', main: 'codeMain', empty: 'codeEmpty' },
+         status: 'codeStatus', search: 'codeSearch', main: 'codeMain', empty: 'codeEmpty',
+         recs: 'codeRecs', recWrap: 'codeRecWrap', gridWrap: 'codeGridWrap', pager: 'codePager',
+         mode: 'codeMode', filter: 'codeFilter', count: 'codeCount', addRec: 'codeAddRec' },
   onSaved: () => loadCodeFileList(),
 });
 let CODE_FILES = [];
