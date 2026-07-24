@@ -30,3 +30,6 @@ docs/rules.json
 # Debug
 _wings_*.log
 _debug_*
+
+# 빌드 산출물(테스트 시 루트에 생길 수 있음)
+/codes.json

@@ -10,7 +10,9 @@
   'use strict';
 
   var GRAPH = 'https://graph.microsoft.com/v1.0';
-  var SCOPES = ['Sites.ReadWrite.All'];
+  // 이 위임 권한들은 같은 Entra 앱(clientId 9b247088-…)에 이미 관리자 동의가
+  // 완료돼 있다(mbtruck-spec 이 동일 앱으로 사용 중). 추가 설정 불필요.
+  var SCOPES = ['Sites.ReadWrite.All', 'Files.ReadWrite.All'];
 
   // SharePoint 사이트 좌표. 공유 폴더 URL 에서 그대로 유도된다.
   //   https://startruckkorea.sharepoint.com/sites/SAM-AFAB

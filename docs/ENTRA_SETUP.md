@@ -9,18 +9,21 @@ SharePoint 문서 라이브러리의 Excel 파일을 **직접 읽고 저장**합
 
 ---
 
-## 1) API 권한 추가 (관리자 작업)
+## 1) API 권한 — ✅ 이미 완료 (추가 작업 없음)
 
-Azure Portal → **Microsoft Entra ID → 앱 등록 → (이 앱) → API 사용 권한**
+이 앱(`9b247088-…`)에는 아래 **위임 권한이 이미 부여되고 관리자 동의까지 완료**돼 있습니다.
+같은 앱 등록을 **mbtruck-spec**(https://mbtruck-spec.startruckkorea.com) 이 이미 사용 중입니다.
 
-1. **권한 추가 → Microsoft Graph → 위임된 권한(Delegated)**
-2. 다음을 추가:
-   - `Sites.ReadWrite.All`  ← SharePoint 사이트 파일 읽기/쓰기 (필수)
-   - `User.Read`            ← 이미 있음 (로그인)
-3. **`<테넌트>에 대한 관리자 동의 허용`** 클릭 → 상태가 모두 초록색이 되도록.
+- `User.Read`
+- `Sites.ReadWrite.All`
+- `Files.ReadWrite.All`
+- `Mail.Send`
 
-> `Sites.ReadWrite.All` 은 관리자 동의가 필요한 권한입니다.
-> 동의 전에는 저장 시 `Graph 403 — Access denied` 가 납니다.
+따라서 **모델 매칭 / 코드 관리 메뉴의 SharePoint 불러오기·저장은 추가 설정 없이 바로 동작**합니다.
+(첫 사용 시 브라우저 팝업으로 사용자 동의만 한 번 뜰 수 있습니다.)
+
+> 저장 권한은 결국 **로그인한 사용자 본인의 SharePoint 권한**을 따릅니다 —
+> 해당 폴더에 쓰기 권한이 있는 사람만 저장됩니다.
 
 ## 2) Redirect URI 확인 (SPA)
 
