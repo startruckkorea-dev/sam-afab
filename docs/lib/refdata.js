@@ -10,7 +10,11 @@
     throw new Error('SheetJS(XLSX) 가 로드되지 않았습니다.');
   }
 
-  function s(v) { return (v === null || v === undefined) ? '' : String(v).trim(); }
+  // 줄바꿈은 \n 으로 통일한다 — SheetJS 는 셀의 CRLF 를 그대로 주지만 openpyxl(파이썬
+  // 빌드)은 \n 으로 돌려주므로, 통일해야 두 산출물이 완전히 같아진다.
+  function s(v) {
+    return (v === null || v === undefined) ? '' : String(v).replace(/\r\n/g, '\n').trim();
+  }
 
   function sheetAoa(wb, name) {
     const XLSX = getXLSX();

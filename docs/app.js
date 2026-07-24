@@ -1,6 +1,8 @@
-// AFAB x SAM comparison viewer — reads data.json + codes.json produced by the
-// backend (GitHub Actions). Display only for the dashboard; the 모델 매칭 / 코드
-// 관리 views read & write SharePoint Excel via Graph (graph.js + auth.js).
+// AFAB x SAM comparison viewer — reads data.json + codes.json from SharePoint
+// ('05. output'), falling back to the copy deployed with the site. 관리자가
+// "데이터 빌드"를 누르면 lib/pipeline.js 가 이 브라우저에서 계산해 그 결과를
+// SharePoint 에 저장한다. 모델 매칭 / 코드 관리 뷰는 SharePoint Excel 을
+// Graph 로 직접 읽고 쓴다 (graph.js + auth.js).
 
 const COLS = [
   { key: 'Commission no.', label: 'Commission' },
@@ -99,7 +101,7 @@ const I18N = {
       '모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이 ' +
       '이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면 ' +
       '<code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 빌드</b> 때 적용됩니다. ' +
-      '<code>인식모델_대조표</code> 시트는 빌드가 자동 생성하는 확인용 보기입니다.',
+      '<code>인식모델_대조표</code> 시트는 로컬 도구가 만드는 확인용 보기입니다(브라우저 빌드는 이 시트를 갱신하지 않음).',
     // 코드 관리
     'codes.title': '코드 관리',
     'codes.sub': "SharePoint 04. code 폴더의 Excel 파일을 웹에서 직접 편집·저장",
@@ -132,11 +134,18 @@ const I18N = {
     'op.fail': '실패: {err}',
     'nav.build': '⟳ 데이터 빌드',
     'build.btn': '⟳ 데이터 빌드',
-    'build.running': '⟳ 빌드 요청 중…',
-    'build.started': '빌드를 시작했습니다. 2~3분 후 최신 데이터가 자동 반영됩니다.',
-    'build.fail': '빌드 트리거 실패:',
-    'build.tokenPrompt': 'GitHub 파인그레인드 토큰을 입력하세요 (repo: sam-afab, 권한: Actions read/write). 한 번 입력하면 이 브라우저에 저장됩니다.',
-    'build.tokenBad': '토큰이 유효하지 않거나 권한이 부족합니다. 저장된 토큰을 지웠습니다. 다시 시도하세요.',
+    'build.running': '⟳ 빌드 중…',
+    'build.title': '데이터 빌드',
+    'build.confirm': 'SharePoint 의 최신 WINGS(02) 와 최신 생산월 SAM(01) 으로 비교를 다시 계산합니다.\n'
+      + '이 브라우저에서 1~3분 정도 걸리고, 결과는 SharePoint(05. output)에 저장돼 모든 사용자에게 반영됩니다.\n\n계속할까요?',
+    'build.needLogin': '데이터 빌드는 회사 Microsoft 365 계정 로그인이 필요합니다.',
+    'build.step.ref': '참조 워크북(코드·매칭 규칙) 읽는 중…',
+    'build.step.upload': '결과를 SharePoint 에 저장하는 중…',
+    'build.done': '빌드 완료 — {rows}행 (일치 {match} / 불일치 {mismatch}). SharePoint 에 저장했습니다.',
+    'build.fail': '빌드 실패:',
+    'build.close': '닫기',
+    'meta.srcSp': '출처: SharePoint 최신 빌드',
+    'meta.srcBundled': '출처: 배포 사본(빌드 결과 없음)',
     'alert.xlsxBlocked':
       '엑셀 라이브러리를 불러오지 못했습니다(사내망 차단 가능). 잠시 후 다시 시도하세요.',
     'alert.xlsxReadFail': '엑셀 읽기 실패: ',
@@ -181,7 +190,7 @@ const I18N = {
       'Every model-matching rule (normalization, previous/current model, vehicle keywords, aliases, ' +
       'manual map, options) lives as a sheet in this workbook. Switch sheet tabs to edit, then ' +
       '<b>Save to SharePoint</b> to write it back to <code>model_mapping.xlsx</code>; it takes effect on the next ' +
-      '<b>Build data</b>. The <code>인식모델_대조표</code> sheet is an auto-generated verification view.',
+      '<b>Build data</b>. The <code>인식모델_대조표</code> sheet is a verification view produced by the local Python tool (the browser build does not refresh it).',
     'codes.title': 'Code Manager',
     'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
     'codes.pickFile': 'Loading file list…',
@@ -212,11 +221,19 @@ const I18N = {
     'op.fail': 'Failed: {err}',
     'nav.build': '⟳ Build data',
     'build.btn': '⟳ Build data',
-    'build.running': '⟳ Requesting…',
-    'build.started': 'Build started. The latest data will appear automatically in 2–3 minutes.',
-    'build.fail': 'Build trigger failed:',
-    'build.tokenPrompt': 'Enter a GitHub fine-grained token (repo: sam-afab, permission: Actions read/write). Stored in this browser once entered.',
-    'build.tokenBad': 'Token invalid or missing permission. The stored token was cleared. Try again.',
+    'build.running': '⟳ Building…',
+    'build.title': 'Build data',
+    'build.confirm': 'This recomputes the comparison from the newest WINGS export (02) and the newest '
+      + 'production-month SAM folder (01) on SharePoint.\nIt runs in this browser (1–3 minutes) and the result is '
+      + 'saved to SharePoint (05. output) for everyone.\n\nContinue?',
+    'build.needLogin': 'Building requires signing in with your company Microsoft 365 account.',
+    'build.step.ref': 'Reading reference workbooks (codes, matching rules)…',
+    'build.step.upload': 'Saving the result to SharePoint…',
+    'build.done': 'Build complete — {rows} rows ({match} match / {mismatch} mismatch). Saved to SharePoint.',
+    'build.fail': 'Build failed:',
+    'build.close': 'Close',
+    'meta.srcSp': 'Source: latest SharePoint build',
+    'meta.srcBundled': 'Source: bundled copy (no build result yet)',
     'alert.xlsxBlocked': 'The Excel library could not be loaded (corporate network may block it). Try again shortly.',
     'alert.xlsxReadFail': 'Failed to read Excel: ',
     'rules.loadFail': 'Failed to load rules.json: ',
@@ -290,12 +307,44 @@ function setStatus(el, msg, type) {
 }
 
 // ====================== 대시보드 ======================
+// 데이터 출처: SharePoint '05. output' 의 빌드 결과가 1순위, 저장소에 함께 배포된
+// 사본이 2순위. 관리자가 "데이터 빌드"를 누르면 브라우저에서 계산해 SharePoint 에
+// 저장하므로, 다른 사용자는 재계산 없이 그 결과만 내려받는다.
+let DATA_SOURCE = '';
+
+async function fetchJson(name, fallback) {
+  if (window.Graph && Graph.available()) {
+    try {
+      const j = await Graph.downloadJson('output', name);
+      DATA_SOURCE = 'sharepoint';
+      return j;
+    } catch (e) {
+      console.warn('[data] SharePoint ' + name + ' 없음/실패 — 사본 사용:', e.message);
+    }
+  }
+  try {
+    const j = await fetch(name + '?_=' + Date.now()).then((r) => {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    });
+    if (!DATA_SOURCE) DATA_SOURCE = 'bundled';
+    return j;
+  } catch (e) {
+    if (fallback !== undefined) return fallback;
+    throw e;
+  }
+}
+
 async function load() {
-  const [d, c] = await Promise.all([
-    fetch('data.json?_=' + Date.now()).then((r) => r.json()),
-    fetch('codes.json?_=' + Date.now()).then((r) => r.json()).catch(() => CODES),
-  ]);
-  DATA = d; CODES = c;
+  DATA_SOURCE = '';
+  const d = await fetchJson('data.json');
+  const c = await fetchJson('codes.json', CODES);
+  applyData(d, c);
+}
+
+// 새로 만든(또는 내려받은) 데이터로 대시보드를 다시 그린다.
+function applyData(d, c) {
+  DATA = d; CODES = c || CODES;
   (DATA.rows || []).forEach((r) => { r.MY = computeMY(r); });
   renderMeta();
   renderSummary();
@@ -314,7 +363,10 @@ function changeMonth(r) {
 function renderMeta() {
   const locale = LANG === 'ko' ? 'ko-KR' : 'en-GB';
   const when = DATA.generated_at ? new Date(DATA.generated_at).toLocaleString(locale) : '-';
-  $('#meta').textContent = t('meta.generated', { when, file: DATA.wings_file || '-' });
+  const src = DATA_SOURCE === 'sharepoint' ? t('meta.srcSp')
+    : (DATA_SOURCE === 'bundled' ? t('meta.srcBundled') : '');
+  $('#meta').textContent = t('meta.generated', { when, file: DATA.wings_file || '-' })
+    + (src ? '  ·  ' + src : '');
 }
 
 function dashStats(rows) {
@@ -1068,34 +1120,85 @@ async function loadCodeFileList() {
   } catch (e) { box.innerHTML = `<div class="none err">${esc(t('codes.listFail', { err: e.message }))}</div>`; }
 }
 
-// ====================== 데이터 빌드 트리거 (관리자) ======================
-// 정적 사이트라 GitHub Actions 를 직접 트리거하려면 토큰이 필요하다. 관리자가 자신의
-// 파인그레인드 PAT(해당 repo, Actions: read/write)을 1회 입력하면 브라우저(localStorage)에
-// 저장되고, 이후 버튼으로 workflow_dispatch 를 호출한다. 빌드가 끝나면 data.json 이
-// 커밋되고 GitHub Pages 가 갱신된다.
-const BUILD_REPO = 'startruckkorea-dev/sam-afab';
-const BUILD_WORKFLOW = 'build.yml';
-async function triggerBuild() {
-  let token = localStorage.getItem('gh_pat') || '';
-  if (!token) {
-    token = (prompt(t('build.tokenPrompt')) || '').trim();
-    if (!token) return;
-    localStorage.setItem('gh_pat', token);
+// ====================== 데이터 빌드 (브라우저에서 직접 계산) ======================
+// GitHub Actions·PAT·앱 전용 시크릿 없이, 로그인한 관리자의 위임 권한(Graph)으로
+// SharePoint 원본을 읽어 이 브라우저에서 파이프라인(docs/lib/*)을 돌린다.
+//   01. SAM_files(최신 생산월) · 02. WINGS_data(최신 파일) · 03. model_rules · 04. code
+//     → data.json / codes.json → 05. output 에 저장
+// 다른 사용자는 05. output 만 읽으므로 재계산이 필요 없다.
+
+// Graph 를 pipeline.js 의 소스 어댑터 형태로 감싼다.
+const GRAPH_SOURCE = {
+  list: (key) => Graph.list(key),
+  download: (key, name) => Graph.download(key, name),
+  optionCodes: (function () {
+    let cache = null;
+    return async function () {
+      if (!cache) cache = await fetch('lib/optioncodes.json?_=' + Date.now()).then((r) => r.json());
+      return cache;
+    };
+  })(),
+};
+
+// 빌드 로그 패널 (진행 상황 표시)
+function buildLog() {
+  let box = $('#buildLog');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'buildLog';
+    box.className = 'build-log';
+    box.innerHTML = `<div class="bl-head"><b>${esc(t('build.title'))}</b>`
+      + `<button class="bl-close" type="button">×</button></div><div class="bl-body"></div>`;
+    document.body.appendChild(box);
+    box.querySelector('.bl-close').addEventListener('click', () => box.remove());
   }
+  const body = box.querySelector('.bl-body');
+  return {
+    line(msg, cls) {
+      const d = document.createElement('div');
+      if (cls) d.className = cls;
+      d.textContent = msg;
+      body.appendChild(d);
+      body.scrollTop = body.scrollHeight;
+    },
+    close() { box.remove(); },
+  };
+}
+
+let BUILDING = false;
+async function runBuild() {
+  if (BUILDING) return;
+  if (!window.Graph || !Graph.available()) { alert(t('build.needLogin')); return; }
+  if (!window.Pipeline) { alert(t('build.fail') + ' pipeline.js'); return; }
+  if (!window.XLSX) { alert(t('alert.xlsxBlocked')); return; }
+  if (!confirm(t('build.confirm'))) return;
+
+  BUILDING = true;
   const btn = $('#buildBtn');
   const orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = t('build.running'); }
+  const log = buildLog();
+  log.line(t('build.step.ref'));
   try {
-    const res = await fetch(`https://api.github.com/repos/${BUILD_REPO}/actions/workflows/${BUILD_WORKFLOW}/dispatches`, {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' },
-      body: JSON.stringify({ ref: 'main' }),
-    });
-    if (res.status === 204) alert(t('build.started'));
-    else if (res.status === 401 || res.status === 403) { localStorage.removeItem('gh_pat'); alert(t('build.tokenBad')); }
-    else { const tx = await res.text(); alert(t('build.fail') + ' ' + res.status + ' ' + tx.slice(0, 200)); }
-  } catch (e) { alert(t('build.fail') + ' ' + e.message); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = orig || t('build.btn'); } }
+    const { data, codes } = await Pipeline.build(GRAPH_SOURCE, { log: (m) => log.line(m) });
+
+    log.line(t('build.step.upload'));
+    await Graph.ensureFolder('output');
+    await Graph.uploadJson('output', 'data.json', data);
+    await Graph.uploadJson('output', 'codes.json', codes);
+
+    DATA_SOURCE = 'sharepoint';
+    applyData(data, codes);
+    const msg = t('build.done', {
+      rows: data.summary.total, match: data.summary.matched, mismatch: data.summary.mismatched });
+    log.line(msg, 'ok');
+  } catch (e) {
+    console.error(e);
+    log.line(t('build.fail') + ' ' + e.message, 'err');
+  } finally {
+    BUILDING = false;
+    if (btn) { btn.disabled = false; btn.textContent = orig || t('build.btn'); }
+  }
 }
 
 // ====================== 이벤트 & 초기화 ======================
@@ -1108,9 +1211,9 @@ $('#langBtn').addEventListener('click', toggleLang);
 document.querySelectorAll('[data-view]').forEach((el) =>
   el.addEventListener('click', (e) => { e.preventDefault(); switchView(el.dataset.view); }));
 
-// 데이터 빌드 트리거 (관리자)
+// 데이터 빌드 (관리자) — 이 브라우저에서 계산 후 SharePoint 에 저장
 const _buildBtn = $('#buildBtn');
-if (_buildBtn) _buildBtn.addEventListener('click', triggerBuild);
+if (_buildBtn) _buildBtn.addEventListener('click', runBuild);
 
 // 저장 안 한 편집이 있으면 페이지 이탈 경고 (모델 매칭 / 코드 관리)
 window.addEventListener('beforeunload', (e) => {

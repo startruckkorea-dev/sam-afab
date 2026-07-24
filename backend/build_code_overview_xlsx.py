@@ -84,11 +84,11 @@ def sheet_overview(wb):
 
     info = [
         ('프로젝트', 'SAM(사내 견적 .docx) ↔ WINGS(주문 시스템 export) 옵션코드 비교'),
-        ('아키텍처', '"계산은 GitHub Actions에서, 표시는 GitHub Pages에서". 브라우저는 완성된 JSON만 읽어 표시.'),
-        ('백엔드(계산)', 'backend/ — 순수 Python. SAM/WINGS 파싱 → 비교 → docs/data.json + codes.json 생성'),
+        ('아키텍처', '"계산도 표시도 브라우저에서, 데이터는 SharePoint에서". 관리자 브라우저가 빌드해 결과 JSON을 SharePoint(05. output)에 저장하고, 나머지 사용자는 그것만 읽는다.'),
+        ('백엔드(로컬)', 'backend/ — 순수 Python 참조 구현. 로컬 폴더로 data.json + codes.json 생성 (docs/lib/*.js 검증용)'),
         ('프런트(표시)', 'docs/ — 정적 HTML/CSS/JS. data.json/codes.json을 읽어 테이블 렌더링 (GitHub Pages 루트)'),
-        ('자동화', '.github/workflows/build.yml — 매일 06:00 KST 실행 (스크래핑 → 빌드 → 커밋)'),
-        ('보안', 'WINGS 자격증명(ID/PW/TOTP)은 GitHub Secrets에만 존재. 클라이언트 코드에 노출 없음.'),
+        ('빌드', 'docs/lib/pipeline.js — 관리자가 웹의 [데이터 빌드] 클릭 시 브라우저에서 실행 (Actions/시크릿/PAT 없음)'),
+        ('보안', 'SharePoint 접근은 로그인 사용자의 위임 권한(Graph)만 사용. 시크릿/PAT 없음. WINGS 자격증명은 로컬 스크래핑 전용.'),
         ('설정', 'config.json — SAM/WINGS 폴더 경로, 코드사전 파일/시트. 우선순위: CLI > 환경변수 > config.json > 기본값'),
         ('모델규칙', 'model_rules/model_mapping.xlsx — WINGS↔SAM 모델 인식표 + 수동 매핑/별칭 (사람이 편집)'),
         ('코드사전', 'code/mbtruck-spec-data.xlsx (code_dict 시트) — 옵션코드→영문설명. 없으면 option_codes.py로 폴백'),
@@ -141,13 +141,13 @@ def sheet_files(wb):
         ('docs', 'docs/index.html', 'HTML', 94, 'GitHub Pages 진입점. 테이블/필터 UI 골격.'),
         ('docs', 'docs/app.js', 'JS', 644, 'data.json/codes.json 로드 → 테이블 렌더링, 필터/검색/코드 설명 팝업.'),
         ('docs', 'docs/style.css', 'CSS', '-', '프런트 스타일.'),
-        ('docs', 'docs/data.json', 'JSON', '(생성)', 'Actions가 생성·커밋하는 비교 결과 (generated_at, columns, summary, rows).'),
-        ('docs', 'docs/codes.json', 'JSON', '(생성)', 'Actions가 생성·커밋하는 코드 설명 사전 (options, mandatory).'),
+        ('docs', 'docs/data.json', 'JSON', '(생성)', '비교 결과 폴백 사본 (generated_at, columns, summary, rows). 1순위는 SharePoint 05. output.'),
+        ('docs', 'docs/codes.json', 'JSON', '(생성)', '코드 설명 사전 폴백 사본 (options, mandatory).'),
         ('docs', 'docs/rules.json', 'JSON', '-', '모델 변환 규칙 폴백 파일 (xlsx가 우선).'),
         ('config', 'config.json', 'JSON', '-', 'SAM/WINGS 폴더 경로, 코드사전 파일/시트 설정.'),
         ('설정', 'model_rules/model_mapping.xlsx', 'XLSX', '-', 'WINGS↔SAM 모델 인식표 + 수동매핑/별칭 (사람 편집·자동 갱신).'),
         ('참조', 'code/mbtruck-spec-data.xlsx', 'XLSX', '-', '옵션코드 스펙/사전 원본 (code_dict 시트 = 코드→영문설명).'),
-        ('CI', '.github/workflows/build.yml', 'YAML', '-', '매일 06:00 KST cron + 수동 실행. 스크래핑→빌드→data.json/codes.json 커밋.'),
+        ('docs', 'docs/lib/pipeline.js', 'JS', '-', '브라우저 빌드 오케스트레이터. SharePoint 01~04 읽기 → 비교 → 05. output 저장.'),
     ]
     _rows(ws, 2, rows)
     ws.freeze_panes = 'A2'
@@ -205,7 +205,7 @@ def sheet_functions(wb):
         ('_ref_rows()', 'data.json에서 (차종,WINGS,SAM번호,상태 등) 중복 제거 행 생성.'),
     ])
     block('wings_scraper.py', [
-        ('download_wings_excel(months, ...)', 'Playwright+전용 Chrome 프로필로 WINGS 로그인(TOTP)·Extended Search·Excel 다운로드. Actions/로컬 스크래핑용.'),
+        ('download_wings_excel(months, ...)', 'Playwright+전용 Chrome 프로필로 WINGS 로그인(TOTP)·Extended Search·Excel 다운로드. 로컬 스크래핑용.'),
     ])
     ws.freeze_panes = 'A2'
 
@@ -300,12 +300,12 @@ def sheet_config(wb):
         c2.border = BORDER
         r += 1
     r += 1
-    _section_bar(ws, r, 2, 'CI (.github/workflows/build.yml)', fill=PURPLE)
+    _section_bar(ws, r, 2, '빌드 (docs/lib/pipeline.js — 브라우저)', fill=PURPLE)
     r += 1
     r = _rows(ws, r, [
-        ('스케줄', '매일 06:00 KST (cron UTC 21:00) + 수동 실행(months 입력).'),
-        ('단계', 'checkout → Python 3.11 → 의존성 → (스크래핑 시)Playwright → build_data.py → data.json/codes.json 커밋.'),
-        ('Secrets', 'WINGS_USER / WINGS_PASSWORD / WINGS_TOTP_SECRET (코드에 노출 금지).'),
+        ('실행', '관리자가 웹 상단 [⟳ 데이터 빌드] 클릭 — 스케줄 없음, 그 브라우저에서 1~3분.'),
+        ('단계', '참조 워크북(03/04) → 최신 WINGS(02) → 최신 생산월 SAM(01) 파싱 → 비교 → 05. output 에 JSON 저장.'),
+        ('권한', '로그인 사용자의 위임 Graph 권한(Sites.ReadWrite.All). 시크릿/PAT 없음.'),
     ])
 
 

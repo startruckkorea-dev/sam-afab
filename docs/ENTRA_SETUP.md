@@ -1,8 +1,8 @@
-# SharePoint 연동 설정 (모델 매칭 · 코드 관리)
+# SharePoint 연동 설정 (데이터 빌드 · 모델 매칭 · 코드 관리)
 
-`모델 매칭`과 `코드 관리` 메뉴는 브라우저에서 **Microsoft Graph** 를 호출해
-SharePoint 문서 라이브러리의 Excel 파일을 **직접 읽고 저장**합니다.
-이 기능이 작동하려면 Entra(Azure AD) 앱 등록에 아래 설정이 한 번 필요합니다.
+`데이터 빌드`, `모델 매칭`, `코드 관리` 는 모두 브라우저에서 **Microsoft Graph** 를 호출해
+SharePoint 문서 라이브러리를 **직접 읽고 저장**합니다. 서버·GitHub Actions·클라이언트
+시크릿·PAT 는 쓰지 않고, **로그인한 사용자 본인의 위임 권한**만 사용합니다.
 
 앱(클라이언트) ID: `9b247088-5afb-4622-9c5e-b5f27142761d`
 테넌트 ID: `19cab1f5-21f4-44df-8ac6-96d6ca595203`
@@ -36,8 +36,11 @@ SharePoint 문서 라이브러리의 Excel 파일을 **직접 읽고 저장**합
 
 - 사이트: `https://startruckkorea.sharepoint.com/sites/SAM-AFAB`
 - 문서 라이브러리(기본 drive) = `Shared Documents`
+- SAM 원본: `SAM-AFAB_Data/01. SAM_files` (빌드는 **최신 생산월** 폴더만 읽음)
+- WINGS export: `SAM-AFAB_Data/02. WINGS_data` (빌드는 **최신 파일**만 읽음)
 - 모델 매칭 폴더: `SAM-AFAB_Data/03. model_rules`  → `model_mapping.xlsx`
 - 코드 관리 폴더: `SAM-AFAB_Data/04. code`         → 폴더 내 모든 `.xlsx`
+- 빌드 결과: `SAM-AFAB_Data/05. output` → `data.json` / `codes.json` (없으면 빌드가 폴더를 만듦)
 
 경로/사이트가 바뀌면 [`graph.js`](graph.js) 상단의 `HOSTNAME` / `SITE_PATH` / `FOLDERS` 를 수정하세요.
 
@@ -53,44 +56,27 @@ SharePoint 문서 라이브러리의 Excel 파일을 **직접 읽고 저장**합
 
 ---
 
-## 4) 빌드(GitHub Actions)용 앱 전용 권한 — 데이터 빌드에 필수
+## 4) 데이터 빌드 — 추가 설정 없음 ✅
 
-`데이터 빌드` 버튼 → GitHub Actions 워크플로(`build.yml`)는 **헤드리스**라 사용자 로그인이
-불가합니다. 그래서 **앱 전용(application) 권한 + 클라이언트 시크릿**으로 SharePoint 를 읽습니다.
+**⟳ 데이터 빌드** 버튼은 관리자의 브라우저에서 파이프라인(`lib/pipeline.js`)을 직접 돌립니다.
 
-Azure Portal → 앱 등록 → (이 앱):
+1. Graph 로 SharePoint 원본을 읽는다 — 최신 WINGS(02) · 최신 생산월 SAM(01) · 규칙(03) · 코드(04)
+2. `.docx`/`.xlsx`/`.csv` 를 브라우저에서 파싱하고 비교한다 (SheetJS + 내장 ZIP 리더)
+3. 결과 `data.json` / `codes.json` 을 `05. output` 에 저장한다
 
-1. **API 사용 권한 → 권한 추가 → Microsoft Graph → 애플리케이션 권한(Application)**
-   - `Sites.Read.All`  (읽기 전용) — 빌드가 SAM/WINGS/code/model_rules 를 내려받는 데 필요
-   - `Sites.ReadWrite.All` — 빌드가 갱신된 `model_mapping.xlsx`(인식모델_대조표) 를 SharePoint 에
-     되돌려 저장(writeback)하게 하려면 추가. (원치 않으면 `--no-writeback` 로 실행)
-   - **관리자 동의** 클릭.
-2. **인증서 및 비밀 → 새 클라이언트 비밀 → 값(Value) 복사** (한 번만 보임).
-3. GitHub repo(`startruckkorea-dev/sam-afab`) → **Settings → Secrets and variables → Actions** 에 추가:
-   - `GRAPH_TENANT_ID`  = `19cab1f5-21f4-44df-8ac6-96d6ca595203`
-   - `GRAPH_CLIENT_ID`  = `9b247088-5afb-4622-9c5e-b5f27142761d`
-   - `GRAPH_CLIENT_SECRET` = (2번에서 복사한 비밀 값)
+그래서 **앱 전용(application) 권한 · 클라이언트 시크릿 · GitHub Actions · PAT 가 모두 불필요**합니다.
+1)번의 위임 권한(`Sites.ReadWrite.All`)만으로 동작하며, 실제 읽기/쓰기 가능 범위는
+**로그인한 사용자 본인의 SharePoint 권한**을 따릅니다 — 즉 `05. output` 에 쓰기 권한이 있는
+사람만 빌드를 완료할 수 있고, 나머지 사용자는 저장된 결과를 **읽기만** 합니다.
 
-> 위임(3번, `Sites.ReadWrite.All` Delegated)은 **웹 화면에서** 관리자가 편집·저장할 때,
-> 애플리케이션(4번)은 **빌드가 헤드리스로** 읽고/되돌려쓸 때 쓰입니다 — 둘 다 필요합니다.
+> 빌드는 이 브라우저에서 1~3분 정도 걸립니다(파일 수에 비례). 진행 상황은 우측 하단
+> 로그 패널에 표시됩니다. 탭을 닫으면 중단되므로 완료 메시지까지 열어두세요.
 
-## 5) 데이터 빌드 버튼용 GitHub 토큰 (관리자 브라우저)
+## 5) 다른 사용자에게 반영되는 방식
 
-상단 **⟳ 데이터 빌드** 버튼은 GitHub `workflow_dispatch` 를 호출합니다. 정적 사이트라
-서버가 없으므로, 관리자가 **파인그레인드 PAT** 를 한 번 입력하면 브라우저에 저장됩니다.
-- GitHub → Settings → Developer settings → **Fine-grained tokens**
-- Repository access: `startruckkorea-dev/sam-afab` 만
-- Permissions: **Actions → Read and write**
-- 생성 후 버튼 첫 클릭 시 붙여넣기 (localStorage 저장, 재입력 불필요)
-
-## SharePoint 소스 폴더
-
-| 폴더 | 용도 |
-|------|------|
-| `SAM-AFAB_Data/01. SAM_files` | SAM 원본 (`YYYY-MM ...` 생산월 하위폴더; 빌드는 **최신 월**만 사용) |
-| `SAM-AFAB_Data/02. WINGS_data` | WINGS export (빌드는 **최신 파일**만 사용) |
-| `SAM-AFAB_Data/03. model_rules` | `model_mapping.xlsx` — 모든 모델 매칭 규칙 |
-| `SAM-AFAB_Data/04. code` | 코드 사전 / 필수코드 / 카테고리 등 xlsx |
+- 대시보드는 열릴 때 `05. output/data.json` 을 먼저 읽습니다 → **재계산 없이 최신 결과 열람**.
+- 아직 빌드 결과가 없거나 Graph 접근이 실패하면, 사이트에 함께 배포된 `docs/data.json` 사본을
+  대신 표시합니다(상단 메타 줄에 출처가 표시됨).
 
 ## 문제 해결
 
@@ -99,4 +85,6 @@ Azure Portal → 앱 등록 → (이 앱):
 | `로그인이 필요합니다` | 회사 도메인(`sam-afab.startruckkorea.com`)에서 M365 로그인 후 사용 |
 | `Graph 403 — Access denied` | 1) 관리자 동의 미완료 → 위 1)번, 2) 해당 폴더 쓰기 권한 없음 |
 | `Graph 404` | 폴더/파일 경로 불일치 → `graph.js` 의 `FOLDERS` 경로 확인 |
+| 빌드 중 `01. SAM_files 에 YYYY-MM 하위폴더가 없습니다` | SAM 폴더 이름이 `2026-07 생산` 형식(앞이 `YYYY-MM`)인지 확인 |
 | `엑셀 라이브러리를 불러오지 못했습니다` | 사내망이 CDN 차단 + `vendor/xlsx.full.min.js` 누락 → self-host 파일 확인 |
+| 빌드는 됐는데 다른 사람에게 안 보임 | `05. output` 폴더 열람 권한 확인 (읽기 권한 필요) |

@@ -346,3 +346,28 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .auth-btn:disabled { opacity: .6; cursor: default; }
 .auth-chip { display: flex; align-items: center; gap: 8px; }
 .auth-user { font-size: 13px; color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===================== 데이터 빌드 진행 로그 ===================== */
+.build-log {
+  position: fixed; right: 20px; bottom: 20px; z-index: 900;
+  width: min(440px, calc(100% - 40px));
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  background: var(--card); box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.build-log .bl-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  background: var(--thead-bg); font-size: 13px; color: var(--text);
+}
+.build-log .bl-close {
+  border: none; background: transparent; cursor: pointer;
+  font-size: 18px; line-height: 1; color: var(--muted); padding: 0 2px;
+}
+.build-log .bl-body {
+  max-height: 260px; overflow: auto; padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px; line-height: 1.6; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.build-log .bl-body .ok  { color: var(--ok-fg); font-weight: 600; }
+.build-log .bl-body .err { color: var(--danger); font-weight: 600; }

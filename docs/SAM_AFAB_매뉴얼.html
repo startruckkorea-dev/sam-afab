@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SAM × AFAB 시스템 매뉴얼</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --panel2:#1c2129; --ink:#e6e9ef; --muted:#9aa4b2;
+    --line:#2a313c; --accent:#00a3e0; --accent2:#6ac; --ok:#22c55e; --warn:#f59e0b;
+    --bad:#ef4444; --code-bg:#11151b; --chip:#222a35; --sam:#7c4dff; --wings:#00b8a3;
+    --maxw:960px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4f6f9; --panel:#ffffff; --panel2:#f7f9fc; --ink:#1a2230; --muted:#5a6675;
+      --line:#e2e7ee; --accent:#0072b8; --code-bg:#f3f5f8; --chip:#eef2f7;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+    line-height:1.65;font-size:15px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:"Cascadia Code",Consolas,monospace;background:var(--code-bg);
+    padding:1px 6px;border-radius:5px;font-size:.88em;border:1px solid var(--line)}
+  pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow:auto;font-size:12.5px;line-height:1.55}
+  pre code{background:none;border:none;padding:0}
+  h1,h2,h3,h4{line-height:1.3;font-weight:700}
+  h2{font-size:1.5rem;margin:0 0 14px;padding-top:8px;
+    border-bottom:2px solid var(--line);padding-bottom:10px}
+  h3{font-size:1.15rem;margin:28px 0 10px;color:var(--ink)}
+  h4{font-size:1rem;margin:20px 0 6px;color:var(--accent2)}
+
+  /* layout */
+  .wrap{display:flex;gap:0;max-width:1320px;margin:0 auto}
+  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;
+    width:288px;flex:0 0 288px;padding:22px 16px 60px;border-right:1px solid var(--line);
+    background:var(--panel)}
+  nav.toc .logo{font-weight:800;font-size:1.05rem;letter-spacing:.3px;margin:0 0 4px}
+  nav.toc .logo b{color:var(--accent)}
+  nav.toc .sub{color:var(--muted);font-size:.78rem;margin-bottom:18px}
+  nav.toc ol{list-style:none;padding:0;margin:0;counter-reset:sec}
+  nav.toc>ol>li{counter-increment:sec;margin:2px 0}
+  nav.toc>ol>li>a{display:block;padding:6px 10px;border-radius:7px;font-weight:600;
+    font-size:.9rem;color:var(--ink)}
+  nav.toc>ol>li>a::before{content:counter(sec) ". ";color:var(--muted)}
+  nav.toc>ol>li>a:hover,nav.toc a.active{background:var(--panel2);text-decoration:none}
+  nav.toc ul{list-style:none;padding:0 0 6px 18px;margin:0}
+  nav.toc ul li a{display:block;padding:3px 10px;font-size:.82rem;color:var(--muted);
+    border-radius:6px}
+  nav.toc ul li a:hover{color:var(--ink);text-decoration:none;background:var(--panel2)}
+
+  main{flex:1 1 auto;min-width:0;padding:34px 40px 120px;max-width:var(--maxw);margin:0 auto}
+  header.top{margin-bottom:34px}
+  header.top .kicker{color:var(--accent);font-weight:700;font-size:.8rem;letter-spacing:1.5px;
+    text-transform:uppercase}
+  header.top h1{font-size:2.1rem;margin:6px 0 8px}
+  header.top p{color:var(--muted);margin:0;max-width:70ch}
+
+  section{margin:0 0 52px;scroll-margin-top:18px}
+  p{margin:10px 0}
+  ul.tight,ol.tight{margin:8px 0;padding-left:22px}
+  ul.tight li,ol.tight li{margin:5px 0}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:18px 20px;margin:16px 0}
+  .card.tip{border-left:4px solid var(--accent)}
+  .card.warn{border-left:4px solid var(--warn)}
+  .card.ok{border-left:4px solid var(--ok)}
+  .card h4{margin-top:0}
+  .lead{font-size:1.05rem;color:var(--ink)}
+  .muted{color:var(--muted)}
+
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);font-weight:700}
+  tbody tr:nth-child(even){background:var(--panel2)}
+  .nowrap{white-space:nowrap}
+
+  .pill{display:inline-block;padding:1px 9px;border-radius:20px;font-size:.72rem;
+    font-weight:700;letter-spacing:.3px;vertical-align:middle}
+  .pill.sam{background:color-mix(in srgb,var(--sam) 22%,transparent);color:#b39dff}
+  .pill.wings{background:color-mix(in srgb,var(--wings) 22%,transparent);color:#4fd8c4}
+  .pill.py{background:#2b3550;color:#8fb4ff}
+  .pill.js{background:#4a3f14;color:#f2d675}
+  .pill.match{background:color-mix(in srgb,var(--ok) 20%,transparent);color:#5ee08a}
+  .pill.mismatch{background:color-mix(in srgb,var(--bad) 20%,transparent);color:#ff8a8a}
+  .pill.nosam{background:var(--chip);color:var(--muted)}
+
+  /* flow diagram */
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:18px 0}
+  .flow .node{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;font-size:.86rem;min-width:120px;display:flex;flex-direction:column;
+    justify-content:center}
+  .flow .node b{display:block;font-size:.9rem}
+  .flow .node span{color:var(--muted);font-size:.76rem}
+  .flow .arrow{display:flex;align-items:center;color:var(--accent);font-size:1.4rem;padding:0 8px}
+  .stack{display:flex;flex-direction:column;gap:8px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+
+  .filecard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 15px}
+  .filecard .fn{font-family:monospace;font-weight:700;color:var(--accent)}
+  .filecard p{margin:4px 0 0;font-size:.85rem;color:var(--muted)}
+
+  .step{display:flex;gap:14px;margin:14px 0}
+  .step .num{flex:0 0 30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem}
+  .step .body{flex:1;min-width:0}
+  .step .body h4{margin:3px 0 4px}
+
+  hr{border:none;border-top:1px solid var(--line);margin:30px 0}
+  .anno{color:var(--muted);font-size:.85rem}
+  .kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;
+    font-size:.8rem;font-family:monospace;background:var(--panel2)}
+  sup.fn{color:var(--accent);font-weight:700}
+
+  @media(max-width:900px){
+    nav.toc{display:none}
+    main{padding:24px 18px 90px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc" id="toc">
+  <div class="logo">SAM <b>×</b> AFAB</div>
+  <div class="sub">시스템 매뉴얼 · 로직 상세</div>
+  <ol>
+    <li><a href="#overview">개요 &amp; 아키텍처</a>
+      <ul>
+        <li><a href="#why">왜 이 구조인가</a></li>
+        <li><a href="#glossary">용어 정리</a></li>
+      </ul>
+    </li>
+    <li><a href="#sources">데이터 소스 (SharePoint)</a></li>
+    <li><a href="#pipeline">전체 데이터 흐름</a></li>
+    <li><a href="#wings">WINGS 파싱 로직</a></li>
+    <li><a href="#sam">SAM 파싱 로직</a></li>
+    <li><a href="#compare">비교(compare) 로직</a>
+      <ul>
+        <li><a href="#c-match">① 모델 매칭</a></li>
+        <li><a href="#c-pto">② PTO 판정</a></li>
+        <li><a href="#c-diff">③ 코드 차이 분류</a></li>
+        <li><a href="#c-mand">④ 필수코드 검사</a></li>
+        <li><a href="#c-paint">⑤ Paint / Tyre</a></li>
+        <li><a href="#c-status">⑥ 상태 결정</a></li>
+      </ul>
+    </li>
+    <li><a href="#rules">규칙·사전 워크북</a></li>
+    <li><a href="#frontend">프론트엔드(대시보드)</a></li>
+    <li><a href="#editors">모델매칭·코드관리 편집</a></li>
+    <li><a href="#build">데이터 빌드 (브라우저)</a></li>
+    <li><a href="#auth">인증 (Entra ID)</a></li>
+    <li><a href="#ops">운영 가이드 &amp; FAQ</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="top">
+  <div class="kicker">Operations &amp; Logic Manual</div>
+  <h1>SAM × AFAB 비교 시스템 매뉴얼</h1>
+  <p>WINGS 주문 데이터와 SAM 내부견적서(.docx)의 옵션 코드를 자동 대조하여
+  누락·불일치·필수코드 미반영을 찾아내는 시스템의 <b>전체 로직</b>을 설명합니다.
+  대상: 운영 관리자 및 유지보수 개발자.</p>
+</header>
+
+<!-- ============================================================= -->
+<section id="overview">
+<h2>1. 개요 &amp; 아키텍처</h2>
+
+<p class="lead">핵심 원리 한 줄: <b>"계산도 표시도 브라우저에서, 데이터는 SharePoint에서."</b></p>
+
+<p>이 시스템은 두 개의 서로 다른 데이터 소스를 비교합니다.</p>
+<div class="grid2">
+  <div class="card">
+    <h4><span class="pill wings">WINGS</span> 주문 시스템 export</h4>
+    <p class="muted" style="margin:0">차량 1대(=Commission no.) 당 실제 주문된 옵션 코드 목록.
+    CSV/Excel로 내려받은 파일. "실제로 이렇게 주문됐다"는 <b>사실(fact)</b>.</p>
+  </div>
+  <div class="card">
+    <h4><span class="pill sam">SAM</span> 내부 견적서(.docx)</h4>
+    <p class="muted" style="margin:0">모델별 표준 견적서. 그 모델이 "이런 코드 구성이어야 한다"는
+    <b>기준(reference)</b>. Word 문서에서 장비표·도장·타이어를 파싱.</p>
+  </div>
+</div>
+
+<p>비교 결과는 차량 한 대마다 <b>세 가지 상태</b> 중 하나로 분류됩니다.</p>
+<p>
+  <span class="pill match">Match</span> SAM 파일을 찾았고 차이가 없음 &nbsp;·&nbsp;
+  <span class="pill mismatch">Mismatch</span> SAM을 찾았으나 코드/도장/타이어가 다름 &nbsp;·&nbsp;
+  <span class="pill nosam">No SAM</span> 비교할 SAM 파일 자체가 없음
+</p>
+
+<p>계산은 <b>관리자가 [⟳ 데이터 빌드]를 누른 브라우저</b>에서 한 번만 일어납니다.
+파싱·모델 매칭·비교가 끝나면 결과 <code>data.json</code>·<code>codes.json</code>이 SharePoint
+<code>05. output</code>에 저장되고, <b>다른 사용자는 그 결과만 읽습니다</b>(재계산 없음).
+서버·GitHub Actions·클라이언트 시크릿·PAT는 사용하지 않습니다.</p>
+
+<h3 id="why">왜 이 구조인가 — 해결한 4가지 문제</h3>
+<table>
+  <thead><tr><th>문제</th><th>해결 방법</th></tr></thead>
+  <tbody>
+    <tr><td><code>.docx</code> 파싱</td><td>내장 ZIP 리더(<code>lib/unzip.js</code>)+정규식 파서로 브라우저에서 직접 파싱 (외부 라이브러리 불필요)</td></tr>
+    <tr><td>토큰/자격증명 보안</td><td>시크릿·PAT이 아예 없음 — 로그인 사용자의 위임 Graph 토큰(MSAL)만 사용</td></tr>
+    <tr><td>계산 부하</td><td>빌드는 관리자 1인의 브라우저에서 1회 → 나머지 사용자는 저장된 JSON만 로드</td></tr>
+    <tr><td>WINGS 데이터 취득</td><td>SharePoint에서 매 빌드마다 최신 파일을 새로 내려받음</td></tr>
+  </tbody>
+</table>
+
+<h3 id="glossary">용어 정리</h3>
+<table>
+  <thead><tr><th>용어</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td class="nowrap">Commission no.</td><td>WINGS의 개별 차량(주문) 고유번호. 비교의 기본 단위(=표의 한 행).</td></tr>
+    <tr><td class="nowrap">옵션 코드</td><td>3~4자 영숫자 코드(예: <code>D2Y</code>, <code>V8W</code>). 장비/사양 식별자.</td></tr>
+    <tr><td class="nowrap">Baumuster</td><td>공장 모델코드. 본문 6자리(예: <code>964230</code>)는 차종 분류에, 4자리+영문(예: <code>2663 LS</code>)은 모델 표시에 쓰임.</td></tr>
+    <tr><td class="nowrap">PTO</td><td>Power Take-Off(동력인출장치). PTO 유무에 따라 같은 모델도 별도 SAM 파일로 존재.</td></tr>
+    <tr><td class="nowrap">Factory Control</td><td>비교에서 제외하는 예외 코드군(접두 I/O/Z/U 등). "공장 관리 코드".</td></tr>
+    <tr><td class="nowrap">Mandatory</td><td>반드시 반영돼야 하는 필수 코드. 한쪽에만 있으면 "누락"으로 표시.</td></tr>
+    <tr><td class="nowrap">CTT</td><td>Customer Tailored Truck — 도장(Paint)·타이어(Tyre) 등 개별 사양 영역.</td></tr>
+    <tr><td class="nowrap">Changeability</td><td>주문 변경 가능 마감일. D-Day가 임박한 차량을 우선 검토.</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============================================================= -->
+<section id="sources">
+<h2>2. 데이터 소스 — SharePoint</h2>
+<p>원본 데이터는 <b>저장소(repo)에 커밋하지 않고</b> SharePoint 문서 라이브러리에만 둡니다.
+빌드는 실행할 때마다 앱 전용 Graph API로 새로 내려받습니다.</p>
+
+<p class="anno">사이트: <code>startruckkorea.sharepoint.com/sites/SAM-AFAB</code> · 기본 라이브러리 "Shared Documents"</p>
+
+<table>
+  <thead><tr><th>폴더</th><th>내용</th><th>빌드가 사용하는 범위</th></tr></thead>
+  <tbody>
+    <tr><td class="nowrap"><code>01. SAM_files</code></td><td>SAM 원본 .docx (월별 <code>YYYY-MM</code> 하위폴더)</td><td><b>가장 최근 생산월</b> 폴더만</td></tr>
+    <tr><td class="nowrap"><code>02. WINGS_data</code></td><td>WINGS export (xlsx/csv)</td><td><b>가장 최신 파일</b> 1개만</td></tr>
+    <tr><td class="nowrap"><code>03. model_rules</code></td><td><code>model_mapping.xlsx</code> — 모든 모델 매칭 규칙</td><td>전체</td></tr>
+    <tr><td class="nowrap"><code>04. code</code></td><td>코드 사전 / 필수코드 / 카테고리 / cab xlsx</td><td>전체</td></tr>
+  </tbody>
+</table>
+
+<div class="card tip">
+  <h4>최신 파일 선택 규칙 <span class="pill js">lib/pipeline.js</span> <span class="pill py">build_data.py</span></h4>
+  <p class="muted">"최신"은 파일 수정시각(mtime)이 아니라 <b>파일명에 박힌 타임스탬프</b>를 우선합니다
+  (복사/다운로드 시 mtime이 바뀌기 때문). 우선순위:</p>
+  <ol class="tight">
+    <li>파일명 끝의 13자리 epoch-ms (예: <code>..._1783469227544</code>)</li>
+    <li>파일명 속 날짜 <code>YYYY-MM-DD</code> / <code>YYYYMMDD</code></li>
+    <li>둘 다 없으면 파일 수정시각(mtime)</li>
+  </ol>
+  <p class="muted">SAM 월 폴더는 폴더명 <code>YYYY-MM</code>을 정수 <code>YYYYMM</code>으로 바꿔 최댓값을 최신 월로 봅니다.</p>
+</div>
+</section>
+
+<!-- ============================================================= -->
+<section id="pipeline">
+<h2>3. 전체 데이터 흐름</h2>
+<p>관리자가 <span class="kbd">⟳ 데이터 빌드</span> 버튼을 누르면 아래 파이프라인이 실행됩니다.</p>
+
+<div class="flow">
+  <div class="node"><b>SharePoint</b><span>SAM·WINGS·규칙·코드</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>build_data.py</b><span>오케스트레이터</span></div>
+  <div class="arrow">→</div>
+  <div class="stack">
+    <div class="node"><b>parse_wings</b><span>WINGS → DataFrame</span></div>
+    <div class="node"><b>load_sam_by_month</b><span>.docx → 모델맵</span></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node"><b>compare()</b><span>행별 대조</span></div>
+  <div class="arrow">→</div>
+  <div class="stack">
+    <div class="node"><b>data.json</b><span>비교 결과</span></div>
+    <div class="node"><b>codes.json</b><span>코드 설명 사전</span></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node"><b>index.html</b><span>브라우저 표시</span></div>
+</div>
+
+<div class="step">
+  <div class="num">1</div>
+  <div class="body"><h4>SharePoint에서 소스 취득 <span class="pill py">_fetch_from_sharepoint</span></h4>
+  <p><code>03. model_rules</code>·<code>04. code</code>를 repo-상대 폴더로 내려받아 기존 로더가 그대로 찾게 하고,
+  WINGS 최신 파일과 최신 SAM 월 폴더를 <code>.sp_stage/</code>에 스테이징합니다.
+  규칙(<code>RULES</code>)은 import 시점에 이미 로드됐으므로 <b>제자리에서 다시 로드</b>해
+  SharePoint 규칙이 반영되게 합니다.</p></div>
+</div>
+<div class="step">
+  <div class="num">2</div>
+  <div class="body"><h4>WINGS 파싱</h4>
+  <p><code>parse_wings()</code>가 컬럼을 자동 인식하여 차량 1행 = {코드 집합, PTO 플래그, 도장/타이어, 각종 메타}로 정규화.
+  → <a href="#wings">4장</a></p></div>
+</div>
+<div class="step">
+  <div class="num">3</div>
+  <div class="body"><h4>SAM 파싱</h4>
+  <p><code>load_sam_by_month()</code>가 최신 월 폴더의 모든 .docx를
+  <code>{정규화모델: {PTO여부: [후보,…]}}</code> 맵으로 변환. → <a href="#sam">5장</a></p></div>
+</div>
+<div class="step">
+  <div class="num">4</div>
+  <div class="body"><h4>비교</h4>
+  <p><code>compare()</code>가 WINGS 각 행에 대응하는 SAM 후보를 골라 코드 차이·필수코드·도장/타이어를
+  계산하고 상태(Match/Mismatch/No SAM)를 부여. → <a href="#compare">6장</a></p></div>
+</div>
+<div class="step">
+  <div class="num">5</div>
+  <div class="body"><h4>JSON 출력 &amp; SharePoint 저장</h4>
+  <p><code>data.json</code>(행+요약)과 <code>codes.json</code>(코드 설명)을 만들어 SharePoint
+  <code>05. output</code>에 저장(덮어쓰기). 대시보드는 즉시 새 결과로 다시 그려집니다.</p></div>
+</div>
+<div class="step">
+  <div class="num">6</div>
+  <div class="body"><h4>워크북 리프레시 (로컬 도구)</h4>
+  <p>모델 인식표(<code>인식모델_대조표</code>)·카테고리 워크북 갱신은 로컬 Python 도구
+  (<code>build_model_rules_xlsx.py</code>·<code>build_model_category_xlsx.py</code>)의 몫입니다.
+  브라우저 빌드는 이 시트를 건드리지 않습니다.</p></div>
+</div>
+
+<p class="anno">출력 <code>data.json</code>은 <code>{ generated_at, wings_file, columns, summary, rows[] }</code> 구조.
+<code>summary</code>는 total·matched·mismatched·no_sam·sam_months 집계.</p>
+</section>
+
+<!-- ============================================================= -->
+<section id="wings">
+<h2>4. WINGS 파싱 로직 <span class="pill py">backend/wings_parser.py</span></h2>
+<p>목표: 형식이 조금씩 다른 WINGS export를 <b>일관된 DataFrame</b>으로 정규화. 차량 1대 = 1행.</p>
+
+<h3>4.1 컬럼 자동 인식</h3>
+<p>파일마다 컬럼 이름/순서가 다를 수 있어, 이름 패턴으로 유연하게 찾습니다.</p>
+<table>
+  <thead><tr><th>대상</th><th>인식 우선순위</th></tr></thead>
+  <tbody>
+    <tr><td>모델명</td><td><code>Type (brief)</code> → <code>Type</code> → <code>Baumuster</code> → 2번째 컬럼</td></tr>
+    <tr><td>옵션 코드①</td><td>이름에 <code>standard</code>+<code>equipment</code> 포함 컬럼</td></tr>
+    <tr><td>옵션 코드②</td><td>이름에 <code>additional</code>+<code>equipment</code> 포함 컬럼</td></tr>
+    <tr><td>(대체)</td><td>못 찾으면 9번째·11번째 컬럼, 그래도 없으면 <code>equipment/offer code/enumeration</code> 포함 컬럼</td></tr>
+    <tr><td>도장</td><td><code>Paint zone N color code</code></td></tr>
+    <tr><td>타이어</td><td><code>Tyre key N. axle</code> + <code>Tyre manufacturer key N. axle</code></td></tr>
+  </tbody>
+</table>
+
+<h3>4.2 코드 추출</h3>
+<p>선택된 옵션 컬럼들의 텍스트를 합쳐 정규식으로 코드를 뽑습니다.</p>
+<pre><code>return set(re.findall(r"\b[A-Z0-9]{3,5}\b", text.upper()))</code></pre>
+<div class="card">
+<p class="muted" style="margin:0"><b>왜 3~5자인가?</b> 현재 옵션 코드는 3~4자지만,
+<code>Additional equipment</code>에 나오는 4~5자 CTT 코드가 옛 <code>{3,4}</code> 패턴에서
+앞 4자로 잘려나가던 문제가 있었습니다. 상한을 5로 늘려 긴 코드를 온전히 보존합니다(3~4자 코드에는 무영향).
+<code>nan</code> 문자열은 미리 제거합니다.</p>
+</div>
+<p><b>PTO 플래그</b>는 합친 텍스트에 <code>\bPTO\b</code>가 있으면 <code>WINGS_has_pto = True</code>.</p>
+
+<h3>4.3 도장(Paint) 정규화</h3>
+<p>WINGS 셀은 4자리 MB 색상번호(예: <code>9676</code>, Excel에서 <code>9676.0</code>으로 읽힐 수 있음).
+소수점 꼬리를 떼고 3~5자리 숫자만 추출해 SAM의 <code>MB 9676</code>과 맞춥니다.</p>
+
+<h3>4.4 타이어(Tyre) 정규화 — 축(axle)별 페어링</h3>
+<p>타이어는 두 컬럼을 <b>축 번호로 짝지어</b> 합칩니다.</p>
+<ul class="tight">
+  <li><code>Tyre key N. axle</code> → 6자 키(예: <code>F18L96</code>)</li>
+  <li><code>Tyre manufacturer key N. axle</code> → 2자리 제조/하중지수(예: <code>81</code>)</li>
+  <li>같은 축의 둘을 합쳐 <code>"F18L96 81"</code> — SAM 타이어 라인의 형식과 일치</li>
+</ul>
+<p class="anno">결과 컬럼: <code>WINGS_codes</code>, <code>WINGS_has_pto</code>, <code>WINGS_paint</code>, <code>WINGS_tyre</code>,
+그리고 존재 시 <code>Order status</code>, <code>FIN</code>, <code>Subcategory (ID)</code>,
+<code>Vehicle alterable until</code>, <code>Requested delivery date</code> 등.</p>
+</section>
+
+<!-- ============================================================= -->
+<section id="sam">
+<h2>5. SAM 파싱 로직 <span class="pill py">backend/sam_parser.py</span></h2>
+<p>목표: 각 .docx를 <code>{정규화모델: {PTO여부: [후보 데이터,…]}}</code> 맵으로 변환.
+.docx는 zip이며 <code>word/document.xml</code>을 XML로 직접 파싱합니다(외부 Word 라이브러리 없음).</p>
+
+<h3>5.1 장비 코드 추출 — 표 → 섹션 → 셀</h3>
+<div class="step"><div class="num">a</div><div class="body">
+  <h4>대상 표 선택</h4>
+  <p>문서 내 모든 표를 훑어 텍스트에 <b>"Equipment overview"</b>가 있는 표를 우선,
+  없으면 <b>"Standard equipment"</b> 표를 대체로 씁니다.</p>
+</div></div>
+<div class="step"><div class="num">b</div><div class="body">
+  <h4>섹션 상태머신</h4>
+  <p>표 안 문단을 순회하며 <code>STANDARD/SPECIAL/ADDITIONAL EQUIPMENT</code> 헤더를 만나면
+  "현재 섹션"을 바꿉니다.</p>
+</div></div>
+<div class="step"><div class="num">c</div><div class="body">
+  <h4>섹션별 코드 규칙</h4>
+  <ul class="tight">
+    <li><b>STANDARD / SPECIAL</b>: 문단에서 <code>\b[A-Z][A-Z0-9]{2,3}\b</code> 모두 수집</li>
+    <li><b>ADDITIONAL</b>: 문단 <b>맨 앞</b> 토큰 1개만(설명문에 낀 대문자 오탐 방지)</li>
+  </ul>
+</div></div>
+
+<div class="card warn">
+<h4>가짜 코드 걸러내기</h4>
+<p class="muted" style="margin:0">느슨한 정규식이 <code>CTT</code> 같은 <b>산문 단어</b>도 잡을 수 있습니다.
+그래서 최종적으로 <b>숫자를 포함한 토큰은 그대로 인정</b>하되,
+전부 영문인 토큰은 <b>실제 SA 코드 사전</b>(<code>OPTION_CODE_MAP</code> ∪ 필수코드)에 있을 때만 남깁니다.</p>
+<pre><code>codes = {c for c in codes
+         if any(ch.isdigit() for ch in c) or c in KNOWN_CODES}</code></pre>
+</div>
+
+<h3>5.2 도장/타이어 추출</h3>
+<p>장비표와 별개로, 본문에서 <code>Paint</code>/<code>Tyres</code> 섹션을 상태머신으로 추적합니다.</p>
+<ul class="tight">
+  <li>도장: <code>MB\s*(\d{4})</code> → <code>9676</code></li>
+  <li>타이어: <code>...R 22,5F18L96 81738.00</code>에서 6자 키 + 뒤 2자리 지수 → <code>F18L96 81</code>
+      (지수가 가격과 붙어있어 <b>공백 뒤 정확히 2자리</b>만 취함)</li>
+</ul>
+
+<h3>5.3 두 개의 모델 번호 — now vs Baumuster</h3>
+<p>SAM 파일마다 번호가 <b>두 개</b> 존재하며 둘 다 보존합니다.</p>
+<table>
+  <thead><tr><th>이름</th><th>출처</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td><code>model_baumuster</code></td><td>본문 <code>Vehicle type</code></td><td>원본/구형 번호 (예: <code>2663 LSDNA</code>)</td></tr>
+    <tr><td><code>model_now</code></td><td>파일 제목</td><td>수정/현행 번호 — 표시 우선</td></tr>
+  </tbody>
+</table>
+<p>본문에서 <code>Baumuster</code>(5자리+) 공장코드와 <code>Subcategory</code>도 추출해 매칭 보조 신호로 씁니다.</p>
+
+<h3 id="normalize">5.4 모델 정규화 <code>normalize_model()</code></h3>
+<p>매칭 키를 만들기 위해 축 정보(<code>8x4</code>)·<code>DNA</code>·비영숫자를 제거하고 대문자화합니다.</p>
+<pre><code>'2851 LS' / '2851LS 6x2'  →  '2851LS'</code></pre>
+<div class="card tip">
+<p style="margin:0"><b>설계 의도:</b> 과거→현행 번호를 <b>추측 변환하지 않습니다.</b>
+각 SAM 파일이 자기 번호(제목=now, 본문=baumuster)를 스스로 들고 있으므로,
+추측 맵 대신 <b>실제 번호</b>로 매칭합니다. 같은 엔트리를 <code>now</code>·<code>baumuster</code> 두 키
+모두에 색인해 WINGS가 어느 번호로 와도 찾히게 합니다. 값이 <b>리스트</b>인 이유는
+두 파일이 같은 키를 공유할 수 있어 Baumuster/Subcategory로 뒤에서 구분하기 때문입니다.</p>
+</div>
+
+<h3>5.5 SAM측 PTO 판정 &amp; 별칭</h3>
+<p>PTO 여부는 (1) 코드 설명에 PTO 포함, (2) 본문에 <code>\bPTO\b</code>, (3) 파일명에 <code>PTO</code> —
+셋 중 하나면 <code>True</code>. 폴더 로드 후에는 <code>reverse_aliases</code> 규칙으로
+구형 번호 엔트리에 신형 번호 별칭 키를 자동 추가해 WINGS(신형 번호)가 SAM(구형 번호)을 찾게 합니다.</p>
+</section>
+
+<!-- ============================================================= -->
+<section id="compare">
+<h2>6. 비교(compare) 로직 <span class="pill py">backend/compare.py</span></h2>
+<p>이 시스템의 <b>심장부</b>입니다. WINGS 각 행마다 대응 SAM을 찾아 차이를 계산합니다.
+아래 6단계로 나눠 설명합니다.</p>
+
+<h3 id="c-match">6.1 ① 모델 매칭 — 생산월 근접 + Cab 신호</h3>
+<p>SAM 맵은 월별로 여러 개일 수 있습니다(<code>--all-months</code> 시). 차량의
+<b>생산 요청일(Requested delivery date)</b>에 <b>가장 가까운 월</b>부터 후보를 찾습니다.</p>
+<pre><code>prod_yyyymm = 생산일의 YYYYMM
+월 목록을 |ym - prod_yyyymm| 오름차순으로 정렬 → 가까운 달부터 탐색</code></pre>
+
+<h4>Cab 신호가 월 근접을 이긴다</h4>
+<p>단순히 가장 가까운 달이 아니라, <b>캡(cab) 종류가 맞는</b> 후보를 우선합니다.</p>
+<ul class="tight">
+  <li>WINGS의 cab 코드(예: <code>F1J</code>)를 <code>code/cab.xlsx</code>로 변형명(예: <code>G5F</code>)으로 변환</li>
+  <li>SAM 파일 제목에 그 변형명이 들어있으면 <b>강한 매칭</b></li>
+  <li>예: 한 달 떨어진 <b>GigaSpace</b> 파일이, 같은 달의 <b>StreamSpace</b> 파일보다 더 정확한 비교 대상</li>
+</ul>
+<p>탐색은 가까운 달부터 돌며, cab 신호가 있으면 <b>cab이 맞는 첫 달</b>에서 멈춥니다.
+어느 달에도 cab 매칭이 없으면 <b>후보가 있는 가장 가까운 달</b>로 폴백합니다.</p>
+
+<h4>후보 점수화 <code>_match_score</code></h4>
+<p>한 엔트리에 후보가 여럿이면 점수가 가장 높은 하나를 <code>_pick</code>으로 고릅니다.</p>
+<table>
+  <thead><tr><th>신호</th><th>가중치</th></tr></thead>
+  <tbody>
+    <tr><td>Cab 변형명이 SAM 제목에 있음</td><td>+3</td></tr>
+    <tr><td>Baumuster(공장코드) 일치</td><td>+2</td></tr>
+    <tr><td>Subcategory 일치</td><td>+1</td></tr>
+  </tbody>
+</table>
+<p class="anno">모델 키가 정확히 없을 땐 <code>_split_model</code>로 숫자부/접미부를 나눠 유사 키까지 탐색합니다.</p>
+
+<h4>수동 매핑 오버라이드</h4>
+<p><code>model_mapping.xlsx</code>의 <code>수동매핑</code> 시트로 특정 WINGS 모델을 강제 지정할 수 있습니다.</p>
+<ul class="tight">
+  <li><b>파일 지정</b>: 자동 매칭이 고른 SAM 파일을 <b>완전히 대체</b>(코드·비교 모두 그 파일 사용)</li>
+  <li><b>Baumuster/now 텍스트</b>: <b>표시값만</b> 덮어씀(SAM 파일이 없어도 동작)</li>
+</ul>
+
+<h3 id="c-pto">6.2 ② PTO 판정 &amp; 정교화</h3>
+<p>1차 PTO 판정: WINGS 코드 설명에 PTO가 있거나 <code>WINGS_has_pto</code>가 참이면 PTO.</p>
+<p><b>정교화:</b> 처음엔 non-PTO로 봤는데, 매칭된 SAM 엔트리에 PTO·non-PTO 두 변형이 모두 있고
+WINGS 코드가 <b>PTO 변형에만 있는 고유 코드</b>를 포함하면 → PTO로 승격합니다.</p>
+<pre><code>pto_unique = PTO변형코드 - nonPTO변형코드
+if wings_codes &amp; pto_unique:  is_pto = True</code></pre>
+
+<h3 id="c-diff">6.3 ③ 코드 차이 분류</h3>
+<p>매칭된 SAM 코드집합과 WINGS 코드집합을 비교해 세 갈래로 나눕니다.
+단, <b>Factory Control 코드와 Mandatory 코드는 일반 차이에서 제외</b>합니다(각자 별도 처리).</p>
+<table>
+  <thead><tr><th>결과 필드</th><th>정의</th></tr></thead>
+  <tbody>
+    <tr><td><code>Only_in_SAM</code></td><td>SAM엔 있고 WINGS엔 없음 (FC·필수 제외)</td></tr>
+    <tr><td><code>Only_in_WINGS</code></td><td>WINGS엔 있고 SAM엔 없음 (FC·필수 제외)</td></tr>
+    <tr><td><code>Factory Control Codes</code></td><td>양쪽 차이 중 FC(예외) 코드만 모음</td></tr>
+  </tbody>
+</table>
+<p class="anno">FC 판정 <code>_is_fc</code>: 예외 집합에 있거나 접두가 <code>I/O/Z/U</code>.
+기본 예외집합 = 접두 I/O/Z/U 코드 + <code>DUP0, A0B, E0D, E0Q, J7G</code>.
+SAM 파일을 못 찾은 행은 <code>Only_in_WINGS</code>를 비워둡니다(비교 불가이므로 "누락"으로 오인 방지).</p>
+
+<h3 id="c-mand">6.4 ④ 필수코드(Mandatory) 검사 — 카테고리 + 그룹</h3>
+<p>필수코드는 <code>code/mandatory-codes.xlsx</code>가 원본입니다. 두 가지 정교한 규칙이 있습니다.</p>
+
+<h4>(a) 차종 카테고리 한정</h4>
+<p>코드마다 적용 차종(<code>all/tractor/rigid/tipper</code>)이 지정됩니다. 차량의 Baumuster 6자리로
+차종을 판별(<a href="#rules">model-category.xlsx</a>)하고, <code>all</code>이거나 <b>차종이 일치할 때만</b> 그 코드를 강제합니다.
+차종을 모르면 <code>all</code> 코드만 적용(예: tipper 전용 코드를 미분류 차량에 잘못 표시하지 않음).</p>
+
+<h4>(b) "one-of" 그룹</h4>
+<p>같은 그룹명을 가진 코드들은 <b>하나만 있으면 충족</b>입니다(예: AEBS = <code>S1P/S1W/S2D/S2N</code> 중 하나).
+그룹 내 변형 교체는 누락이 아닙니다. 그룹 코드는 <b>양쪽의 그룹 보유 여부가 다를 때만</b> 플래그됩니다.</p>
+<pre><code>대칭차(symmetric diff) 중:
+  · 비그룹 필수코드 → 한쪽에만 있으면 즉시 누락
+  · 그룹 필수코드   → 그룹을 SAM/WINGS 중 한쪽만 가질 때만 누락
+</code></pre>
+
+<h3 id="c-paint">6.5 ⑤ Paint / Tyre (CTT) — 별도 비교</h3>
+<p>도장·타이어는 3~4자 옵션 코드와 <b>분리</b>해 비교하고, 상세창 상단에 별도 섹션으로 보여줍니다.</p>
+<div class="card">
+<p style="margin:0">불일치 판정 조건(오탐 방지): <b>SAM 파일이 매칭됐고</b>, <b>양쪽 모두 해당 항목을 보유</b>하며,
+집합이 서로 다를 때만 mismatch로 셉니다. 한쪽이 단순히 섹션을 누락한 경우는 불일치로 치지 않습니다.</p>
+<pre><code>paint_mismatch = sam_data and wings_paint and sam_paint and (wings_paint ^ sam_paint)</code></pre>
+</div>
+
+<h3 id="c-status">6.6 ⑥ 부가 정보 &amp; 상태 결정</h3>
+<p>SAM 파일명에서 정규식으로 차종·축·캡·PTO를 뽑아 표시용으로 채웁니다
+(제목에 캡 토큰이 없는 tipper 파일 등은 WINGS cab 코드→cab.xlsx로 보완).</p>
+<pre><code>if not sam_file:                              → "No SAM"
+elif Only_in_SAM/WINGS 있음 or Paint/Tyre 불일치 → "Mismatch"
+else:                                          → "Match"</code></pre>
+<p><b>Changeability D-Day:</b> <code>Vehicle alterable until</code> 날짜에서 오늘까지 남은 일수를 계산.
+<code>done/passed</code>는 "Passed"로 표기.</p>
+
+<div class="card tip">
+<h4>compare가 만드는 주요 출력 컬럼</h4>
+<p class="muted" style="margin:0"><code>Commission no.</code>, <code>Vehicle</code>, <code>Model(WINGS)</code>,
+<code>Type</code>(축), <code>Cab</code>, <code>PTO</code>, <code>SAM Baumuster</code>, <code>SAM now</code>,
+<code>Only_in_SAM</code>, <code>Only_in_WINGS</code>, <code>Factory Control Codes</code>,
+<code>Mandatory Codes</code>, <code>Changeability Date</code>, <code>Until Dealine</code>,
+<code>_all_wings_codes</code>/<code>_all_sam_codes</code>(전체목록),
+<code>_paint_*</code>/<code>_tyre_*</code>, <code>Compared SAM file name</code>, <code>SAM Status</code>.
+(<code>_</code> 접두 컬럼은 상세창 전용 원본 데이터.)</p>
+</div>
+</section>
+
+<!-- ============================================================= -->
+<section id="rules">
+<h2>7. 규칙·사전 워크북</h2>
+<p>매칭 규칙과 코드 사전은 코드에 하드코딩하지 않고 <b>Excel 워크북</b>으로 관리합니다
+(웹에서 편집 가능). 파일이 없거나 시트가 비면 코드 내 기본값(DEFAULTS)으로 폴백해
+<b>빌드가 절대 깨지지 않습니다</b>.</p>
+
+<h3>7.1 <code>model_mapping.xlsx</code> — 모든 모델 매칭 규칙 <span class="pill py">rules.py</span></h3>
+<p>우선순위(높은 것이 이김): <b>xlsx &gt; docs/rules.json &gt; 내장 DEFAULTS</b>.</p>
+<table>
+  <thead><tr><th>시트</th><th>규칙 키</th><th>용도</th></tr></thead>
+  <tbody>
+    <tr><td><code>정규화_과거번호</code></td><td>normalize_historic</td><td>과거번호 정규화 맵</td></tr>
+    <tr><td><code>이전모델</code> / <code>현재모델</code></td><td>previous/current_model</td><td>세대 번호 매핑</td></tr>
+    <tr><td><code>WINGS표시치환</code></td><td>wings_display_replace</td><td>표시용 문자열 치환</td></tr>
+    <tr><td><code>매칭_별칭(수동)</code></td><td>reverse_aliases</td><td>구↔신 번호 별칭</td></tr>
+    <tr><td><code>차종키워드</code></td><td>vehicle_keywords</td><td>번호→차종(Actros/Arocs…) 추정</td></tr>
+    <tr><td><code>수동매핑</code></td><td>manual_map</td><td>WINGS 모델→SAM 강제 지정(<a href="#c-match">6.1</a>)</td></tr>
+    <tr><td><code>인식모델_대조표</code></td><td>(자동생성)</td><td>빌드가 만드는 확인용 보기(편집 안 함)</td></tr>
+  </tbody>
+</table>
+
+<h3>7.2 <code>mandatory-codes.xlsx</code> — 필수코드 <span class="pill py">mandatory_codes.py</span></h3>
+<p><code>Mandatory</code> 시트 열: A=카테고리, B=그룹명, C=코드, D=코드명, E=비고.
+B(그룹)가 비면 개별 필수, 값이 있으면 그 그룹은 "하나만 있으면 충족".</p>
+
+<h3>7.3 <code>model-category.xlsx</code> — 차종 분류 <span class="pill py">model_category.py</span></h3>
+<p>Baumuster 6자리 접두 → <code>tractor/rigid/tipper</code>. 워크북에 없는 접두는 내장 규칙으로 폴백
+(예: <code>964230</code>=tipper, <code>963425</code>=tractor, 그 외 <code>964xxx</code>=rigid). 신규 접두도 항상 분류돼
+나중에 워크북에서 고정할 수 있습니다.</p>
+
+<h3>7.4 코드 설명 사전 <span class="pill py">codes.json</span></h3>
+<p><code>mbtruck-spec-data.xlsx</code>의 <code>code_dict</code> 시트(B=코드, C=영문설명)에서 로드.
+없으면 <code>option_codes.OPTION_CODE_MAP</code>으로 폴백. 필수코드 설명·그룹과 함께
+<code>codes.json</code>으로 출력돼 상세창에서 코드 클릭 시 설명을 보여줍니다.</p>
+</section>
+
+<!-- ============================================================= -->
+<section id="frontend">
+<h2>8. 프론트엔드 — 대시보드 <span class="pill js">docs/app.js</span></h2>
+<p>정적 페이지는 <code>data.json</code>·<code>codes.json</code>을 <code>fetch</code>로 읽어
+표와 대시보드를 그립니다(캐시 무효화 위해 <code>?_=timestamp</code> 부착). 한국어/영어 i18n 내장.</p>
+
+<h3>8.1 요약 타일 &amp; 필터 연동</h3>
+<p>상단 8개 타일은 두 줄로 구성됩니다.</p>
+<ul class="tight">
+  <li><b>전체 현황</b>(이번 생산월 이후): 전체 / 미스매치 / 매칭 / Mandatory 누락</li>
+  <li><b>2주 이내</b>(Changeability D-14): 같은 4종을 임박 차량으로 한정</li>
+</ul>
+<p>타일 클릭 시 <code>TILE_ACTIONS</code> 맵에 따라 상태필터·임박한정·정렬이 한 번에 적용됩니다
+(예: "미스매치" 타일 → 상태=Mismatch + D-Day 오름차순 정렬).</p>
+
+<h3>8.2 Model Year(MY) 계산 — 클라이언트에서</h3>
+<p>MY는 SAM 코드 <code>V8Q~V8Z</code> = "Model year 0~9"에서 유도합니다.</p>
+<pre><code>V8Q→0 … V8W→6 … V8Z→9    →  2020 + digit  (예: V8W → 2026)</code></pre>
+
+<h3>8.3 필터·검색·정렬</h3>
+<p><code>filtered()</code>가 검색어·상태·차종·생산월·이번달이후·PTO만·불일치만·임박한정·Mandatory한정을
+순차 적용합니다. 검색은 행 전체 값을 이어붙인 문자열에서 부분일치. 정렬은 카운트 컬럼(코드 개수)·
+숫자 컬럼·문자열을 구분해 처리합니다.</p>
+
+<h3>8.4 상세창(Drawer)</h3>
+<p>행 클릭 시 우측 드로어가 열리고 두 탭을 제공합니다.</p>
+<div class="grid2">
+  <div class="filecard"><div class="fn">🔍 Difference Codes</div>
+    <p>차이나는 것만: Paint·Tyre 차이, Only in SAM/WINGS, Mandatory(양쪽 반영 시 "이상없음"),
+    Factory Control.</p></div>
+  <div class="filecard"><div class="fn">📄 Full Code List</div>
+    <p>SAM ↔ WINGS 전체 코드를 정렬·정렬 대응(aligned)해 나란히 표시. 빠진 쪽은 음영 처리.</p></div>
+</div>
+
+<h3>8.5 차량별 Excel 내보내기 — 무의존 xlsx 작성기</h3>
+<p><code>drawer.xls</code> 버튼은 외부 라이브러리 없이 <b>순수 JS로 .xlsx(zip)을 직접 생성</b>합니다.
+CRC32·ZIP 로컬헤더·중앙디렉터리·스타일시트 XML을 손으로 조립해, 사내망 CDN 차단 환경에서도
+차량 1대의 코드 비교표(SAM↔WINGS, 음영=누락)를 내려받게 합니다.</p>
+</section>
+
+<!-- ============================================================= -->
+<section id="editors">
+<h2>9. 모델 매칭 · 코드 관리 (웹에서 SharePoint 편집)</h2>
+<p>대시보드 외 두 메뉴는 SharePoint의 Excel을 <b>브라우저에서 직접 열고 편집·저장</b>합니다.
+공통 그리드 에디터(<code>makeSheetEditor</code>)를 재사용합니다.</p>
+
+<div class="grid2">
+  <div class="card">
+    <h4>모델 매칭</h4>
+    <p class="muted" style="margin:0"><code>03. model_rules/model_mapping.xlsx</code> 한 파일의
+    모든 시트를 탭으로 편집. 저장하면 다음 <b>데이터 빌드</b> 때 규칙이 적용됩니다.</p>
+  </div>
+  <div class="card">
+    <h4>코드 관리</h4>
+    <p class="muted" style="margin:0"><code>04. code</code> 폴더의 모든 xlsx를 목록에서 골라
+    편집·저장(코드 사전, 필수코드, 카테고리, cab 등).</p>
+  </div>
+</div>
+
+<h4>편집기 동작</h4>
+<ul class="tight">
+  <li>열기: Graph로 xlsx 다운로드 → SheetJS로 파싱 → 셀 <code>contenteditable</code> 그리드</li>
+  <li>편집 시 "● 저장되지 않은 변경" 표시, 뷰 이탈·페이지 종료 시 경고</li>
+  <li>저장: 그리드→워크북 재조립 → Graph <code>PUT</code>(4MB↑는 업로드 세션 청크)로 덮어쓰기</li>
+  <li>SheetJS는 로컬 self-host 우선, 실패 시 CDN 폴백(사내망 차단 대비)</li>
+</ul>
+<div class="card warn" style="margin-top:14px">
+<p style="margin:0">편집 저장은 회사 Microsoft 365 계정 로그인 + Entra 앱에
+<b>위임 권한 <code>Sites.ReadWrite.All</code></b> + 관리자 동의가 필요합니다. → <a href="#auth">11장</a></p>
+</div>
+</section>
+
+<!-- ============================================================= -->
+<section id="build">
+<h2>10. 데이터 빌드 (브라우저 실행) <span class="pill js">app.js</span> <span class="pill js">lib/pipeline.js</span></h2>
+
+<h3>10.1 무엇이 일어나는가</h3>
+<p>상단 <span class="kbd">⟳ 데이터 빌드</span>는 서버를 부르지 않습니다. 로그인한 관리자의
+<b>위임 Graph 권한</b>으로 SharePoint를 읽어 <b>그 브라우저에서</b> 파이프라인을 돌리고,
+결과를 다시 SharePoint에 저장합니다.</p>
+<pre><code>01. SAM_files(최신 생산월) ┐
+02. WINGS_data(최신 파일)  ├─► lib/pipeline.js ─► data.json / codes.json ─► 05. output
+03. model_rules            │     (samparse · wingsparse · refdata · compare)
+04. code                   ┘</code></pre>
+<ul class="tight">
+  <li>최신 WINGS 선택: 파일명의 13자리 epoch-ms 또는 <code>YYYY-MM-DD</code> &gt; 수정시각 순</li>
+  <li>최신 생산월 선택: <code>01. SAM_files</code>의 <code>YYYY-MM …</code> 하위폴더 중 가장 큰 값</li>
+  <li>진행 상황은 우측 하단 로그 패널에 표시 — 탭을 닫으면 중단됩니다(1~3분 소요)</li>
+  <li>저장 실패(권한 없음) 시에도 이미 계산된 결과는 그 화면에 반영됩니다</li>
+</ul>
+
+<h3>10.2 다른 사용자에게 반영되는 방식</h3>
+<ul class="tight">
+  <li>대시보드는 열릴 때 <code>05. output/data.json</code>을 먼저 읽습니다 → <b>재계산 없이 열람</b></li>
+  <li>빌드 결과가 없거나 접근 실패 시 사이트에 함께 배포된 <code>docs/data.json</code> 사본으로 폴백
+      (상단 메타 줄에 출처 표시)</li>
+</ul>
+
+<h3>10.3 Python 참조 구현</h3>
+<p><code>backend/*.py</code>는 동일 로직의 <b>참조 구현이자 로컬 빌드 도구</b>로 남아 있습니다.
+<code>docs/lib/*.js</code>는 이 구현과 동일 입력에서 <b>445행 × 전 필드 일치</b>로 검증되었습니다.
+로직을 고칠 때는 양쪽을 함께 수정하고 로컬 빌드로 대조하세요.</p>
+<p class="anno">GitHub Actions 워크플로·앱 전용 클라이언트 시크릿·GitHub PAT는 <b>모두 제거</b>되었습니다.</p>
+</section>
+
+<!-- ============================================================= -->
+<section id="auth">
+<h2>11. 인증 (Entra ID / Microsoft Graph)</h2>
+<p>두 종류의 인증이 <b>목적에 따라 분리</b>되어 있습니다.</p>
+<table>
+  <thead><tr><th>맥락</th><th>방식</th><th>권한</th><th>쓰임</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>데이터 빌드 <span class="pill js">pipeline.js·graph.js</span></td>
+      <td>위임<br>(MSAL 사용자 로그인)</td>
+      <td><code>Sites.ReadWrite.All</code></td>
+      <td>SharePoint 소스 읽기 + <code>05. output</code>에 결과 저장</td>
+    </tr>
+    <tr>
+      <td>웹 편집 <span class="pill js">graph.js·auth.js</span></td>
+      <td>위임<br>(MSAL 사용자 로그인)</td>
+      <td><code>Sites.ReadWrite.All</code></td>
+      <td>관리자가 브라우저에서 xlsx 편집·저장</td>
+    </tr>
+  </tbody>
+</table>
+<div class="card warn">
+<p style="margin:0"><b>보안 원칙:</b> 클라이언트 비밀(secret)·PAT은 <b>어디에도 존재하지 않습니다</b>.
+모든 SharePoint 접근은 사용자 본인의 로그인 토큰(MSAL)으로 이뤄지며, 실제 읽기/쓰기 범위는
+그 사용자의 SharePoint 권한을 그대로 따릅니다.
+설정 절차는 <a href="ENTRA_SETUP.md"><code>docs/ENTRA_SETUP.md</code></a> 참고.</p>
+</div>
+</section>
+
+<!-- ============================================================= -->
+<section id="ops">
+<h2>12. 운영 가이드 &amp; FAQ</h2>
+
+<h3>정기 운영 흐름</h3>
+<ol class="tight">
+  <li>SharePoint <code>02. WINGS_data</code>에 최신 WINGS export 업로드</li>
+  <li>필요 시 <code>01. SAM_files/YYYY-MM/</code>에 이번 달 SAM .docx 추가</li>
+  <li>웹 상단 <span class="kbd">⟳ 데이터 빌드</span> 클릭 → 1~3분(브라우저 실행) 후 대시보드 자동 갱신</li>
+  <li>미스매치·Mandatory 누락·D-Day 임박 타일부터 검토</li>
+</ol>
+
+<h3>자주 겪는 상황</h3>
+<div class="card">
+<h4>Q. 특정 차량이 계속 잘못된 SAM 파일과 비교돼요.</h4>
+<p class="muted" style="margin:0"><code>model_mapping.xlsx</code> → <code>수동매핑</code> 시트에 WINGS 모델과 SAM 파일명을 지정하고 저장 후 재빌드.
+자동 매칭을 완전히 덮어씁니다.</p>
+</div>
+<div class="card">
+<h4>Q. 멀쩡한데 "누락"으로 뜨는 코드가 있어요.</h4>
+<p class="muted" style="margin:0">예외라면 Factory Control(접두 I/O/Z/U 또는 예외집합)에 해당하는지 확인.
+필수코드 그룹(one-of) 변형이면 그룹 설정을 <code>mandatory-codes.xlsx</code>에서 점검하세요.</p>
+</div>
+<div class="card">
+<h4>Q. 새 모델이 미분류(차종 공란)로 나와요.</h4>
+<p class="muted" style="margin:0">Baumuster 6자리 접두를 <code>model-category.xlsx</code>에 tractor/rigid/tipper로 추가.
+그 전에도 내장 규칙으로 <code>964xxx</code>는 rigid로 자동 분류됩니다.</p>
+</div>
+<div class="card">
+<h4>Q. 빌드가 실패해요.</h4>
+<p class="muted" style="margin:0">대부분 SharePoint 권한 또는 폴더/파일명 문제입니다.
+참조 워크북이 깨져도 빌드는 폴백으로 진행되지만, 소스(WINGS/SAM) 자체가 없으면 실패합니다.
+화면 우측 하단 <b>빌드 로그 패널</b>의 <code>[ref]</code>·<code>[wings]</code>·<code>[sam]</code>·<code>[build]</code>
+라인과, 필요하면 브라우저 개발자도구 콘솔을 확인하세요.</p>
+</div>
+
+<h3>로컬에서 실행 (개발자)</h3>
+<pre><code>pip install -r requirements.txt
+
+# 로컬 폴더(sam_files/ · wings_data/ · code/ · model_rules/)로 빌드
+python backend/build_data.py
+
+# WINGS 파일 지정
+python backend/build_data.py --wings path/to/wings.xlsx
+
+# 전체 생산월 비교
+python backend/build_data.py --all-months
+
+# option_codes.py 수정 시 브라우저용 사본 갱신
+python backend/build_option_codes_json.py
+
+# 결과 확인
+python -m http.server -d docs 8000   # → http://localhost:8000</code></pre>
+
+<hr>
+<p class="anno">이 매뉴얼은 저장소의 코드
+(<code>backend/</code>, <code>docs/</code>, <code>docs/lib/</code>)에서 직접 도출되었습니다.
+로직이 바뀌면 해당 절을 함께 갱신하세요. 파일 위치는 각 절의
+<span class="pill py">파일</span> 뱃지를 참고하세요.</p>
+</section>
+
+</main>
+</div>
+
+<script>
+// 목차 활성 항목 하이라이트 (스크롤 스파이)
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a[href^="#"]'));
+  var map = {};
+  links.forEach(function(a){ var id=a.getAttribute('href').slice(1); (map[id]=map[id]||[]).push(a); });
+  var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(a){ a.classList.remove('active'); });
+        (map[e.target.id]||[]).forEach(function(a){ a.classList.add('active'); });
+      }
+    });
+  }, { rootMargin: '0px 0px -75% 0px', threshold: 0 });
+  targets.forEach(function(t){ obs.observe(t); });
+})();
+</script>
+</body>
+</html>

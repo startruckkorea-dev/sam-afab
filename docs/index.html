@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
-  <link rel="stylesheet" href="style.css?v=20260722d" />
+  <link rel="stylesheet" href="style.css?v=20260724a" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -77,7 +77,7 @@
           모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이
           이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면
           <code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 빌드</b> 때 적용됩니다.
-          <code>인식모델_대조표</code> 시트는 빌드가 자동 생성하는 확인용 보기입니다.
+          <code>인식모델_대조표</code> 시트는 로컬 도구가 만드는 확인용 보기입니다.
         </p>
 
         <div class="code-editor" id="matchEditor">
@@ -175,7 +175,15 @@
           onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onerror=function(){window.__XLSX_BLOCKED=true;};document.head.appendChild(s);})()"></script>
 
   <!-- Graph 클라이언트 (auth.js 의 MB_AUTH 토큰 사용) -->
-  <script src="graph.js?v=20260722c"></script>
+  <script src="graph.js?v=20260724a"></script>
+
+  <!-- 비교 파이프라인 (브라우저에서 직접 빌드). 순서: 유틸 → 파서 → 비교 → 오케스트레이터 -->
+  <script src="lib/unzip.js?v=20260724a"></script>
+  <script src="lib/samparse.js?v=20260724a"></script>
+  <script src="lib/wingsparse.js?v=20260724a"></script>
+  <script src="lib/refdata.js?v=20260724a"></script>
+  <script src="lib/compare.js?v=20260724a"></script>
+  <script src="lib/pipeline.js?v=20260724a"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
@@ -189,7 +197,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260722c';
+      a.src = 'auth.js?v=20260724a';
       document.body.appendChild(a);
     }
     function tryCdn(i) {
