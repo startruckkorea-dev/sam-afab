@@ -194,7 +194,10 @@
     const targets = months;
     log(`[sam] 생산월 폴더 ${months.length}개 사용: ${targets.map((m) => m.name).join(', ')}`);
 
+    // 숫자가 없는 코드(JKTO 등)는 '아는 코드' 일 때만 살아남으므로, option_codes 뿐 아니라
+    // mbtruck-spec-data.xlsx 의 코드 사전까지 합쳐야 SAM 장비표에서 누락되지 않는다.
     const knownCodes = new Set(Object.keys(ref.codeDesc));
+    for (const c of Object.keys(ref.codeDict || {})) knownCodes.add(c);
     for (const c of ref.mandatory.set) knownCodes.add(c);
     const ctx = { codeDesc: ref.codeDesc, knownCodes: knownCodes };
 
