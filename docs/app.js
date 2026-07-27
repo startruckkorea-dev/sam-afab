@@ -508,22 +508,22 @@ function renderSummary() {
       <div class="dash-cap">${t('dash.overall')}</div>
       <div class="tiles">
         ${tile('t-total', all.total, t('tile.total'), 't-total')}
-        ${tile('t-miss', all.mismatch, t('tile.mismatch'), 't-miss')}
         ${tile('t-match', all.match, t('tile.match'), 't-match')}
+        ${tile('t-miss', all.mismatch, t('tile.mismatch'), 't-miss')}
         ${tile('t-nosam', all.nosam, t('tile.nosam'), 't-nosam')}
-        ${tile('t-samupd', all.samupd, t('tile.samupd'), 't-samupd')}
         ${tile('t-mand', all.mand, t('tile.mand'), 't-mand')}
+        ${tile('t-samupd', all.samupd, t('tile.samupd'), 't-samupd')}
       </div>
     </div>
     <div class="dash-row">
       <div class="dash-cap">${t('dash.soon')}</div>
       <div class="tiles">
         ${tile('t-total2', soon.total, t('tile.total'), 't-total2')}
-        ${tile('t-miss2', soon.mismatch, t('tile.mismatch'), 't-miss2')}
         ${tile('t-match2', soon.match, t('tile.match'), 't-match2')}
+        ${tile('t-miss2', soon.mismatch, t('tile.mismatch'), 't-miss2')}
         ${tile('t-nosam2', soon.nosam, t('tile.nosam'), 't-nosam2')}
-        ${tile('t-samupd2', soon.samupd, t('tile.samupd'), 't-samupd2')}
         ${tile('t-mand2', soon.mand, t('tile.mand'), 't-mand2')}
+        ${tile('t-samupd2', soon.samupd, t('tile.samupd'), 't-samupd2')}
       </div>
     </div>`;
   $('#summary').querySelectorAll('.tile[data-action]').forEach((el) =>
