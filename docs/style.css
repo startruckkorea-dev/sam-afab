@@ -113,14 +113,6 @@ body {
 .mc-label { color: var(--text); flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-count { flex: none; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
 .mc-empty { color: var(--muted); padding: 8px; }
-/* 필터 연동 막대 차트 */
-.mcc-row { padding: 5px 8px; border-radius: 8px; }
-.mcc-row:nth-child(odd) { background: var(--accent-softer); }
-.mcc-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13px; }
-.mcc-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mcc-count { flex: none; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
-.mcc-bar { margin-top: 4px; height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
-.mcc-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 .near-body { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .near-date { font-size: 22px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 10px; }
 .near-dd { font-size: 12.5px; font-weight: 700; color: #fff; background: var(--accent); padding: 2px 9px; border-radius: 999px; }
@@ -130,7 +122,7 @@ body {
 .summary { display: flex; flex-direction: column; gap: 12px; flex: none; }
 .dash-row { display: flex; flex-direction: column; gap: 6px; }
 .dash-cap { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .03em; text-transform: uppercase; }
-.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .tile {
   position: relative; overflow: hidden;
   border-radius: var(--radius); padding: 14px 18px; color: #fff;
@@ -148,6 +140,8 @@ body {
 .t-total, .t-total2 { background: linear-gradient(135deg, #2b5876, #4e4376); }
 .t-miss,  .t-miss2  { background: linear-gradient(135deg, #cb2d3e, #ef473a); }
 .t-match, .t-match2 { background: linear-gradient(135deg, #11998e, #38ef7d); }
+.t-samupd, .t-samupd2 { background: linear-gradient(135deg, #f59e0b, #ea8a00); }
+.t-nosam, .t-nosam2 { background: linear-gradient(135deg, #dc2626, #b91c1c); }
 .t-mand,  .t-mand2  { background: linear-gradient(135deg, #f7971e, #ffae00); }
 
 /* 생성/WINGS 메타 — 대시보드 카드 하단 */
@@ -221,6 +215,8 @@ table#grid { border-collapse: separate; border-spacing: 0; width: 100%; backgrou
 .status.Mismatch { background: var(--miss-bg); color: var(--miss-fg); }
 .status.SAMupdate { background: #f59e0b; color: #fff; }
 .status.NoSAM { background: #dc2626; color: #fff; }
+.status-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.status.upd { font-size: 10.5px; padding: 1px 7px; }
 
 .dday { font-weight: 700; border-radius: 6px; padding: 2px 8px; display: inline-block; font-size: 12px; }
 .dday.passed { background: var(--miss-bg); color: var(--miss-fg); }

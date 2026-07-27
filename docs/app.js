@@ -12,6 +12,7 @@ const COLS = [
   { key: 'Cab', label: 'Cab' },
   { key: 'MY', label: 'MY' },
   { key: 'PTO', label: 'PTO' },
+  { key: 'Production date', label: 'Production' },
   { key: 'Changeability Date', label: 'Changeability' },
   { key: 'Until Dealine', label: 'Changeability D-Day', dday: true },
   { key: 'Only_in_SAM', label: 'Only in SAM', count: 'sam' },
@@ -56,6 +57,7 @@ let CODES = { options: {}, mandatory: {} };
 let sortKey = null, sortDir = 1;
 let restrictSoon = false;
 let tileMandatory = false;
+let tileSamUpdate = false;
 let activeTile = 't-total';
 
 const $ = (s) => document.querySelector(s);
@@ -86,6 +88,8 @@ const I18N = {
     'tile.mismatch': '미스매치',
     'tile.match': '매칭',
     'tile.mand': 'Mandatory 누락',
+    'tile.samupd': 'SAM update요청',
+    'tile.nosam': 'No SAM',
     'dash.models': '모델별 대수',
     'dash.models.filtered': '모델별 대수 (필터)',
     'dash.models.kinds': '종',
@@ -209,6 +213,8 @@ const I18N = {
     'tile.mismatch': 'Mismatch',
     'tile.match': 'Match',
     'tile.mand': 'Mandatory missing',
+    'tile.samupd': 'SAM update needed',
+    'tile.nosam': 'No SAM',
     'dash.models': 'Units by model',
     'dash.models.filtered': 'Units by model (filtered)',
     'dash.models.kinds': 'kinds',
@@ -442,6 +448,8 @@ function dashStats(rows) {
     total: rows.length,
     mismatch: rows.filter((r) => r['SAM Status'] === 'Mismatch').length,
     match: rows.filter((r) => r['SAM Status'] === 'Match').length,
+    nosam: rows.filter((r) => r['SAM Status'] === 'No SAM').length,
+    samupd: rows.filter((r) => r['SAM Update']).length,   // 대체 SAM 매칭(총계와 무관, 겹침)
     mand: rows.filter((r) => countOf(r['Mandatory Codes']) > 0).length,
   };
 }
@@ -461,14 +469,18 @@ function tile(cls, n, label, action) {
 }
 
 const TILE_ACTIONS = {
-  't-total':  { soon: false, status: '',         mand: false, sort: null },
-  't-miss':   { soon: false, status: 'Mismatch', mand: false, sort: ['Until Dealine', 1] },
-  't-match':  { soon: false, status: 'Match',    mand: false, sort: null },
-  't-mand':   { soon: false, status: '',         mand: true,  sort: ['Mandatory Codes', -1] },
-  't-total2': { soon: true,  status: '',         mand: false, sort: ['Until Dealine', 1] },
-  't-miss2':  { soon: true,  status: 'Mismatch', mand: false, sort: ['Until Dealine', 1] },
-  't-match2': { soon: true,  status: 'Match',    mand: false, sort: null },
-  't-mand2':  { soon: true,  status: '',         mand: true,  sort: ['Mandatory Codes', -1] },
+  't-total':  { soon: false, status: '',         mand: false, samupd: false, sort: null },
+  't-miss':   { soon: false, status: 'Mismatch', mand: false, samupd: false, sort: ['Until Dealine', 1] },
+  't-match':  { soon: false, status: 'Match',    mand: false, samupd: false, sort: null },
+  't-nosam':  { soon: false, status: 'No SAM',   mand: false, samupd: false, sort: null },
+  't-samupd': { soon: false, status: '',         mand: false, samupd: true,  sort: null },
+  't-mand':   { soon: false, status: '',         mand: true,  samupd: false, sort: ['Mandatory Codes', -1] },
+  't-total2': { soon: true,  status: '',         mand: false, samupd: false, sort: ['Until Dealine', 1] },
+  't-miss2':  { soon: true,  status: 'Mismatch', mand: false, samupd: false, sort: ['Until Dealine', 1] },
+  't-match2': { soon: true,  status: 'Match',    mand: false, samupd: false, sort: null },
+  't-nosam2': { soon: true,  status: 'No SAM',   mand: false, samupd: false, sort: null },
+  't-samupd2':{ soon: true,  status: '',         mand: false, samupd: true,  sort: null },
+  't-mand2':  { soon: true,  status: '',         mand: true,  samupd: false, sort: ['Mandatory Codes', -1] },
 };
 
 function applyTile(id) {
@@ -477,6 +489,7 @@ function applyTile(id) {
   activeTile = id;
   restrictSoon = cfg.soon;
   tileMandatory = cfg.mand;
+  tileSamUpdate = !!cfg.samupd;
   $('#statusFilter').value = cfg.status;
   $('#statusFilter').dispatchEvent(new Event('change'));
   if (cfg.sort) { sortKey = cfg.sort[0]; sortDir = cfg.sort[1]; }
@@ -497,6 +510,8 @@ function renderSummary() {
         ${tile('t-total', all.total, t('tile.total'), 't-total')}
         ${tile('t-miss', all.mismatch, t('tile.mismatch'), 't-miss')}
         ${tile('t-match', all.match, t('tile.match'), 't-match')}
+        ${tile('t-nosam', all.nosam, t('tile.nosam'), 't-nosam')}
+        ${tile('t-samupd', all.samupd, t('tile.samupd'), 't-samupd')}
         ${tile('t-mand', all.mand, t('tile.mand'), 't-mand')}
       </div>
     </div>
@@ -506,6 +521,8 @@ function renderSummary() {
         ${tile('t-total2', soon.total, t('tile.total'), 't-total2')}
         ${tile('t-miss2', soon.mismatch, t('tile.mismatch'), 't-miss2')}
         ${tile('t-match2', soon.match, t('tile.match'), 't-match2')}
+        ${tile('t-nosam2', soon.nosam, t('tile.nosam'), 't-nosam2')}
+        ${tile('t-samupd2', soon.samupd, t('tile.samupd'), 't-samupd2')}
         ${tile('t-mand2', soon.mand, t('tile.mand'), 't-mand2')}
       </div>
     </div>`;
@@ -597,20 +614,18 @@ function renderDashSide() {
     </div>`;
 }
 
-// 필터와 연동되는 모델별 대수 (막대 차트). render() 가 매 필터 변경 시 호출한다.
+// 필터와 연동되는 모델별 대수 (왼쪽 전체 리스트와 동일한 형식). render() 가 매 필터 변경 시 호출.
 function renderFilteredModels(rows) {
   const el = $('#dashFiltered');
   if (!el) return;
   const combos = modelCombos(rows || []);
   const total = combos.reduce((s, c) => s + c.count, 0);
-  const max = combos.length ? combos[0].count : 0;
   const listHtml = combos.length
     ? combos.map((c) => {
       const label = c.parts.filter(Boolean).join(' · ');
-      const pct = max ? Math.round((c.count / max) * 100) : 0;
-      return `<div class="mcc-row">
-        <div class="mcc-top"><span class="mcc-label" title="${esc(label)}">${esc(label)}</span><span class="mcc-count">${c.count}</span></div>
-        <div class="mcc-bar"><span style="width:${pct}%"></span></div>
+      return `<div class="mc-row">
+        <div class="mc-label" title="${esc(label)}">${esc(label)}</div>
+        <div class="mc-count">${c.count}</div>
       </div>`;
     }).join('')
     : `<div class="mc-empty">—</div>`;
@@ -810,10 +825,13 @@ function filtered() {
     if (axle && r.Type !== axle) return false;
     if (cab && r.Cab !== cab) return false;
     if (upcoming) {
-      const cm = changeMonth(r);
-      if (!cm || cm < CUR_MONTH) return false;
+      // 라벨("Display only production from this month")과 왼쪽 전체 리스트(overallRows)
+      // 기준을 맞추기 위해 생산월(Production date) 기준으로 거른다.
+      const pm = prodMonth(r);
+      if (!pm || pm < CUR_MONTH) return false;
     }
     if (tileMandatory && countOf(r['Mandatory Codes']) === 0) return false;
+    if (tileSamUpdate && !r['SAM Update']) return false;
     if (q) {
       const hay = Object.values(r).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
@@ -864,7 +882,10 @@ function render() {
     const tds = COLS.map((c) => {
       let v = r[c.key];
       v = v == null ? '' : String(v);
-      if (c.status) return `<td><span class="status ${statusClass(v)}">${esc(v)}</span></td>`;
+      if (c.status) {
+        const upd = r['SAM Update'] ? `<span class="status SAMupdate upd">${esc(t('tile.samupd'))}</span>` : '';
+        return `<td><div class="status-cell"><span class="status ${statusClass(v)}">${esc(v)}</span>${upd}</div></td>`;
+      }
       if (c.dday) return `<td class="num">${ddayHtml(v)}</td>`;
       if (c.count) return `<td class="num">${countCell(v, c.count)}</td>`;
       return `<td>${hl(v)}</td>`;
@@ -985,7 +1006,8 @@ function openDrawer(r) {
       if (DDAY_KEYS.has(k)) val = ddayHtml(r[k]);
       else if (k === 'SAM Status') {
         const s = String(r[k]);
-        val = `<span class="status ${statusClass(s)}">${esc(s)}</span>`;
+        const upd = r['SAM Update'] ? ` <span class="status SAMupdate">${esc(t('tile.samupd'))}</span>` : '';
+        val = `<span class="status ${statusClass(s)}">${esc(s)}</span>${upd}`;
       } else val = esc(r[k]);
       return `<div class="kv-item"><div class="k">${esc(META_LABELS[k] || k)}</div><div class="v">${val}</div></div>`;
     }).join('');
@@ -1818,6 +1840,7 @@ window.addEventListener('beforeunload', (e) => {
 function onManualFilter() {
   restrictSoon = false;
   tileMandatory = false;
+  tileSamUpdate = false;
   activeTile = null;
   syncTileActive();
   render();

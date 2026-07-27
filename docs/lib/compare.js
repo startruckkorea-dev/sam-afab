@@ -293,11 +293,14 @@
         }
       }
 
+      // 상태는 항상 Match / Mismatch / No SAM 중 하나 → 전체 = 매치 + 미스매치 + No SAM.
+      // 이전(≤6개월) 대체 SAM 으로 매칭된 경우도 그 대체본 기준으로 Match/Mismatch 를 계산하고,
+      // 별도 플래그 'SAM Update' 로만 표시한다(총계와 무관하게 겹쳐서 카운트).
       let samStatus;
       if (matchSource === 'none' || !samFile) samStatus = 'No SAM';
-      else if (matchSource === 'prev') samStatus = 'SAM update요청';   // 생산월만 다른 이전(≤6개월) 매칭
       else if (onlyS.length || onlyW.length || paintMismatch || tyreMismatch) samStatus = 'Mismatch';
       else samStatus = 'Match';
+      const samUpdate = (matchSource === 'prev' && samFile) ? 'Y' : '';
 
       let samBaumuster = samData ? s(samData.model_baumuster) : '';
       let samNow = samData ? s(samData.model_now) : '';
@@ -342,6 +345,7 @@
         '_tyre_sam': sortedArr(samTyre).join(','),
         'Compared SAM file name': samFile,
         'SAM Status': samStatus,
+        'SAM Update': samUpdate,
       };
 
       // Changeability + D-day
