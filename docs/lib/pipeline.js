@@ -177,17 +177,17 @@
     return out;
   }
 
-  /** 생산월별 SAM 매핑. 기본은 최신 생산월 폴더 하나만 읽는다. */
+  /** 생산월별 SAM 매핑. 존재하는 모든 생산월 폴더를 읽는다. */
   async function loadSam(src, ref, allMonths, log) {
     const months = await collectSamMonths(src);
     if (!months.length) {
       throw new Error('01. SAM_files 에 YYYY-MM 하위폴더가 없습니다. '
         + '(MYxx 연식 폴더 하위의 YYYY-MM 또는 직속 YYYY-MM 폴더가 필요)');
     }
-    // 기본: 최신 생산월 + 이전 6개월(총 7개)까지 읽는다.
-    // 'SAM update요청'(생산월만 다른 이전 매칭) 판정에 이전 월 폴더가 필요하다.
-    const targets = allMonths ? months : months.slice(-7);
-    log(`[sam] 생산월 ${months.length}개 → 사용: ${targets.map((m) => m.name).join(', ')}`);
+    // 각 행의 생산월 폴더 + 이전 6개월로 'SAM update요청'을 판정하므로, 미래 폴더가
+    // 있어도 이전 달이 누락되지 않도록 존재하는 모든 생산월 폴더를 읽는다.
+    const targets = months;
+    log(`[sam] 생산월 폴더 ${months.length}개 사용: ${targets.map((m) => m.name).join(', ')}`);
 
     const knownCodes = new Set(Object.keys(ref.codeDesc));
     for (const c of ref.mandatory.set) knownCodes.add(c);

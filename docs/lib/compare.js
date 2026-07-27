@@ -313,6 +313,9 @@
         return d ? fmtDate(d) : s(v);
       })();
 
+      // No SAM: 비교 대상이 없으므로 차이/Mandatory 계산 결과를 남기지 않는다.
+      const noSam = (matchSource === 'none' || !samFile);
+
       const rowDict = {
         'Commission no.': com,
         'Baumuster': ('Baumuster' in r) ? r['Baumuster'] : '',
@@ -327,10 +330,10 @@
         'Changeability Date': '',
         'Until Dealine': '',
         'Production date': prodOut,
-        'Only_in_SAM': onlyS.join(','),
-        'Only_in_WINGS': samCodes.size ? onlyW.join(',') : '',
-        'Factory Control Codes': exceptRow.join(','),
-        'Mandatory Codes': mandRow.join(','),
+        'Only_in_SAM': noSam ? '' : onlyS.join(','),
+        'Only_in_WINGS': (noSam || !samCodes.size) ? '' : onlyW.join(','),
+        'Factory Control Codes': noSam ? '' : exceptRow.join(','),
+        'Mandatory Codes': noSam ? '' : mandRow.join(','),
         '_all_wings_codes': sortedArr(wingsCodes).join(','),
         '_all_sam_codes': sortedArr(samCodes).join(','),
         '_paint_wings': sortedArr(wingsPaint).join(','),
