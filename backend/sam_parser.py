@@ -49,6 +49,7 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
     """Parse one SAM file (file-like object) and update mapping in place."""
     model_raw = None
     codes = set()
+    trusted_codes = set()   # codes from pure delimited lists — exempt from the filter below
     paint = set()
     tyre = set()
     full_text = ''
@@ -86,10 +87,30 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                         continue
                     if section in ('STANDARD EQUIPMENT', 'SPECIAL EQUIPMENT'):
                         codes |= set(re.findall(r'\b([A-Z][A-Z0-9]{2,3})\b', para_upper))
+                        # A ';'/','-delimited list of bare code tokens carries no
+                        # prose: every segment IS a code. Trust those tokens so an
+                        # all-letter SA code missing from the option-code DB (e.g.
+                        # JKTO) is not dropped by the KNOWN_CODES filter below —
+                        # while prose-mixed lines still go through that filter.
+                        # Guard: only when the paragraph as a whole is a code list
+                        # (many segments, nearly all code-shaped) so a prose line
+                        # like 'K1E Tank, 390 l, left' can't leak 'LEFT' as a code.
+                        _segs = [s.strip() for s in re.split(r'[;,]', para_upper)]
+                        _segs = [s for s in _segs if s]
+                        _hits = [s for s in _segs if re.fullmatch(r'[A-Z][A-Z0-9]{2,3}', s)]
+                        if len(_segs) >= 5 and len(_hits) >= 0.8 * len(_segs):
+                            trusted_codes.update(_hits)
                     elif section == 'ADDITIONAL EQUIPMENT':
-                        m = re.match(r'^([A-Z][A-Z0-9]{2,3})\b', para_upper)
-                        if m:
-                            codes.add(m.group(1))
+                        # Format '<CODE> <description>'. The code is the first
+                        # whitespace-delimited token and may be 3-5 chars, pure-alpha
+                        # or alphanumeric (e.g. D2J, JDAP, JK6G, AJKLM). Trust it
+                        # (bypass the KNOWN_CODES filter below) since it is
+                        # structurally the line's code; the shape check rejects label
+                        # lines such as 'CTT-Proposal Code' (first token 'CTT-PROPOSAL').
+                        _parts = para_upper.split(None, 1)
+                        _first = _parts[0] if _parts else ''
+                        if re.fullmatch(r'[A-Z][A-Z0-9]{2,4}', _first):
+                            trusted_codes.add(_first)
 
             # Paint + Tyre (CTT) codes, from the document's 'Paint' / 'Tyres' sections
             # (separate from the equipment table). Compared against the WINGS 'Paint
@@ -154,7 +175,7 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
         # Reject prose words captured by the loose equipment-code regex (e.g. the
         # section label 'CTT' = Customer Tailored Truck). Codes with a digit are
         # kept as-is; an all-letter token is kept only when it's a real SA code.
-        codes = {c for c in codes
+        codes = trusted_codes | {c for c in codes
                  if any(ch.isdigit() for ch in c) or c in KNOWN_CODES}
     except Exception as e:
         if log_fn:
