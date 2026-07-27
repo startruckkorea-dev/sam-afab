@@ -646,19 +646,49 @@ function fillSelectFilter(id, allKey, values) {
   sel.value = prev;
 }
 
-function uniqueSorted(fn, reverse) {
-  const arr = [...new Set(DATA.rows.map(fn).filter((v) => v !== undefined && v !== null && v !== ''))]
-    .map(String).sort();
-  return reverse ? arr.reverse() : arr;
+// 각 필터 드롭다운 정의 (id, facet key, 라벨, 값 추출, 내림차순 여부).
+const FILTER_FIELDS = [
+  { id: '#productionFilter', key: 'prod',  allKey: 'filter.allProd',  get: prodMonth,               desc: true },
+  { id: '#myFilter',         key: 'my',    allKey: 'filter.allMY',    get: (r) => r.MY },
+  { id: '#modelFilter',      key: 'model', allKey: 'filter.allModel', get: (r) => r.Vehicle },
+  { id: '#typeFilter',       key: 'type',  allKey: 'filter.allType',  get: (r) => r['Model(WINGS)'] },
+  { id: '#axleFilter',       key: 'axle',  allKey: 'filter.allAxle',  get: (r) => r.Type },
+  { id: '#cabFilter',        key: 'cab',   allKey: 'filter.allCab',   get: (r) => r.Cab },
+];
+
+// 드롭다운/상태/생산월 체크박스 필터를 모두 만족하는지. skip 에 해당하는 필드는 건너뛴다
+// (그 필드의 선택가능 옵션을 계산할 때, 자기 자신은 제외하고 다른 필터만 반영하기 위함).
+function matchesFilters(r, skip) {
+  if (skip !== 'upcoming' && $('#upcomingOnly').checked) {
+    const pm = prodMonth(r);
+    if (!pm || pm < CUR_MONTH) return false;
+  }
+  if (skip !== 'status') {
+    const st = $('#statusFilter').value;
+    if (st && r['SAM Status'] !== st) return false;
+  }
+  for (const f of FILTER_FIELDS) {
+    if (skip === f.key) continue;
+    const val = $(f.id).value;
+    if (val && String(f.get(r) ?? '') !== val) return false;
+  }
+  return true;
+}
+
+// 특정 필드의 선택가능 값 = 다른 필터를 만족하는 행들의 그 필드 distinct 값(연동 필터).
+function facetValues(field) {
+  const set = new Set();
+  for (const r of DATA.rows) {
+    if (!matchesFilters(r, field.key)) continue;
+    const v = field.get(r);
+    if (v !== undefined && v !== null && v !== '') set.add(String(v));
+  }
+  const arr = [...set].sort();
+  return field.desc ? arr.reverse() : arr;
 }
 
 function fillFilters() {
-  fillSelectFilter('#productionFilter', 'filter.allProd', uniqueSorted(prodMonth, true));
-  fillSelectFilter('#myFilter', 'filter.allMY', uniqueSorted((r) => r.MY));
-  fillSelectFilter('#modelFilter', 'filter.allModel', uniqueSorted((r) => r.Vehicle));
-  fillSelectFilter('#typeFilter', 'filter.allType', uniqueSorted((r) => r['Model(WINGS)']));
-  fillSelectFilter('#axleFilter', 'filter.allAxle', uniqueSorted((r) => r.Type));
-  fillSelectFilter('#cabFilter', 'filter.allCab', uniqueSorted((r) => r.Cab));
+  for (const f of FILTER_FIELDS) fillSelectFilter(f.id, f.allKey, facetValues(f));
   enhanceFilterSelects();
 }
 
@@ -807,31 +837,11 @@ function statusClass(v) {
 
 function filtered() {
   const q = $('#search').value.trim().toLowerCase();
-  const status = $('#statusFilter').value;
-  const prod = $('#productionFilter').value;
-  const my = $('#myFilter').value;
-  const model = $('#modelFilter').value;
-  const type = $('#typeFilter').value;
-  const axle = $('#axleFilter').value;
-  const cab = $('#cabFilter').value;
-  const upcoming = $('#upcomingOnly').checked;
   let rows = DATA.rows.filter((r) => {
     if (restrictSoon && !within2weeks(r)) return false;
-    if (status && r['SAM Status'] !== status) return false;
-    if (prod && prodMonth(r) !== prod) return false;
-    if (my && String(r.MY ?? '') !== my) return false;
-    if (model && r.Vehicle !== model) return false;
-    if (type && r['Model(WINGS)'] !== type) return false;
-    if (axle && r.Type !== axle) return false;
-    if (cab && r.Cab !== cab) return false;
-    if (upcoming) {
-      // 라벨("Display only production from this month")과 왼쪽 전체 리스트(overallRows)
-      // 기준을 맞추기 위해 생산월(Production date) 기준으로 거른다.
-      const pm = prodMonth(r);
-      if (!pm || pm < CUR_MONTH) return false;
-    }
     if (tileMandatory && countOf(r['Mandatory Codes']) === 0) return false;
     if (tileSamUpdate && !r['SAM Update']) return false;
+    if (!matchesFilters(r, null)) return false;   // 드롭다운 + 상태 + 생산월 체크박스
     if (q) {
       const hay = Object.values(r).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
@@ -1845,10 +1855,16 @@ function onManualFilter() {
   syncTileActive();
   render();
 }
-['#search', '#statusFilter', '#productionFilter', '#myFilter', '#modelFilter',
+// 드롭다운/상태/체크박스 변경: 연동 필터(다른 드롭다운의 선택가능 옵션)를 다시 계산.
+function onFilterChange() {
+  fillFilters();
+  onManualFilter();
+}
+['#statusFilter', '#productionFilter', '#myFilter', '#modelFilter',
   '#typeFilter', '#axleFilter', '#cabFilter',
   '#upcomingOnly'].forEach((s) =>
-  $(s).addEventListener('input', onManualFilter));
+  $(s).addEventListener('input', onFilterChange));
+$('#search').addEventListener('input', onManualFilter);
 
 applyStaticI18n();
 enhanceFilterSelects();
