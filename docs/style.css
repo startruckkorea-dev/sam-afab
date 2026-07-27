@@ -81,17 +81,17 @@ body {
 #view-codes.active { display: flex; }
 
 /* ===================== 대시보드 ===================== */
-.dash-top { display: flex; gap: 16px; align-items: stretch; padding: 16px 24px 6px; }
+.dash-top { display: flex; gap: 16px; align-items: flex-start; padding: 16px 24px 6px; }
 .dash-top .summary {
   flex: 1 1 50%; min-width: 0; padding: 0;
-  display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 10px;
 }
 .dash-side { flex: 1 1 50%; min-width: 0; display: flex; flex-direction: column; }
 @media (max-width: 1100px) { .dash-top { flex-direction: column; } }
 .side-card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 14px 16px; box-shadow: var(--shadow-md);
-  flex: 1; display: flex; flex-direction: column; min-height: 0;
+  display: flex; flex-direction: column; min-height: 0;
 }
 .near-card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -103,7 +103,7 @@ body {
   display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
 }
 .side-sub { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; white-space: nowrap; }
-.mc-list { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
+.mc-list { display: flex; flex-direction: column; max-height: 264px; overflow-y: auto; }
 .mc-row {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   padding: 6px 8px; border-radius: 8px; font-size: 13px;
@@ -164,7 +164,7 @@ body {
 .table-wrap { flex: 1; overflow: auto; padding: 0 24px 60px; min-height: 0; }
 table#grid { border-collapse: separate; border-spacing: 0; width: 100%; background: var(--card);
   font-size: 13px; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
-#grid th, #grid td { border-bottom: 1px solid var(--border); padding: 9px 11px; text-align: left; white-space: nowrap; }
+#grid th, #grid td { border-bottom: 1px solid var(--border); padding: 9px 11px; text-align: center; white-space: nowrap; }
 #grid thead th {
   position: sticky; top: 0; background: var(--thead-bg); z-index: 3; cursor: pointer;
   user-select: none; font-weight: 700; color: var(--muted); font-size: 12px;
@@ -177,7 +177,7 @@ table#grid { border-collapse: separate; border-spacing: 0; width: 100%; backgrou
 #grid thead th:first-child { z-index: 4; background: var(--thead-bg); }
 #grid tbody tr:hover td { background: var(--row-hover); cursor: pointer; }
 #grid tbody tr:hover td:first-child { background: var(--row-hover); }
-#grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
+#grid td.num { text-align: center; font-variant-numeric: tabular-nums; }
 
 .status { font-weight: 700; border-radius: 6px; text-align: center; padding: 3px 10px; display: inline-block; font-size: 12px; }
 .status.Match { background: var(--match-bg); color: var(--match-fg); }
