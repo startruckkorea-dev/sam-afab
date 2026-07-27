@@ -487,6 +487,7 @@ function renderSummary() {
   const all = dashStats(overallRows());
   const soon = dashStats(DATA.rows.filter(within2weeks));
   $('#summary').innerHTML = `
+    ${nearestCardHtml()}
     <div class="dash-row">
       <div class="dash-cap">${t('dash.overall')}</div>
       <div class="tiles">
@@ -508,6 +509,19 @@ function renderSummary() {
   $('#summary').querySelectorAll('.tile[data-action]').forEach((el) =>
     el.addEventListener('click', () => applyTile(el.dataset.action)));
   syncTileActive();
+}
+
+// 오늘과 가장 가까운 Changeability 카드(왼쪽 상단).
+function nearestCardHtml() {
+  const near = nearestChangeability(overallRows());
+  const body = near
+    ? `<div class="near-date">${esc(near.date)}<span class="near-dd">${ddayLabel(near.dday)}</span></div>
+       <div class="near-count"><b>${near.count}</b> <span>${esc(t('unit.case'))} · ${esc(t('dash.near.count'))}</span></div>`
+    : `<div class="mc-empty">—</div>`;
+  return `<div class="near-card">
+      <div class="dash-cap">${esc(t('dash.near'))}</div>
+      ${body}
+    </div>`;
 }
 
 function syncTileActive() {
@@ -560,7 +574,6 @@ function renderDashSide() {
   const rows = overallRows();
   const combos = modelCombos(rows);
   const totalUnits = combos.reduce((s, c) => s + c.count, 0);
-  const near = nearestChangeability(rows);
 
   const listHtml = combos.length
     ? combos.map((c) => `
@@ -570,21 +583,12 @@ function renderDashSide() {
       </div>`).join('')
     : `<div class="mc-empty">—</div>`;
 
-  const nearHtml = near
-    ? `<div class="near-date">${esc(near.date)}<span class="near-dd">${ddayLabel(near.dday)}</span></div>
-       <div class="near-count"><b>${near.count}</b> <span>${esc(t('unit.case'))} · ${esc(t('dash.near.count'))}</span></div>`
-    : `<div class="mc-empty">—</div>`;
-
   $('#dashSide').innerHTML = `
     <div class="side-card">
       <div class="side-cap">${esc(t('dash.models'))}
         <span class="side-sub">${combos.length}${esc(t('dash.models.kinds'))} · ${totalUnits}${esc(t('unit.ea'))}</span>
       </div>
       <div class="mc-list">${listHtml}</div>
-    </div>
-    <div class="side-card">
-      <div class="side-cap">${esc(t('dash.near'))}</div>
-      ${nearHtml}
     </div>`;
 }
 

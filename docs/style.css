@@ -81,13 +81,21 @@ body {
 #view-codes.active { display: flex; }
 
 /* ===================== 대시보드 ===================== */
-.dash-top { display: flex; gap: 20px; align-items: stretch; padding: 16px 24px 6px; }
-.dash-top .summary { flex: 1 1 50%; min-width: 0; padding: 0; }
-.dash-side { flex: 1 1 50%; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.dash-top { display: flex; gap: 16px; align-items: stretch; padding: 16px 24px 6px; }
+.dash-top .summary {
+  flex: 1 1 50%; min-width: 0; padding: 0;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+}
+.dash-side { flex: 1 1 50%; min-width: 0; display: flex; flex-direction: column; }
 @media (max-width: 1100px) { .dash-top { flex-direction: column; } }
 .side-card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 14px 16px; box-shadow: var(--shadow-md);
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+.near-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 18px; box-shadow: var(--shadow-md);
 }
 .side-cap {
   font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .03em;
@@ -95,7 +103,7 @@ body {
   display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
 }
 .side-sub { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; white-space: nowrap; }
-.mc-list { display: flex; flex-direction: column; max-height: 232px; overflow-y: auto; }
+.mc-list { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
 .mc-row {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   padding: 6px 8px; border-radius: 8px; font-size: 13px;
@@ -108,6 +116,7 @@ body {
 .near-dd { font-size: 12.5px; font-weight: 700; color: #fff; background: var(--accent); padding: 2px 9px; border-radius: 999px; }
 .near-count { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .near-count b { font-size: 24px; color: var(--text); font-weight: 800; margin-right: 2px; }
+.near-card .dash-cap { margin-bottom: 10px; }
 .summary { display: flex; flex-direction: column; gap: 12px; flex: none; }
 .dash-row { display: flex; flex-direction: column; gap: 6px; }
 .dash-cap { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .03em; text-transform: uppercase; }
