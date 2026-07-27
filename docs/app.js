@@ -170,10 +170,10 @@ const I18N = {
     'op.loaded': '불러왔습니다.',
     'op.saved': '저장 완료 — SharePoint에 반영되었습니다.',
     'op.fail': '실패: {err}',
-    'nav.build': '⟳ 데이터 새로고침',
-    'build.btn': '⟳ 데이터 새로고침',
+    'nav.build': '⟳ 데이터 다시 계산',
+    'build.btn': '⟳ 데이터 다시 계산',
     'build.running': '⟳ 빌드 중…',
-    'build.title': '데이터 새로고침',
+    'build.title': '데이터 다시 계산',
     'build.confirm': 'SharePoint 의 최신 WINGS(02) 와 최신 생산월 SAM(01) 으로 비교를 다시 계산합니다.\n'
       + '이 브라우저에서 1~3분 정도 걸리고, 결과는 SharePoint(05. output)에 저장돼 모든 사용자에게 반영됩니다.\n\n계속할까요?',
     'build.needLogin': '데이터 빌드는 회사 Microsoft 365 계정 로그인이 필요합니다.',
@@ -291,10 +291,10 @@ const I18N = {
     'op.loaded': 'Loaded.',
     'op.saved': 'Saved — written back to SharePoint.',
     'op.fail': 'Failed: {err}',
-    'nav.build': '⟳ Refresh Data',
-    'build.btn': '⟳ Refresh Data',
+    'nav.build': '⟳ Recompute Data',
+    'build.btn': '⟳ Recompute Data',
     'build.running': '⟳ Building…',
-    'build.title': 'Refresh Data',
+    'build.title': 'Recompute Data',
     'build.confirm': 'This recomputes the comparison from the newest WINGS export (02) and the newest '
       + 'production-month SAM folder (01) on SharePoint.\nIt runs in this browser (1–3 minutes) and the result is '
       + 'saved to SharePoint (05. output) for everyone.\n\nContinue?',
