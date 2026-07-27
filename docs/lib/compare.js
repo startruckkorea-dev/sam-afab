@@ -135,23 +135,15 @@
 
     const sortedYyyymm = Object.keys(samMapsByMonth).map(Number).sort((a, b) => a - b);
 
-    function samMapsForProdDate(prodRaw) {
-      if (!sortedYyyymm.length) return [];
-      if (prodRaw) {
-        const d = toDate(prodRaw);
-        if (d) {
-          const ym = d.getUTCFullYear() * 100 + (d.getUTCMonth() + 1);
-          const byDist = sortedYyyymm.slice().sort((a, b) => Math.abs(a - ym) - Math.abs(b - ym));
-          return byDist.map((m) => samMapsByMonth[m]);
-        }
-      }
-      return sortedYyyymm.slice().reverse().map((m) => samMapsByMonth[m]);
+    // yyyymm(=년*100+월)에서 k개월 이전의 yyyymm.
+    function ymBack(ym, k) {
+      const idx = Math.floor(ym / 100) * 12 + (ym % 100 - 1) - k;
+      return Math.floor(idx / 12) * 100 + (idx % 12 + 1);
     }
 
     const out = [];
     for (const r of wingsRows) {
       const prodRaw = ('Requested delivery date' in r) ? r['Requested delivery date'] : '';
-      const samMapsList = samMapsForProdDate(prodRaw);
 
       const com = r['Commission no.'];
       const modelRaw = (r['Model'] !== null && r['Model'] !== undefined && r['Model'] !== '')
@@ -173,50 +165,79 @@
       }
       if (!isPto && r['WINGS_has_pto']) isPto = true;
 
-      function entryForModel(map) {
+      function entryForModel(map, pto) {
         const cand = map.get(modelNorm);
-        if (candidates(cand, isPto).length) return cand;
+        if (candidates(cand, pto).length) return cand;
         const [numNorm, sufNorm] = splitModel(modelNorm);
         for (const [k, v] of map) {
           const kNorm = normalizeModel(String(k));
           const [numK, sufK] = splitModel(kNorm);
           if (kNorm === modelNorm || (numK === numNorm && sufK === sufNorm)) {
-            if (candidates(v, isPto).length) return v;
+            if (candidates(v, pto).length) return v;
           }
         }
         return null;
       }
 
-      let samEntry = null, samMap = samMapsList[0] || new Map();
-      let fallbackEntry = null, fallbackMap = null, matched = false;
-      for (const tryMap of samMapsList) {
-        const e = entryForModel(tryMap);
-        if (!candidates(e, isPto).length) continue;
-        if (fallbackEntry === null) { fallbackEntry = e; fallbackMap = tryMap; }
-        if (!expectedCabs.size) { samEntry = e; samMap = tryMap; matched = true; break; }
-        if (cabOk(pick(e, isPto, wingsBm, wingsSub, expectedCabs), expectedCabs)) {
-          samEntry = e; samMap = tryMap; matched = true; break;
-        }
-      }
-      if (!matched && fallbackEntry !== null) { samEntry = fallbackEntry; samMap = fallbackMap; }
-
-      // PTO 보정: WINGS 코드에 PTO 변형에만 있는 코드가 있으면 PTO 로 본다.
-      if (!isPto && samEntry && samEntry['true'] && samEntry['false']) {
-        const ptoData = pick(samEntry, true, wingsBm, wingsSub);
-        const nptoData = pick(samEntry, false, wingsBm, wingsSub);
-        if (ptoData && nptoData) {
-          const ptoUnique = setDiff(ptoData.codes, nptoData.codes);
-          if (setInter(wingsCodes, ptoUnique).size) isPto = true;
-        }
-      }
-
-      let samData = pick(samEntry, isPto, wingsBm, wingsSub, expectedCabs);
-
       const mo = manualNorm[modelNorm];
-      if (mo && mo.file) {
-        const pinned = findSamDataByFile(samMapsList, isPto, mo.file);
-        if (pinned) samData = pinned;
+
+      // 우선순위 월 맵 목록에서 모델을 해석한다. { data, pto } 반환(없으면 data=null).
+      function resolveIn(mapList) {
+        let localPto = isPto;
+        let entry = null, fbEntry = null, ok = false;
+        for (const tryMap of mapList) {
+          const e = entryForModel(tryMap, localPto);
+          if (!candidates(e, localPto).length) continue;
+          if (fbEntry === null) fbEntry = e;
+          if (!expectedCabs.size) { entry = e; ok = true; break; }
+          if (cabOk(pick(e, localPto, wingsBm, wingsSub, expectedCabs), expectedCabs)) { entry = e; ok = true; break; }
+        }
+        if (!ok && fbEntry !== null) entry = fbEntry;
+        // PTO 보정: WINGS 코드에 PTO 변형에만 있는 코드가 있으면 PTO 로 본다.
+        if (!localPto && entry && entry['true'] && entry['false']) {
+          const ptoData = pick(entry, true, wingsBm, wingsSub);
+          const nptoData = pick(entry, false, wingsBm, wingsSub);
+          if (ptoData && nptoData) {
+            const ptoUnique = setDiff(ptoData.codes, nptoData.codes);
+            if (setInter(wingsCodes, ptoUnique).size) localPto = true;
+          }
+        }
+        let data = pick(entry, localPto, wingsBm, wingsSub, expectedCabs);
+        if (mo && mo.file) {
+          const pinned = findSamDataByFile(mapList, localPto, mo.file);
+          if (pinned) data = pinned;
+        }
+        return { data: data, pto: localPto };
       }
+
+      // 생산월(prodYm) 폴더를 먼저 보고, 없으면 이전 최대 6개월 폴더로 fallback.
+      const prodYm = (function () {
+        const d = toDate(prodRaw);
+        return d ? d.getUTCFullYear() * 100 + (d.getUTCMonth() + 1) : 0;
+      })();
+      let currentMaps, prevMaps;
+      if (prodYm) {
+        currentMaps = samMapsByMonth[prodYm] ? [samMapsByMonth[prodYm]] : [];
+        prevMaps = [];
+        for (let k = 1; k <= 6; k++) {
+          const pm = ymBack(prodYm, k);
+          if (samMapsByMonth[pm]) prevMaps.push(samMapsByMonth[pm]);
+        }
+      } else {
+        // 생산월을 알 수 없으면 예전처럼 최신월 우선으로만 비교(‘SAM update요청’ 판정 없음).
+        currentMaps = sortedYyyymm.slice().reverse().map((m) => samMapsByMonth[m]);
+        prevMaps = [];
+      }
+
+      let res = resolveIn(currentMaps);
+      let matchSource = 'current';       // 'current' | 'prev' | 'none'
+      if (!res.data || !res.data.file) {
+        const resPrev = resolveIn(prevMaps);
+        if (resPrev.data && resPrev.data.file) { res = resPrev; matchSource = 'prev'; }
+        else matchSource = 'none';
+      }
+      isPto = res.pto;
+      let samData = res.data;
 
       const samCodes = samData ? samData.codes : new Set();
       const samFile = samData ? samData.file : '';
@@ -273,7 +294,8 @@
       }
 
       let samStatus;
-      if (!samFile) samStatus = 'No SAM';
+      if (matchSource === 'none' || !samFile) samStatus = 'No SAM';
+      else if (matchSource === 'prev') samStatus = 'SAM update요청';   // 생산월만 다른 이전(≤6개월) 매칭
       else if (onlyS.length || onlyW.length || paintMismatch || tyreMismatch) samStatus = 'Mismatch';
       else samStatus = 'Match';
 

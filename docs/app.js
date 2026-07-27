@@ -87,6 +87,7 @@ const I18N = {
     'tile.match': '매칭',
     'tile.mand': 'Mandatory 누락',
     'dash.models': '모델별 대수',
+    'dash.models.filtered': '모델별 대수 (필터)',
     'dash.models.kinds': '종',
     'dash.near': 'Upcoming changeability',
     'dash.near.count': '해당일 Commission',
@@ -165,10 +166,10 @@ const I18N = {
     'op.loaded': '불러왔습니다.',
     'op.saved': '저장 완료 — SharePoint에 반영되었습니다.',
     'op.fail': '실패: {err}',
-    'nav.build': '⟳ 데이터 빌드',
-    'build.btn': '⟳ 데이터 빌드',
+    'nav.build': '⟳ 데이터 새로고침',
+    'build.btn': '⟳ 데이터 새로고침',
     'build.running': '⟳ 빌드 중…',
-    'build.title': '데이터 빌드',
+    'build.title': '데이터 새로고침',
     'build.confirm': 'SharePoint 의 최신 WINGS(02) 와 최신 생산월 SAM(01) 으로 비교를 다시 계산합니다.\n'
       + '이 브라우저에서 1~3분 정도 걸리고, 결과는 SharePoint(05. output)에 저장돼 모든 사용자에게 반영됩니다.\n\n계속할까요?',
     'build.needLogin': '데이터 빌드는 회사 Microsoft 365 계정 로그인이 필요합니다.',
@@ -209,6 +210,7 @@ const I18N = {
     'tile.match': 'Match',
     'tile.mand': 'Mandatory missing',
     'dash.models': 'Units by model',
+    'dash.models.filtered': 'Units by model (filtered)',
     'dash.models.kinds': 'kinds',
     'dash.near': 'Upcoming changeability',
     'dash.near.count': 'Commissions on that date',
@@ -283,10 +285,10 @@ const I18N = {
     'op.loaded': 'Loaded.',
     'op.saved': 'Saved — written back to SharePoint.',
     'op.fail': 'Failed: {err}',
-    'nav.build': '⟳ Build data',
-    'build.btn': '⟳ Build data',
+    'nav.build': '⟳ Refresh Data',
+    'build.btn': '⟳ Refresh Data',
     'build.running': '⟳ Building…',
-    'build.title': 'Build data',
+    'build.title': 'Refresh Data',
     'build.confirm': 'This recomputes the comparison from the newest WINGS export (02) and the newest '
       + 'production-month SAM folder (01) on SharePoint.\nIt runs in this browser (1–3 minutes) and the result is '
       + 'saved to SharePoint (05. output) for everyone.\n\nContinue?',
@@ -476,6 +478,7 @@ function applyTile(id) {
   restrictSoon = cfg.soon;
   tileMandatory = cfg.mand;
   $('#statusFilter').value = cfg.status;
+  $('#statusFilter').dispatchEvent(new Event('change'));
   if (cfg.sort) { sortKey = cfg.sort[0]; sortDir = cfg.sort[1]; }
   else { sortKey = null; sortDir = 1; }
   renderHead();
@@ -594,6 +597,32 @@ function renderDashSide() {
     </div>`;
 }
 
+// 필터와 연동되는 모델별 대수 (막대 차트). render() 가 매 필터 변경 시 호출한다.
+function renderFilteredModels(rows) {
+  const el = $('#dashFiltered');
+  if (!el) return;
+  const combos = modelCombos(rows || []);
+  const total = combos.reduce((s, c) => s + c.count, 0);
+  const max = combos.length ? combos[0].count : 0;
+  const listHtml = combos.length
+    ? combos.map((c) => {
+      const label = c.parts.filter(Boolean).join(' · ');
+      const pct = max ? Math.round((c.count / max) * 100) : 0;
+      return `<div class="mcc-row">
+        <div class="mcc-top"><span class="mcc-label" title="${esc(label)}">${esc(label)}</span><span class="mcc-count">${c.count}</span></div>
+        <div class="mcc-bar"><span style="width:${pct}%"></span></div>
+      </div>`;
+    }).join('')
+    : `<div class="mc-empty">—</div>`;
+  el.innerHTML = `
+    <div class="side-card">
+      <div class="side-cap">${esc(t('dash.models.filtered'))}
+        <span class="side-sub">${combos.length}${esc(t('dash.models.kinds'))} · ${total}${esc(t('unit.ea'))}</span>
+      </div>
+      <div class="mc-list">${listHtml}</div>
+    </div>`;
+}
+
 function fillSelectFilter(id, allKey, values) {
   const sel = $(id);
   const prev = sel.value;
@@ -615,6 +644,83 @@ function fillFilters() {
   fillSelectFilter('#typeFilter', 'filter.allType', uniqueSorted((r) => r['Model(WINGS)']));
   fillSelectFilter('#axleFilter', 'filter.allAxle', uniqueSorted((r) => r.Type));
   fillSelectFilter('#cabFilter', 'filter.allCab', uniqueSorted((r) => r.Cab));
+  enhanceFilterSelects();
+}
+
+// 필터 select 들을 커스텀 드롭다운으로 감싼다(아래로 열림, ~10개 표시 후 스크롤).
+const FILTER_SELECT_IDS = ['#productionFilter', '#myFilter', '#modelFilter',
+  '#typeFilter', '#axleFilter', '#cabFilter', '#statusFilter'];
+function enhanceFilterSelects() {
+  FILTER_SELECT_IDS.forEach((id) => { const el = $(id); if (el) enhanceSelect(el); });
+}
+
+function enhanceSelect(sel) {
+  if (sel._csel) { sel._csel.refresh(); return; }
+  const wrap = document.createElement('div');
+  wrap.className = 'csel';
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+  sel.classList.add('csel-native');
+  sel.tabIndex = -1;
+  sel.setAttribute('aria-hidden', 'true');
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'csel-btn';
+  const panel = document.createElement('div');
+  panel.className = 'csel-panel';
+  wrap.appendChild(btn);
+  wrap.appendChild(panel);
+
+  function renderPanel() {
+    panel.innerHTML = '';
+    Array.prototype.forEach.call(sel.options, (o) => {
+      const it = document.createElement('div');
+      it.className = 'csel-opt' + (o.value === sel.value ? ' sel' : '');
+      it.textContent = o.textContent;
+      it.dataset.value = o.value;
+      it.addEventListener('click', () => {
+        sel.value = o.value;
+        sel.dispatchEvent(new Event('input', { bubbles: true }));
+        refresh();
+        close();
+      });
+      panel.appendChild(it);
+    });
+  }
+  function refresh() {
+    const cur = sel.options[sel.selectedIndex];
+    btn.textContent = cur ? cur.textContent : '';
+    Array.prototype.forEach.call(panel.children, (c) =>
+      c.classList.toggle('sel', c.dataset.value === sel.value));
+  }
+  function open() {
+    document.querySelectorAll('.csel.open').forEach((w) => { if (w !== wrap) w.classList.remove('open'); });
+    wrap.classList.add('open');
+    const s = panel.querySelector('.csel-opt.sel');
+    if (s) s.scrollIntoView({ block: 'nearest' });
+  }
+  function close() { wrap.classList.remove('open'); }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    wrap.classList.contains('open') ? close() : open();
+  });
+  sel.addEventListener('change', refresh);
+  sel._csel = { refresh: () => { renderPanel(); refresh(); } };
+  renderPanel();
+  refresh();
+}
+if (!window._cselOutside) {
+  window._cselOutside = true;
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('.csel.open').forEach((w) => {
+      if (!w.contains(e.target)) w.classList.remove('open');
+    });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') document.querySelectorAll('.csel.open').forEach((w) => w.classList.remove('open'));
+  });
 }
 
 function renderHead() {
@@ -676,6 +782,14 @@ function countCell(csv, cls) {
   return `<span class="cbadge ${cls}">${n}</span>`;
 }
 
+// SAM Status 값 → CSS 클래스(공백/비ASCII 안전).
+const STATUS_CLASS = {
+  'Match': 'Match', 'Mismatch': 'Mismatch', 'No SAM': 'NoSAM', 'SAM update요청': 'SAMupdate',
+};
+function statusClass(v) {
+  return STATUS_CLASS[v] || esc(v).replace(/[^A-Za-z0-9_-]/g, '');
+}
+
 function filtered() {
   const q = $('#search').value.trim().toLowerCase();
   const status = $('#statusFilter').value;
@@ -728,6 +842,7 @@ function filtered() {
 function render() {
   const rows = filtered();
   $('#count').textContent = t('count', { n: rows.length, total: DATA.rows.length });
+  renderFilteredModels(rows);
   const tb = $('#grid tbody');
   const msg = $('#statusMsg');
 
@@ -749,7 +864,7 @@ function render() {
     const tds = COLS.map((c) => {
       let v = r[c.key];
       v = v == null ? '' : String(v);
-      if (c.status) return `<td><span class="status ${esc(v).replace(/\s+/g, '')}">${esc(v)}</span></td>`;
+      if (c.status) return `<td><span class="status ${statusClass(v)}">${esc(v)}</span></td>`;
       if (c.dday) return `<td class="num">${ddayHtml(v)}</td>`;
       if (c.count) return `<td class="num">${countCell(v, c.count)}</td>`;
       return `<td>${hl(v)}</td>`;
@@ -870,7 +985,7 @@ function openDrawer(r) {
       if (DDAY_KEYS.has(k)) val = ddayHtml(r[k]);
       else if (k === 'SAM Status') {
         const s = String(r[k]);
-        val = `<span class="status ${esc(s).replace(/\s+/g, '')}">${esc(s)}</span>`;
+        val = `<span class="status ${statusClass(s)}">${esc(s)}</span>`;
       } else val = esc(r[k]);
       return `<div class="kv-item"><div class="k">${esc(META_LABELS[k] || k)}</div><div class="v">${val}</div></div>`;
     }).join('');
@@ -1713,6 +1828,7 @@ function onManualFilter() {
   $(s).addEventListener('input', onManualFilter));
 
 applyStaticI18n();
+enhanceFilterSelects();
 load().catch((e) => {
   $('#meta').textContent = t('meta.loadFail', { err: e.message });
   const msg = $('#statusMsg');

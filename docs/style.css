@@ -86,7 +86,8 @@ body {
   flex: 1 1 50%; min-width: 0; padding: 0;
   display: flex; flex-direction: column; justify-content: flex-start; gap: 10px;
 }
-.dash-side { flex: 1 1 50%; min-width: 0; display: flex; flex-direction: column; }
+.dash-side { flex: 1 1 50%; min-width: 0; display: flex; flex-direction: row; gap: 12px; }
+.side-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
 @media (max-width: 1100px) { .dash-top { flex-direction: column; } }
 .side-card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -112,6 +113,14 @@ body {
 .mc-label { color: var(--text); flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-count { flex: none; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
 .mc-empty { color: var(--muted); padding: 8px; }
+/* 필터 연동 막대 차트 */
+.mcc-row { padding: 5px 8px; border-radius: 8px; }
+.mcc-row:nth-child(odd) { background: var(--accent-softer); }
+.mcc-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13px; }
+.mcc-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcc-count { flex: none; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.mcc-bar { margin-top: 4px; height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.mcc-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 .near-body { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .near-date { font-size: 22px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 10px; }
 .near-dd { font-size: 12.5px; font-weight: 700; color: #fff; background: var(--accent); padding: 2px 9px; border-radius: 999px; }
@@ -159,6 +168,33 @@ body {
   padding: 9px 11px; border: 1px solid var(--border-strong); border-radius: 9px;
   background: var(--card); color: var(--text); font-size: 13px;
 }
+/* 커스텀 드롭다운(항상 아래로 열림, ~10개 표시 후 스크롤) */
+.csel { position: relative; display: inline-block; }
+.csel-native { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.csel-btn {
+  padding: 9px 30px 9px 11px; border: 1px solid var(--border-strong); border-radius: 9px;
+  background: var(--card); color: var(--text); font-size: 13px; cursor: pointer;
+  text-align: left; white-space: nowrap; position: relative;
+}
+.csel-btn::after {
+  content: ""; position: absolute; right: 12px; top: 50%; width: 7px; height: 7px;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  transform: translateY(-70%) rotate(45deg); pointer-events: none;
+}
+.csel.open .csel-btn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.csel-panel {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%;
+  max-height: 322px; overflow-y: auto; z-index: 60; padding: 4px;
+  background: var(--card); border: 1px solid var(--border-strong); border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+}
+.csel.open .csel-panel { display: block; }
+.csel-opt {
+  padding: 7px 11px; border-radius: 6px; font-size: 13px; white-space: nowrap;
+  cursor: pointer; color: var(--text);
+}
+.csel-opt:hover { background: var(--accent-softer); }
+.csel-opt.sel { background: var(--accent-soft); font-weight: 700; }
 .controls .chk { color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .count { color: var(--muted); font-size: 12px; margin-left: auto; font-weight: 600; }
 
@@ -183,7 +219,8 @@ table#grid { border-collapse: separate; border-spacing: 0; width: 100%; backgrou
 .status { font-weight: 700; border-radius: 6px; text-align: center; padding: 3px 10px; display: inline-block; font-size: 12px; }
 .status.Match { background: var(--match-bg); color: var(--match-fg); }
 .status.Mismatch { background: var(--miss-bg); color: var(--miss-fg); }
-.status.NoSAM { background: var(--chip-fc-bg); color: var(--chip-fc-fg); }
+.status.SAMupdate { background: #f59e0b; color: #fff; }
+.status.NoSAM { background: #dc2626; color: #fff; }
 
 .dday { font-weight: 700; border-radius: 6px; padding: 2px 8px; display: inline-block; font-size: 12px; }
 .dday.passed { background: var(--miss-bg); color: var(--miss-fg); }
