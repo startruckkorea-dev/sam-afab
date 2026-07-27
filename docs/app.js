@@ -69,10 +69,14 @@ const I18N = {
     'meta.generated': '생성: {when}  ·  WINGS: {file}',
     'search.ph': 'Commission no. / 모델 / 코드 검색…',
     'filter.allStatus': '전체 상태',
-    'filter.allVehicle': '전체 차종',
     'filter.allProd': '전체 생산월',
+    'filter.allMY': '전체 MY',
+    'filter.allModel': '전체 Model',
+    'filter.allType': '전체 Type',
+    'filter.allAxle': '전체 Axle',
+    'filter.allCab': '전체 Cab',
     'filter.prod.title': '생산월(Requested delivery) 선택',
-    'chk.upcoming': '이번달 이후만',
+    'chk.upcoming': 'Display only production from this month',
     'chk.upcoming.title': 'Changeability 가 이번 달 이후인 항목만',
     'chk.pto': 'PTO만',
     'chk.mismatch': '불일치만',
@@ -183,10 +187,14 @@ const I18N = {
     'meta.generated': 'Generated: {when}  ·  WINGS: {file}',
     'search.ph': 'Search commission no. / model / code…',
     'filter.allStatus': 'All statuses',
-    'filter.allVehicle': 'All vehicles',
     'filter.allProd': 'All production months',
+    'filter.allMY': 'All MY',
+    'filter.allModel': 'All models',
+    'filter.allType': 'All types',
+    'filter.allAxle': 'All axles',
+    'filter.allCab': 'All cabs',
     'filter.prod.title': 'Select production month (Requested delivery)',
-    'chk.upcoming': 'This month onward',
+    'chk.upcoming': 'Display only production from this month',
     'chk.upcoming.title': 'Only rows whose Changeability is this month or later',
     'chk.pto': 'PTO only',
     'chk.mismatch': 'Mismatch only',
@@ -311,8 +319,7 @@ function toggleLang() {
   applyStaticI18n();
   renderMeta();
   renderSummary();
-  fillVehicleFilter();
-  fillProductionFilter();
+  fillFilters();
   render();
   if (typeof codeEditor !== 'undefined') codeEditor.refresh();
   if (typeof matchEditor !== 'undefined') matchEditor.refresh();
@@ -397,8 +404,7 @@ function applyData(d, c) {
   (DATA.rows || []).forEach((r) => { r.MY = computeMY(r); });
   renderMeta();
   renderSummary();
-  fillVehicleFilter();
-  fillProductionFilter();
+  fillFilters();
   renderHead();
   render();
 }
@@ -499,22 +505,27 @@ function syncTileActive() {
     el.classList.toggle('active', el.dataset.tile === activeTile));
 }
 
-function fillVehicleFilter() {
-  const sel = $('#vehicleFilter');
+function fillSelectFilter(id, allKey, values) {
+  const sel = $(id);
   const prev = sel.value;
-  const vehicles = [...new Set(DATA.rows.map((r) => r.Vehicle).filter(Boolean))].sort();
-  sel.innerHTML = `<option value="">${esc(t('filter.allVehicle'))}</option>` +
-    vehicles.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  sel.innerHTML = `<option value="">${esc(t(allKey))}</option>` +
+    values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
   sel.value = prev;
 }
 
-function fillProductionFilter() {
-  const sel = $('#productionFilter');
-  const prev = sel.value;
-  const months = [...new Set(DATA.rows.map(prodMonth).filter(Boolean))].sort().reverse();
-  sel.innerHTML = `<option value="">${esc(t('filter.allProd'))}</option>` +
-    months.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
-  sel.value = prev;
+function uniqueSorted(fn, reverse) {
+  const arr = [...new Set(DATA.rows.map(fn).filter((v) => v !== undefined && v !== null && v !== ''))]
+    .map(String).sort();
+  return reverse ? arr.reverse() : arr;
+}
+
+function fillFilters() {
+  fillSelectFilter('#productionFilter', 'filter.allProd', uniqueSorted(prodMonth, true));
+  fillSelectFilter('#myFilter', 'filter.allMY', uniqueSorted((r) => r.MY));
+  fillSelectFilter('#modelFilter', 'filter.allModel', uniqueSorted((r) => r.Vehicle));
+  fillSelectFilter('#typeFilter', 'filter.allType', uniqueSorted((r) => r['Model(WINGS)']));
+  fillSelectFilter('#axleFilter', 'filter.allAxle', uniqueSorted((r) => r.Type));
+  fillSelectFilter('#cabFilter', 'filter.allCab', uniqueSorted((r) => r.Cab));
 }
 
 function renderHead() {
@@ -579,16 +590,24 @@ function countCell(csv, cls) {
 function filtered() {
   const q = $('#search').value.trim().toLowerCase();
   const status = $('#statusFilter').value;
-  const vehicle = $('#vehicleFilter').value;
   const prod = $('#productionFilter').value;
+  const my = $('#myFilter').value;
+  const model = $('#modelFilter').value;
+  const type = $('#typeFilter').value;
+  const axle = $('#axleFilter').value;
+  const cab = $('#cabFilter').value;
   const upcoming = $('#upcomingOnly').checked;
   const mmOnly = $('#mismatchOnly').checked;
   const ptoOnly = $('#ptoOnly').checked;
   let rows = DATA.rows.filter((r) => {
     if (restrictSoon && !within2weeks(r)) return false;
     if (status && r['SAM Status'] !== status) return false;
-    if (vehicle && r.Vehicle !== vehicle) return false;
     if (prod && prodMonth(r) !== prod) return false;
+    if (my && String(r.MY ?? '') !== my) return false;
+    if (model && r.Vehicle !== model) return false;
+    if (type && r['Model(WINGS)'] !== type) return false;
+    if (axle && r.Type !== axle) return false;
+    if (cab && r.Cab !== cab) return false;
     if (upcoming) {
       const cm = changeMonth(r);
       if (!cm || cm < CUR_MONTH) return false;
@@ -1603,7 +1622,8 @@ function onManualFilter() {
   syncTileActive();
   render();
 }
-['#search', '#statusFilter', '#vehicleFilter', '#productionFilter',
+['#search', '#statusFilter', '#productionFilter', '#myFilter', '#modelFilter',
+  '#typeFilter', '#axleFilter', '#cabFilter',
   '#upcomingOnly', '#mismatchOnly', '#ptoOnly'].forEach((s) =>
   $(s).addEventListener('input', onManualFilter));
 

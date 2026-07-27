@@ -33,6 +33,24 @@
       <div id="meta" class="meta" data-i18n="meta.loading">불러오는 중&hellip;</div>
 
       <section class="controls">
+        <select id="productionFilter" data-i18n-title="filter.prod.title" title="생산월(Requested delivery) 선택">
+          <option value="">전체 생산월</option>
+        </select>
+        <select id="myFilter">
+          <option value="">전체 MY</option>
+        </select>
+        <select id="modelFilter">
+          <option value="">전체 Model</option>
+        </select>
+        <select id="typeFilter">
+          <option value="">전체 Type</option>
+        </select>
+        <select id="axleFilter">
+          <option value="">전체 Axle</option>
+        </select>
+        <select id="cabFilter">
+          <option value="">전체 Cab</option>
+        </select>
         <input type="search" id="search" data-i18n-ph="search.ph" placeholder="Commission no. / 모델 / 코드 검색&hellip;" />
         <select id="statusFilter">
           <option value="" data-i18n="filter.allStatus">전체 상태</option>
@@ -40,13 +58,7 @@
           <option value="Mismatch">Mismatch</option>
           <option value="No SAM">No SAM</option>
         </select>
-        <select id="vehicleFilter">
-          <option value="">전체 차종</option>
-        </select>
-        <select id="productionFilter" data-i18n-title="filter.prod.title" title="생산월(Requested delivery) 선택">
-          <option value="">전체 생산월</option>
-        </select>
-        <label class="chk" data-i18n-title="chk.upcoming.title" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> <span data-i18n="chk.upcoming">이번달 이후만</span></label>
+        <label class="chk" data-i18n-title="chk.upcoming.title" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> <span data-i18n="chk.upcoming">Display only production from this month</span></label>
         <label class="chk"><input type="checkbox" id="ptoOnly" /> <span data-i18n="chk.pto">PTO만</span></label>
         <label class="chk"><input type="checkbox" id="mismatchOnly" /> <span data-i18n="chk.mismatch">불일치만</span></label>
         <span id="count" class="count"></span>
