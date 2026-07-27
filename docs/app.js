@@ -515,8 +515,10 @@ function renderSummary() {
 function nearestCardHtml() {
   const near = nearestChangeability(overallRows());
   const body = near
-    ? `<div class="near-date">${esc(near.date)}<span class="near-dd">${ddayLabel(near.dday)}</span></div>
-       <div class="near-count"><b>${near.count}</b> <span>${esc(t('unit.case'))} · ${esc(t('dash.near.count'))}</span></div>`
+    ? `<div class="near-body">
+         <div class="near-date">${esc(near.date)}<span class="near-dd">${ddayLabel(near.dday)}</span></div>
+         <div class="near-count"><b>${near.count}</b> <span>${esc(t('unit.case'))} · ${esc(t('dash.near.count'))}</span></div>
+       </div>`
     : `<div class="mc-empty">—</div>`;
   return `<div class="near-card">
       <div class="dash-cap">${esc(t('dash.near'))}</div>

@@ -81,7 +81,7 @@ body {
 #view-codes.active { display: flex; }
 
 /* ===================== 대시보드 ===================== */
-.dash-top { display: flex; gap: 16px; align-items: flex-start; padding: 16px 24px 6px; }
+.dash-top { display: flex; gap: 16px; align-items: stretch; padding: 16px 24px 6px; }
 .dash-top .summary {
   flex: 1 1 50%; min-width: 0; padding: 0;
   display: flex; flex-direction: column; justify-content: flex-start; gap: 10px;
@@ -91,7 +91,7 @@ body {
 .side-card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 14px 16px; box-shadow: var(--shadow-md);
-  display: flex; flex-direction: column; min-height: 0;
+  flex: 1 1 0; min-height: 0; display: flex; flex-direction: column;
 }
 .near-card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -103,7 +103,7 @@ body {
   display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
 }
 .side-sub { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; white-space: nowrap; }
-.mc-list { display: flex; flex-direction: column; max-height: 264px; overflow-y: auto; }
+.mc-list { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow-y: auto; }
 .mc-row {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   padding: 6px 8px; border-radius: 8px; font-size: 13px;
@@ -112,9 +112,10 @@ body {
 .mc-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-count { font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
 .mc-empty { color: var(--muted); padding: 8px; }
+.near-body { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .near-date { font-size: 22px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 10px; }
 .near-dd { font-size: 12.5px; font-weight: 700; color: #fff; background: var(--accent); padding: 2px 9px; border-radius: 999px; }
-.near-count { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.near-count { font-size: 13px; color: var(--muted); text-align: right; }
 .near-count b { font-size: 24px; color: var(--text); font-weight: 800; margin-right: 2px; }
 .near-card .dash-cap { margin-bottom: 10px; }
 .summary { display: flex; flex-direction: column; gap: 12px; flex: none; }
