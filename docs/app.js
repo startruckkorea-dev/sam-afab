@@ -114,7 +114,7 @@ const I18N = {
     'matching.note':
       '모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이 ' +
       '이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면 ' +
-      '<code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 빌드</b> 때 적용됩니다. ' +
+      '<code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다. ' +
       '<code>인식모델_대조표</code> 시트는 로컬 도구가 만드는 확인용 보기입니다(브라우저 빌드는 이 시트를 갱신하지 않음).',
     // 코드 관리
     'codes.title': '코드 관리',
@@ -239,7 +239,7 @@ const I18N = {
       'Every model-matching rule (normalization, previous/current model, vehicle keywords, aliases, ' +
       'manual map, options) lives as a sheet in this workbook. Switch sheet tabs to edit, then ' +
       '<b>Save to SharePoint</b> to write it back to <code>model_mapping.xlsx</code>; it takes effect on the next ' +
-      '<b>Build data</b>. The <code>인식모델_대조표</code> sheet is a verification view produced by the local Python tool (the browser build does not refresh it).',
+      '<b>Recompute Data</b>. The <code>인식모델_대조표</code> sheet is a verification view produced by the local Python tool (the browser build does not refresh it).',
     'codes.title': 'Code Manager',
     'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
     'codes.pickFile': 'Loading file list…',

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260727k" />
+  <link rel="stylesheet" href="style.css?v=20260727l" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -31,10 +31,13 @@
     <section class="view active" id="view-dashboard">
       <div class="dash-top">
         <section class="summary" id="summary"></section>
-        <aside class="dash-side">
-          <div class="side-col" id="dashSide"></div>
-          <div class="side-col" id="dashFiltered"></div>
-        </aside>
+        <!-- 높이는 왼쪽(summary)이 정한다 — .dash-side 는 래퍼 안에서 absolute 로 채운다. -->
+        <div class="dash-side-wrap">
+          <aside class="dash-side">
+            <div class="side-col" id="dashSide"></div>
+            <div class="side-col" id="dashFiltered"></div>
+          </aside>
+        </div>
       </div>
       <div id="meta" class="meta" data-i18n="meta.loading">불러오는 중&hellip;</div>
 
@@ -93,7 +96,7 @@
         <p class="note" data-i18n-html="matching.note">
           모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이
           이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면
-          <code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 빌드</b> 때 적용됩니다.
+          <code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다.
           <code>인식모델_대조표</code> 시트는 로컬 도구가 만드는 확인용 보기입니다.
         </p>
 
