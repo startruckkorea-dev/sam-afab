@@ -9,7 +9,7 @@
 
   const normalizeModel = SamParse.normalizeModel;
 
-  // _is_fc 의 IOZU 규칙이 OPTION_CODE_MAP 유래분을 이미 포함하므로, 남는 건 이 5개뿐.
+  // factory-control-codes.xlsx 를 못 읽었을 때 쓰는 개별코드 기본값(워크북의 초기 5행).
   const EXTRA_EXCEPT = new Set(['DUP0', 'A0B', 'E0D', 'E0Q', 'J7G']);
 
   function s(v) { return (v === null || v === undefined) ? '' : String(v); }
@@ -126,8 +126,13 @@
       if (cats.has('all')) return true;
       return !!rowCat && cats.has(rowCat);
     }
+    // Factory Control 판정은 factory-control-codes.xlsx 를 그대로 따른다(코드 관리에서
+    // 추가/삭제한 개별코드가 바로 반영되도록). 워크북이 없으면 아래 기본값.
+    const fc = ref.factoryControl || {};
+    const fcPrefixes = (fc.prefixes && fc.prefixes.size) ? fc.prefixes : new Set(['I', 'O', 'Z', 'U']);
+    const fcCodes = fc.codes || EXTRA_EXCEPT;
     function isFc(c) {
-      return EXTRA_EXCEPT.has(c) || (!!c && 'IOZU'.indexOf(c[0]) !== -1);
+      return !!c && (fcCodes.has(c) || fcPrefixes.has(c[0]));
     }
 
     const manualNorm = {};

@@ -33,6 +33,7 @@
     mandatory: 'mandatory-codes.xlsx',
     modelCategory: 'model-category.xlsx',
     cab: 'cab.xlsx',
+    factoryControl: 'factory-control-codes.xlsx',
     rules: 'model_mapping.xlsx',
   };
 
@@ -118,6 +119,8 @@
       { desc: {}, set: new Set(), groups: {}, cats: {} });
     const modelCategory = await tryLoad('modelCategory', RefData.loadModelCategory, {});
     const cabMap = await tryLoad('cab', RefData.loadCabMap, {});
+    const factoryControl = await tryLoad('factoryControl', RefData.loadFactoryControl,
+      RefData.loadFactoryControl(null));
     const codeDict = await tryLoad('codeDict',
       (buf) => RefData.loadCodeDict(buf, 'code_dict'), null);
 
@@ -133,13 +136,15 @@
     }
 
     log(`[ref] option codes ${Object.keys(optionCodes).length} · mandatory ${mandatory.set.size}`
-      + ` · category ${Object.keys(modelCategory).length} · cab ${Object.keys(cabMap).length}`);
+      + ` · category ${Object.keys(modelCategory).length} · cab ${Object.keys(cabMap).length}`
+      + ` · factory control ${factoryControl.prefixes.size}접두어/${factoryControl.codes.size}코드`);
 
     return {
       rules: rules,
       mandatory: mandatory,
       modelCategory: modelCategory,
       cabMap: cabMap,
+      factoryControl: factoryControl,
       codeDesc: optionCodes,                       // 파서/비교는 option_codes 기준
       codeDict: (codeDict && Object.keys(codeDict).length) ? codeDict : optionCodes,
     };
@@ -237,6 +242,7 @@
       mandatory: ref.mandatory,
       modelCategory: ref.modelCategory,
       cabMap: ref.cabMap,
+      factoryControl: ref.factoryControl,
       codeDesc: ref.codeDesc,
       today: opts.now,
     });
