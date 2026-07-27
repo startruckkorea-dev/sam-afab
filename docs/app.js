@@ -1199,7 +1199,7 @@ function exportRowXls(r) {
   if (!r) return;
   const metaKeys = ['Commission no.', 'Model(WINGS)', 'Vehicle', 'Category', 'Type', 'Cab', 'MY', 'PTO',
     'Production date', 'Changeability Date', 'Until Dealine',
-    'SAM Baumuster', 'SAM now', 'SAM Status', 'Compared SAM file name'];
+    'SAM Baumuster', 'SAM now', 'SAM Status', 'SAM Update', 'Compared SAM file name'];
   const rows = [];
   const merges = [];
   rows.push([{ v: `${r['Commission no.']}  ·  ${r['Model(WINGS)'] || ''}`, s: 1 }]);

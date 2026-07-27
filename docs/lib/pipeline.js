@@ -22,7 +22,7 @@
     'SAM Baumuster', 'SAM now', 'Changeability Date', 'Until Dealine',
     'Production date', 'Only_in_SAM', 'Only_in_WINGS', 'Factory Control Codes',
     'Mandatory Codes', 'Order status financial', 'Order status logistical',
-    'FIN', 'Subcategory (ID)', 'Compared SAM file name', 'SAM Status',
+    'FIN', 'Subcategory (ID)', 'Compared SAM file name', 'SAM Status', 'SAM Update',
     '_all_wings_codes', '_all_sam_codes',
     '_paint_wings', '_paint_sam', '_tyre_wings', '_tyre_sam',
   ];
@@ -262,6 +262,7 @@
         matched: count('Match'),
         mismatched: count('Mismatch'),
         no_sam: count('No SAM'),
+        sam_update: rows.filter((r) => r['SAM Update']).length,   // 총계와 무관(겹침)
         sam_months: Object.keys(samMaps).map(Number).sort((a, b) => a - b),
       },
       rows: rows,
