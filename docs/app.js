@@ -490,8 +490,13 @@ function applyTile(id) {
   restrictSoon = cfg.soon;
   tileMandatory = cfg.mand;
   tileSamUpdate = !!cfg.samupd;
+  // 타일 숫자는 '이번 생산월 이후' 전체를 센 값이므로, 눌렀을 때 기존 드롭다운·검색
+  // 필터를 모두 풀고 타일 조건만 남긴다(그래야 표 건수 = 타일 숫자).
+  for (const f of FILTER_FIELDS) $(f.id).value = '';
+  $('#search').value = '';
+  $('#upcomingOnly').checked = true;
   $('#statusFilter').value = cfg.status;
-  $('#statusFilter').dispatchEvent(new Event('change'));
+  fillFilters();                       // 연동 옵션 재계산 + 커스텀 드롭다운 라벨 갱신
   if (cfg.sort) { sortKey = cfg.sort[0]; sortDir = cfg.sort[1]; }
   else { sortKey = null; sortDir = 1; }
   renderHead();
