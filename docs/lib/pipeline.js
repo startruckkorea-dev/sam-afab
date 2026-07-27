@@ -156,10 +156,34 @@
     return { rows: rows, file: chosen.name };
   }
 
+  // 01. SAM_files 아래의 생산월 폴더를 모은다.
+  // 구조: 'MYxx/YYYY-MM …'(연식 폴더 하위) 또는 'YYYY-MM …'(직속, 구 구조) 모두 지원.
+  // 반환: [{ yyyymm, name(표시용), path(folderKey 접미사) }] (yyyymm 오름차순)
+  async function collectSamMonths(src) {
+    const top = await src.list('sam');
+    const out = [];
+    // (구) 01. SAM_files 바로 아래의 YYYY-MM 폴더
+    for (const m of samMonthFolders(top)) {
+      out.push({ yyyymm: m.yyyymm, name: m.name, path: m.name });
+    }
+    // (신) MYxx 연식 폴더 → 그 하위의 YYYY-MM 폴더
+    const myFolders = top.filter((it) => it.isFolder && /^MY\d{2}\b/i.test(it.name));
+    for (const my of myFolders) {
+      for (const m of samMonthFolders(await src.list('sam/' + my.name))) {
+        out.push({ yyyymm: m.yyyymm, name: my.name + '/' + m.name, path: my.name + '/' + m.name });
+      }
+    }
+    out.sort((a, b) => a.yyyymm - b.yyyymm);
+    return out;
+  }
+
   /** 생산월별 SAM 매핑. 기본은 최신 생산월 폴더 하나만 읽는다. */
   async function loadSam(src, ref, allMonths, log) {
-    const months = samMonthFolders(await src.list('sam'));
-    if (!months.length) throw new Error('01. SAM_files 에 YYYY-MM 하위폴더가 없습니다.');
+    const months = await collectSamMonths(src);
+    if (!months.length) {
+      throw new Error('01. SAM_files 에 YYYY-MM 하위폴더가 없습니다. '
+        + '(MYxx 연식 폴더 하위의 YYYY-MM 또는 직속 YYYY-MM 폴더가 필요)');
+    }
     const targets = allMonths ? months : [months[months.length - 1]];
     log(`[sam] 생산월 ${months.length}개 → 사용: ${targets.map((m) => m.name).join(', ')}`);
 
@@ -169,13 +193,13 @@
 
     const maps = {};
     for (const month of targets) {
-      const files = (await src.list('sam/' + month.name))
+      const files = (await src.list('sam/' + month.path))
         .filter((it) => !it.isFolder && ext(it.name) === '.docx' && it.name.indexOf('.') !== 0)
         .sort((a, b) => (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0)));
       const parsed = [];
       for (const f of files) {
         try {
-          const d = await SamParse.parseSamDocx(await src.download('sam/' + month.name, f.name),
+          const d = await SamParse.parseSamDocx(await src.download('sam/' + month.path, f.name),
             f.name, ctx);
           if (d) parsed.push(d);
           else log(`  [sam] 건너뜀(모델/코드 인식 실패): ${f.name}`);
