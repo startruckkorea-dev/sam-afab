@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260724b" />
+  <link rel="stylesheet" href="style.css?v=20260727c" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -29,7 +29,10 @@
   <main id="main">
     <!-- ===================== 대시보드 뷰 ===================== -->
     <section class="view active" id="view-dashboard">
-      <section class="summary" id="summary"></section>
+      <div class="dash-top">
+        <section class="summary" id="summary"></section>
+        <aside class="dash-side" id="dashSide"></aside>
+      </div>
       <div id="meta" class="meta" data-i18n="meta.loading">불러오는 중&hellip;</div>
 
       <section class="controls">
@@ -59,8 +62,6 @@
           <option value="No SAM">No SAM</option>
         </select>
         <label class="chk" data-i18n-title="chk.upcoming.title" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> <span data-i18n="chk.upcoming">Display only production from this month</span></label>
-        <label class="chk"><input type="checkbox" id="ptoOnly" /> <span data-i18n="chk.pto">PTO만</span></label>
-        <label class="chk"><input type="checkbox" id="mismatchOnly" /> <span data-i18n="chk.mismatch">불일치만</span></label>
         <span id="count" class="count"></span>
       </section>
 

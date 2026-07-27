@@ -49,6 +49,7 @@ function computeMY(r) {
 
 const _now = new Date();
 const CUR_MONTH = _now.getFullYear() + '-' + String(_now.getMonth() + 1).padStart(2, '0');
+const CUR_DATE = CUR_MONTH + '-' + String(_now.getDate()).padStart(2, '0');
 
 let DATA = { rows: [] };
 let CODES = { options: {}, mandatory: {} };
@@ -78,8 +79,6 @@ const I18N = {
     'filter.prod.title': '생산월(Requested delivery) 선택',
     'chk.upcoming': 'Display only production from this month',
     'chk.upcoming.title': 'Changeability 가 이번 달 이후인 항목만',
-    'chk.pto': 'PTO만',
-    'chk.mismatch': '불일치만',
     'count': '{n} / {total} 건',
     'dash.overall': '전체 현황 (이번 생산월 이후)',
     'dash.soon': '2주 이내 (Changeability D-14)',
@@ -87,6 +86,12 @@ const I18N = {
     'tile.mismatch': '미스매치',
     'tile.match': '매칭',
     'tile.mand': 'Mandatory 누락',
+    'dash.models': '모델별 대수',
+    'dash.models.kinds': '종',
+    'dash.near': '오늘과 가장 가까운 Changeability',
+    'dash.near.count': '해당일 Commission',
+    'unit.ea': '대',
+    'unit.case': '건',
     'dday.passed': '지남',
     'cell.ok.title': '이상없음 (차이·누락 없음)',
     'msg.noData': '표시할 데이터가 없습니다. data.json 을 먼저 빌드하세요.',
@@ -196,8 +201,6 @@ const I18N = {
     'filter.prod.title': 'Select production month (Requested delivery)',
     'chk.upcoming': 'Display only production from this month',
     'chk.upcoming.title': 'Only rows whose Changeability is this month or later',
-    'chk.pto': 'PTO only',
-    'chk.mismatch': 'Mismatch only',
     'count': '{n} / {total} rows',
     'dash.overall': 'Overall (this production month onward)',
     'dash.soon': 'Within 2 weeks (Changeability D-14)',
@@ -205,6 +208,12 @@ const I18N = {
     'tile.mismatch': 'Mismatch',
     'tile.match': 'Match',
     'tile.mand': 'Mandatory missing',
+    'dash.models': 'Units by model',
+    'dash.models.kinds': 'kinds',
+    'dash.near': 'Nearest changeability date',
+    'dash.near.count': 'Commissions on that date',
+    'unit.ea': 'ea',
+    'unit.case': 'ea',
     'dday.passed': 'Passed',
     'cell.ok.title': 'No issue (no difference / omission)',
     'msg.noData': 'No data to show. Build data.json first.',
@@ -319,6 +328,7 @@ function toggleLang() {
   applyStaticI18n();
   renderMeta();
   renderSummary();
+  renderDashSide();
   fillFilters();
   render();
   if (typeof codeEditor !== 'undefined') codeEditor.refresh();
@@ -404,6 +414,7 @@ function applyData(d, c) {
   (DATA.rows || []).forEach((r) => { r.MY = computeMY(r); });
   renderMeta();
   renderSummary();
+  renderDashSide();
   fillFilters();
   renderHead();
   render();
@@ -465,7 +476,6 @@ function applyTile(id) {
   restrictSoon = cfg.soon;
   tileMandatory = cfg.mand;
   $('#statusFilter').value = cfg.status;
-  $('#mismatchOnly').checked = false;
   if (cfg.sort) { sortKey = cfg.sort[0]; sortDir = cfg.sort[1]; }
   else { sortKey = null; sortDir = 1; }
   renderHead();
@@ -503,6 +513,79 @@ function renderSummary() {
 function syncTileActive() {
   $('#summary').querySelectorAll('.tile').forEach((el) =>
     el.classList.toggle('active', el.dataset.tile === activeTile));
+}
+
+// 모델 정보 조합(Model · Type · Axle · Cab · MY)을 1개 모델로 보고 대수를 집계한다.
+function modelCombos(rows) {
+  const m = new Map();
+  rows.forEach((r) => {
+    const parts = [r.Vehicle, r['Model(WINGS)'], r.Type, r.Cab, r.MY]
+      .map((v) => String(v ?? '').trim());
+    if (parts.every((p) => !p)) return;
+    const key = parts.join('');
+    m.set(key, (m.get(key) || 0) + 1);
+  });
+  return [...m.entries()]
+    .map(([k, c]) => ({ parts: k.split(''), count: c }))
+    .sort((a, b) => b.count - a.count || a.parts.join(' ').localeCompare(b.parts.join(' ')));
+}
+
+function daysFromToday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const base = new Date(CUR_DATE + 'T00:00:00');
+  return Math.round((d - base) / 86400000);
+}
+
+// 오늘과 가장 가까운 Changeability Date(우선 미래, 없으면 과거 최신)와 해당일 Commission 수.
+function nearestChangeability(rows) {
+  const dates = rows
+    .map((r) => String(r['Changeability Date'] || ''))
+    .filter((s) => /^\d{4}-\d{2}-\d{2}/.test(s))
+    .map((s) => s.slice(0, 10));
+  if (!dates.length) return null;
+  const upcoming = dates.filter((d) => d >= CUR_DATE).sort();
+  const chosen = upcoming.length ? upcoming[0] : [...dates].sort().slice(-1)[0];
+  const count = rows.filter(
+    (r) => String(r['Changeability Date'] || '').slice(0, 10) === chosen).length;
+  return { date: chosen, count, dday: daysFromToday(chosen) };
+}
+
+function ddayLabel(n) {
+  if (n > 0) return 'D-' + n;
+  if (n === 0) return 'D-Day';
+  return 'D+' + (-n);
+}
+
+function renderDashSide() {
+  const rows = overallRows();
+  const combos = modelCombos(rows);
+  const totalUnits = combos.reduce((s, c) => s + c.count, 0);
+  const near = nearestChangeability(rows);
+
+  const listHtml = combos.length
+    ? combos.map((c) => `
+      <div class="mc-row">
+        <div class="mc-label" title="${esc(c.parts.filter(Boolean).join(' · '))}">${esc(c.parts.filter(Boolean).join(' · '))}</div>
+        <div class="mc-count">${c.count}</div>
+      </div>`).join('')
+    : `<div class="mc-empty">—</div>`;
+
+  const nearHtml = near
+    ? `<div class="near-date">${esc(near.date)}<span class="near-dd">${ddayLabel(near.dday)}</span></div>
+       <div class="near-count"><b>${near.count}</b> <span>${esc(t('unit.case'))} · ${esc(t('dash.near.count'))}</span></div>`
+    : `<div class="mc-empty">—</div>`;
+
+  $('#dashSide').innerHTML = `
+    <div class="side-card">
+      <div class="side-cap">${esc(t('dash.models'))}
+        <span class="side-sub">${combos.length}${esc(t('dash.models.kinds'))} · ${totalUnits}${esc(t('unit.ea'))}</span>
+      </div>
+      <div class="mc-list">${listHtml}</div>
+    </div>
+    <div class="side-card">
+      <div class="side-cap">${esc(t('dash.near'))}</div>
+      ${nearHtml}
+    </div>`;
 }
 
 function fillSelectFilter(id, allKey, values) {
@@ -597,8 +680,6 @@ function filtered() {
   const axle = $('#axleFilter').value;
   const cab = $('#cabFilter').value;
   const upcoming = $('#upcomingOnly').checked;
-  const mmOnly = $('#mismatchOnly').checked;
-  const ptoOnly = $('#ptoOnly').checked;
   let rows = DATA.rows.filter((r) => {
     if (restrictSoon && !within2weeks(r)) return false;
     if (status && r['SAM Status'] !== status) return false;
@@ -612,8 +693,6 @@ function filtered() {
       const cm = changeMonth(r);
       if (!cm || cm < CUR_MONTH) return false;
     }
-    if (ptoOnly && !String(r.PTO || '').trim()) return false;
-    if (mmOnly && !(r['Only_in_SAM'] || r['Only_in_WINGS'])) return false;
     if (tileMandatory && countOf(r['Mandatory Codes']) === 0) return false;
     if (q) {
       const hay = Object.values(r).join(' ').toLowerCase();
@@ -1624,7 +1703,7 @@ function onManualFilter() {
 }
 ['#search', '#statusFilter', '#productionFilter', '#myFilter', '#modelFilter',
   '#typeFilter', '#axleFilter', '#cabFilter',
-  '#upcomingOnly', '#mismatchOnly', '#ptoOnly'].forEach((s) =>
+  '#upcomingOnly'].forEach((s) =>
   $(s).addEventListener('input', onManualFilter));
 
 applyStaticI18n();
