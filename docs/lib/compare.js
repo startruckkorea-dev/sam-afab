@@ -300,7 +300,14 @@
       if (matchSource === 'none' || !samFile) samStatus = 'No SAM';
       else if (onlyS.length || onlyW.length || paintMismatch || tyreMismatch) samStatus = 'Mismatch';
       else samStatus = 'Match';
-      const samUpdate = (matchSource === 'prev' && samFile) ? 'Y' : '';
+      // SAM update 필요 여부: 매칭된 SAM 파일의 (파일명)월이 생산월과 다르면 = 대체본 사용 → 요청.
+      // 파일명에 월이 없으면 매칭 폴더 기준(prev)으로 판정. 상태(Match/Mismatch)와 무관하게 병기.
+      const samFileMonth = (function () {
+        const m = /(\d{4})[-_](\d{2})(?!\d)/.exec(samFile);
+        return m ? Number(m[1]) * 100 + Number(m[2]) : 0;
+      })();
+      const samUpdate = (samFile && prodYm
+        && (samFileMonth ? samFileMonth !== prodYm : matchSource === 'prev')) ? 'Y' : '';
 
       let samBaumuster = samData ? s(samData.model_baumuster) : '';
       let samNow = samData ? s(samData.model_now) : '';
