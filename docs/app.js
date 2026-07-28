@@ -170,6 +170,22 @@ const I18N = {
     'op.loaded': '불러왔습니다.',
     'op.saved': '저장 완료 — SharePoint에 반영되었습니다.',
     'op.fail': '실패: {err}',
+    'export.btn': '⬇ Export',
+    'export.title': '현재 필터가 적용된 목록을 엑셀(.xlsx)로 저장',
+    'export.sheetTitle': 'SAM × AFAB 비교 — {n} / {total} 건',
+    'export.filters': '필터: {f}',
+    'export.noFilter': '(필터 없음 — 전체)',
+    'export.exportedAt': '내보낸 시각: {ts}',
+    'export.noRows': '내보낼 행이 없습니다. 필터를 확인하세요.',
+    'export.f.prod': '생산월',
+    'export.f.my': 'MY',
+    'export.f.model': 'Model',
+    'export.f.type': 'Type',
+    'export.f.axle': 'Axle',
+    'export.f.cab': 'Cab',
+    'export.f.status': '상태',
+    'export.f.search': '검색',
+    'export.f.sort': '정렬',
     'nav.build': '⟳ 데이터 다시 계산',
     'build.btn': '⟳ 데이터 다시 계산',
     'build.running': '⟳ 빌드 중…',
@@ -291,6 +307,22 @@ const I18N = {
     'op.loaded': 'Loaded.',
     'op.saved': 'Saved — written back to SharePoint.',
     'op.fail': 'Failed: {err}',
+    'export.btn': '⬇ Export',
+    'export.title': 'Download the currently filtered list as Excel (.xlsx)',
+    'export.sheetTitle': 'SAM × AFAB comparison — {n} / {total} rows',
+    'export.filters': 'Filters: {f}',
+    'export.noFilter': '(no filter — all rows)',
+    'export.exportedAt': 'Exported at: {ts}',
+    'export.noRows': 'Nothing to export — check the filters.',
+    'export.f.prod': 'Production month',
+    'export.f.my': 'MY',
+    'export.f.model': 'Model',
+    'export.f.type': 'Type',
+    'export.f.axle': 'Axle',
+    'export.f.cab': 'Cab',
+    'export.f.status': 'Status',
+    'export.f.search': 'Search',
+    'export.f.sort': 'Sort',
     'nav.build': '⟳ Recompute Data',
     'build.btn': '⟳ Recompute Data',
     'build.running': '⟳ Building…',
@@ -368,6 +400,9 @@ function switchView(view) {
     el.classList.toggle('active', el.id === 'view-' + view));
   document.querySelectorAll('.nav-link').forEach((el) =>
     el.classList.toggle('active', el.dataset.view === view));
+  // Export 는 대시보드 필터에 대한 기능이라 다른 뷰에서는 숨긴다.
+  const exportBtn = $('#exportBtn');
+  if (exportBtn) exportBtn.classList.toggle('hidden', view !== 'dashboard');
   if (view === 'matching' && !VIEW_INIT.matching) { VIEW_INIT.matching = true; initMatching(); }
   if (view === 'codes' && !VIEW_INIT.codes) { VIEW_INIT.codes = true; initCodes(); }
 }
@@ -1147,6 +1182,8 @@ function _cellXml(ref, cell) {
   const s = cell.s || 0;
   const v = cell.v;
   if (v === '' || v == null) return `<c r="${ref}" s="${s}"/>`;
+  // cell.n = 숫자 셀(엑셀에서 정렬·집계 가능). 그 외는 문자열로 넣는다.
+  if (cell.n && typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}" s="${s}"><v>${v}</v></c>`;
   return `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${esc(String(v))}</t></is></c>`;
 }
 function _sheetXml(rows, merges, cols) {
@@ -1243,6 +1280,81 @@ function exportRowXls(r) {
     { min: 3, max: 3, w: 16 }, { min: 4, max: 4, w: 52 }];
   const name = String(r['Commission no.'] || 'vehicle').replace(/[^\w.-]/g, '_');
   writeXlsx(`afab_sam_${name}.xlsx`, 'Comparison', rows, merges, cols);
+}
+
+// ====================== 대시보드 Export (현재 필터/정렬 결과 → xlsx) ======================
+// 화면에 보이는 목록을 그대로 내보낸다. 코드 컬럼은 개수와 실제 코드 목록을 함께 담는다.
+const EXPORT_COLS = [
+  { label: 'Commission',          w: 16, get: (r) => r['Commission no.'] },
+  { label: 'Model',               w: 14, get: (r) => r['Vehicle'] },
+  { label: 'Type',                w: 18, get: (r) => r['Model(WINGS)'] },
+  { label: 'Axle',                w: 10, get: (r) => r['Type'] },
+  { label: 'Cab',                 w: 12, get: (r) => r['Cab'] },
+  { label: 'MY',                  w: 8,  get: (r) => r['MY'] },
+  { label: 'PTO',                 w: 10, get: (r) => r['PTO'] },
+  { label: 'Production',          w: 14, get: (r) => r['Production date'] },
+  { label: 'Changeability',       w: 14, get: (r) => r['Changeability Date'] },
+  { label: 'Changeability D-Day', w: 18, get: (r) => ddayText(r['Until Dealine']) },
+  { label: 'Status',              w: 14, get: (r) => r['SAM Status'] },
+  { label: 'SAM Update',          w: 12, get: (r) => (r['SAM Update'] ? 'Y' : '') },
+  { label: 'Only in SAM (n)',     w: 14, num: true, get: (r) => countOf(r['Only_in_SAM']) },
+  { label: 'Only in SAM',         w: 40, get: (r) => r['Only_in_SAM'] },
+  { label: 'Only in WINGS (n)',   w: 16, num: true, get: (r) => countOf(r['Only_in_WINGS']) },
+  { label: 'Only in WINGS',       w: 40, get: (r) => r['Only_in_WINGS'] },
+  { label: 'Mandatory (n)',       w: 14, num: true, get: (r) => countOf(r['Mandatory Codes']) },
+  { label: 'Mandatory Codes',     w: 40, get: (r) => r['Mandatory Codes'] },
+  { label: 'SAM Baumuster',       w: 16, get: (r) => r['SAM Baumuster'] },
+  { label: 'Compared SAM file',   w: 34, get: (r) => r['Compared SAM file name'] },
+];
+
+// 지금 적용된 필터를 사람이 읽을 수 있는 한 줄로. (시트 상단에 적어둔다)
+function exportFilterSummary() {
+  const parts = [];
+  for (const f of FILTER_FIELDS) {
+    const v = $(f.id).value;
+    if (v) parts.push(`${t('export.f.' + f.key)}=${v}`);
+  }
+  const st = $('#statusFilter').value;
+  if (st) parts.push(`${t('export.f.status')}=${st}`);
+  const q = $('#search').value.trim();
+  if (q) parts.push(`${t('export.f.search')}="${q}"`);
+  if ($('#upcomingOnly').checked) parts.push(t('chk.upcoming'));
+  if (restrictSoon) parts.push(t('dash.soon'));
+  if (tileMandatory) parts.push(t('tile.mand'));
+  if (tileSamUpdate) parts.push(t('tile.samupd'));
+  if (sortKey) parts.push(`${t('export.f.sort')}: ${sortKey} ${sortDir === 1 ? '▲' : '▼'}`);
+  return parts.length ? parts.join('  ·  ') : t('export.noFilter');
+}
+
+function exportFilteredXlsx() {
+  const rows = filtered();
+  if (!rows.length) { alert(t('export.noRows')); return; }
+
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}`;
+  const ts = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const lastCol = _colName(EXPORT_COLS.length - 1);
+
+  const sheet = [];
+  const merges = [];
+  sheet.push([{ v: t('export.sheetTitle', { n: rows.length, total: DATA.rows.length }), s: 1 }]);
+  sheet.push([{ v: t('export.filters', { f: exportFilterSummary() }), s: 0 }]);
+  sheet.push([{ v: t('export.exportedAt', { ts }), s: 0 }]);
+  sheet.push([]);
+  for (let i = 1; i <= 3; i++) merges.push(`A${i}:${lastCol}${i}`);
+
+  sheet.push(EXPORT_COLS.map((c) => ({ v: c.label, s: 2 })));
+  for (const r of rows) {
+    sheet.push(EXPORT_COLS.map((c) => {
+      const v = c.get(r);
+      if (c.num) return { v: Number(v) || 0, n: true, s: 3 };
+      return { v: v == null ? '' : String(v), s: 3 };
+    }));
+  }
+
+  const cols = EXPORT_COLS.map((c, i) => ({ min: i + 1, max: i + 1, w: c.w }));
+  writeXlsx(`afab_sam_export_${stamp}.xlsx`, 'Filtered', sheet, merges, cols);
 }
 
 // ====================== 공용 시트 에디터 (모델 매칭 · 코드 관리 공유) ======================
@@ -1846,6 +1958,10 @@ document.querySelectorAll('[data-view]').forEach((el) =>
 // 데이터 빌드 (관리자) — 이 브라우저에서 계산 후 SharePoint 에 저장
 const _buildBtn = $('#buildBtn');
 if (_buildBtn) _buildBtn.addEventListener('click', runBuild);
+
+// Export — 대시보드의 현재 필터/정렬 결과를 엑셀로 저장
+const _exportBtn = $('#exportBtn');
+if (_exportBtn) _exportBtn.addEventListener('click', exportFilteredXlsx);
 
 // 저장 안 한 편집이 있으면 페이지 이탈 경고 (모델 매칭 / 코드 관리)
 window.addEventListener('beforeunload', (e) => {

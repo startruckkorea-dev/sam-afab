@@ -20,6 +20,7 @@
       <button class="nav-link" data-view="codes" data-i18n="nav.codes">코드 관리</button>
     </nav>
     <div class="nav-right">
+      <button id="exportBtn" class="icon-btn" data-i18n="export.btn" data-i18n-title="export.title" title="현재 필터가 적용된 목록을 엑셀로 저장">⬇ Export</button>
       <button id="buildBtn" class="icon-btn primary" data-i18n="build.btn" title="SharePoint 최신 데이터로 비교를 다시 계산">⟳ 데이터 다시 계산</button>
       <button id="langBtn" class="icon-btn ghost" title="한국어 / English">🌐 EN</button>
       <div id="navUser" class="nav-user"></div>
@@ -261,7 +262,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260724b';
+      a.src = 'auth.js?v=20260728a';
       document.body.appendChild(a);
     }
     function tryCdn(i) {
