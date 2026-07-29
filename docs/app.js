@@ -870,8 +870,7 @@ function hl(text) {
   } catch { return safe; }
 }
 
-function countCell(csv, cls) {
-  const n = countOf(csv);
+function countCell(n, cls) {
   if (!n) return `<span class="cbadge ok" title="${esc(t('cell.ok.title'))}">✓</span>`;
   return `<span class="cbadge ${cls}">${n}</span>`;
 }
@@ -898,12 +897,12 @@ function filtered() {
     return true;
   });
   if (sortKey) {
-    const isCount = COLS.some((c) => c.key === sortKey && c.count);
+    const countKind = (COLS.find((c) => c.key === sortKey) || {}).count;
     const numeric = NUMERIC_KEYS.has(sortKey);
     rows = [...rows].sort((a, b) => {
       let cmp;
-      if (isCount) {
-        cmp = countOf(a[sortKey]) - countOf(b[sortKey]);
+      if (countKind) {
+        cmp = diffCount(a, countKind) - diffCount(b, countKind);
       } else {
         const av = a[sortKey] ?? '', bv = b[sortKey] ?? '';
         const an = Number(av), bn = Number(bv);
@@ -946,7 +945,7 @@ function render() {
         return `<td><div class="status-cell"><span class="status ${statusClass(v)}">${esc(v)}</span>${upd}</div></td>`;
       }
       if (c.dday) return `<td class="num">${ddayHtml(v)}</td>`;
-      if (c.count) return `<td class="num">${countCell(v, c.count)}</td>`;
+      if (c.count) return `<td class="num">${countCell(diffCount(r, c.count), c.count)}</td>`;
       return `<td>${hl(v)}</td>`;
     }).join('');
     return `<tr data-i="${i}">${tds}</tr>`;
@@ -959,6 +958,26 @@ function render() {
 function describe(code) { return CODES.options[code] || CODES.mandatory[code] || ''; }
 function countOf(csv) { return (csv || '').split(',').map((c) => c.trim()).filter(Boolean).length; }
 function splitCodes(csv) { return (csv || '').split(',').map((c) => c.trim()).filter(Boolean); }
+
+// 페인트·타이어는 Only_in_* CSV 에 들어가지 않고 별도 그룹으로 비교된다(상세 창의 🎨/🛞 섹션).
+// 목록·정렬·Export 의 '차이 개수'에는 그 그룹 차이도 함께 센다 — 타이어만 다른 차량이
+// Mismatch 인데 목록에는 ✓ 로 보이던 문제를 없애기 위함.
+const DIFF_GROUPS = ['_paint', '_tyre'];
+function diffCodes(r, kind) {
+  if (kind === 'mand') return splitCodes(r['Mandatory Codes']);
+  const mine = kind === 'sam' ? '_sam' : '_wings';
+  const other = kind === 'sam' ? '_wings' : '_sam';
+  const out = splitCodes(kind === 'sam' ? r['Only_in_SAM'] : r['Only_in_WINGS']);
+  for (const g of DIFF_GROUPS) {
+    const a = splitCodes(r[g + mine]);
+    const b = new Set(splitCodes(r[g + other]));
+    // 한쪽 그룹이 비어 있으면 비교하지 않는다 (compare.js 의 paint/tyre 판정과 같은 규칙).
+    if (!a.length || !b.size) continue;
+    for (const c of a) if (!b.has(c)) out.push(c);
+  }
+  return out;
+}
+function diffCount(r, kind) { return diffCodes(r, kind).length; }
 
 let DRAWER_ROW = null;
 
@@ -1037,10 +1056,13 @@ function alignedGroupHtml(title, samCsv, wingsCsv, kind, diffOnly) {
       + `<div class="acode-cell${inW ? '' : ' miss'}">${cell(code, inW)}</div>`
       + `</div>`;
   }).join('');
+  // 차이 탭에서는 '한쪽에만 있는 코드' 수(=실제로 표시된 줄 수)를, 전체 탭에서는 그룹 전체 수를 뱃지에 쓴다.
+  const nS = diffOnly ? union.filter((c) => sam.has(c)).length : sam.size;
+  const nW = diffOnly ? union.filter((c) => wings.has(c)).length : wings.size;
   return `<div class="acode" style="margin-bottom:16px">
       <div class="acode-head">
-        <h4>${esc(title)} · SAM <span class="badge">${sam.size}</span></h4>
-        <h4>${esc(title)} · WINGS <span class="badge">${wings.size}</span></h4>
+        <h4>${esc(title)} · SAM <span class="badge">${nS}</span></h4>
+        <h4>${esc(title)} · WINGS <span class="badge">${nW}</span></h4>
       </div>
       <div class="acode-body">${rows}</div>
     </div>`;
@@ -1306,10 +1328,10 @@ const EXPORT_COLS = [
   { label: 'Changeability D-Day', w: 18, get: (r) => ddayText(r['Until Dealine']) },
   { label: 'Status',              w: 14, get: (r) => r['SAM Status'] },
   { label: 'SAM Update',          w: 12, get: (r) => (r['SAM Update'] ? 'Y' : '') },
-  { label: 'Only in SAM (n)',     w: 14, num: true, get: (r) => countOf(r['Only_in_SAM']) },
-  { label: 'Only in SAM',         w: 40, get: (r) => r['Only_in_SAM'] },
-  { label: 'Only in WINGS (n)',   w: 16, num: true, get: (r) => countOf(r['Only_in_WINGS']) },
-  { label: 'Only in WINGS',       w: 40, get: (r) => r['Only_in_WINGS'] },
+  { label: 'Only in SAM (n)',     w: 14, num: true, get: (r) => diffCount(r, 'sam') },
+  { label: 'Only in SAM',         w: 40, get: (r) => diffCodes(r, 'sam').join(',') },
+  { label: 'Only in WINGS (n)',   w: 16, num: true, get: (r) => diffCount(r, 'win') },
+  { label: 'Only in WINGS',       w: 40, get: (r) => diffCodes(r, 'win').join(',') },
   { label: 'Mandatory (n)',       w: 14, num: true, get: (r) => countOf(r['Mandatory Codes']) },
   { label: 'Mandatory Codes',     w: 40, get: (r) => r['Mandatory Codes'] },
   { label: 'SAM Baumuster',       w: 16, get: (r) => r['SAM Baumuster'] },
