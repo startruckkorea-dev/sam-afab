@@ -119,8 +119,12 @@ const I18N = {
     // 코드 관리
     'codes.title': '코드 관리',
     'codes.sub': "SharePoint 04. code 폴더의 Excel 파일을 웹에서 직접 편집·저장",
+    'codes.note':
+      '비교에 쓰이는 모든 기준표(필수코드·공장관리코드·캡·모델 카테고리 등)가 ' +
+      '<code>04. code</code> 폴더의 Excel 파일로 관리됩니다. 아래에서 파일을 고르고 시트 탭을 바꿔 ' +
+      '편집한 뒤 <b>SharePoint에 저장</b>하면 원본 파일에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다.',
     'codes.pickFile': '파일 목록을 불러오는 중…',
-    'codes.empty': '왼쪽에서 편집할 Excel 파일을 선택하세요.',
+    'codes.empty': '위에서 편집할 Excel 파일을 선택하세요.',
     'codes.searchPh': '이 시트에서 검색…',
     'codes.unsaved': '● 저장되지 않은 변경',
     'codes.loadingFile': '파일 여는 중…',
@@ -258,8 +262,13 @@ const I18N = {
       '<b>Recompute Data</b>. The <code>인식모델_대조표</code> sheet is a verification view produced by the local Python tool (the browser build does not refresh it).',
     'codes.title': 'Code Manager',
     'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
+    'codes.note':
+      'Every reference table used by the comparison (mandatory codes, factory control codes, cab, ' +
+      'model category …) lives as an Excel file in the <code>04. code</code> folder. Pick a file below, ' +
+      'switch sheet tabs to edit, then <b>Save to SharePoint</b> — the original file is updated and the ' +
+      'change applies on the next <b>Rebuild data</b>.',
     'codes.pickFile': 'Loading file list…',
-    'codes.empty': 'Pick an Excel file on the left to edit.',
+    'codes.empty': 'Pick an Excel file above to edit.',
     'codes.searchPh': 'Search this sheet…',
     'codes.unsaved': '● Unsaved changes',
     'codes.loadingFile': 'Opening file…',
@@ -1846,22 +1855,31 @@ async function initCodes() {
 }
 async function loadCodeFileList() {
   const box = $('#codeFileList');
-  if (!window.Graph || !Graph.available()) { box.innerHTML = `<div class="none">${esc(t('op.needLogin'))}</div>`; return; }
-  box.innerHTML = `<div class="none">${esc(t('codes.pickFile'))}</div>`;
+  const markActive = (name) =>
+    box.querySelectorAll('.file-item').forEach((x) => x.classList.toggle('active', x.dataset.file === name));
+  if (!window.Graph || !Graph.available()) { box.innerHTML = `<span class="none">${esc(t('op.needLogin'))}</span>`; return; }
+  box.innerHTML = `<span class="none">${esc(t('codes.pickFile'))}</span>`;
   try {
     const items = await Graph.list('code');
     CODE_FILES = items.filter((i) => !i.isFolder && /\.xlsx?$/i.test(i.name));
-    if (!CODE_FILES.length) { box.innerHTML = `<div class="none">${esc(t('codes.noXlsx'))}</div>`; return; }
+    if (!CODE_FILES.length) { box.innerHTML = `<span class="none">${esc(t('codes.noXlsx'))}</span>`; return; }
     box.innerHTML = CODE_FILES.map((f) => {
       const kb = f.size ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : '';
       return `<button class="file-item${f.name === codeEditor.S.file ? ' active' : ''}" data-file="${esc(f.name)}"><span class="fi-name">📄 ${esc(f.name)}</span><span class="fi-meta">${esc(kb)}</span></button>`;
     }).join('');
     box.querySelectorAll('.file-item').forEach((b) => b.addEventListener('click', () => {
       if (codeEditor.S.dirty && b.dataset.file !== codeEditor.S.file && !confirm(t('codes.confirmLeave'))) return;
-      codeEditor.open(b.dataset.file).then(() =>
-        box.querySelectorAll('.file-item').forEach((x) => x.classList.toggle('active', x.dataset.file === b.dataset.file)));
+      localStorage.setItem('codeFile', b.dataset.file);
+      codeEditor.open(b.dataset.file).then(() => markActive(b.dataset.file));
     }));
-  } catch (e) { box.innerHTML = `<div class="none err">${esc(t('codes.listFail', { err: e.message }))}</div>`; }
+    // 모델 매칭처럼 바로 편집 화면이 보이도록 — 마지막에 보던 파일(없으면 첫 파일)을 자동으로 연다.
+    if (!codeEditor.S.file) {
+      const last = localStorage.getItem('codeFile');
+      const pick = CODE_FILES.some((f) => f.name === last) ? last : CODE_FILES[0].name;
+      await codeEditor.open(pick);
+      markActive(pick);
+    }
+  } catch (e) { box.innerHTML = `<span class="none err">${esc(t('codes.listFail', { err: e.message }))}</span>`; }
 }
 
 // ====================== 데이터 빌드 (브라우저에서 직접 계산) ======================

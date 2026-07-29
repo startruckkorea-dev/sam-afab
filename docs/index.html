@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260727l" />
+  <link rel="stylesheet" href="style.css?v=20260729a" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -157,50 +157,53 @@
           </div>
         </div>
 
-        <div class="code-layout">
-          <aside class="file-list" id="codeFileList">
-            <div class="none" data-i18n="codes.pickFile">파일 목록을 불러오는 중…</div>
-          </aside>
+        <p class="note" data-i18n-html="codes.note">
+          비교에 쓰이는 모든 기준표(필수코드·공장관리코드·캡·모델 카테고리 등)가
+          <code>04. code</code> 폴더의 Excel 파일로 관리됩니다. 아래에서 파일을 고르고 시트 탭을 바꿔
+          편집한 뒤 <b>SharePoint에 저장</b>하면 원본 파일에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다.
+        </p>
 
-          <div class="code-editor" id="codeEditor">
-            <div class="editor-empty" id="codeEmpty" data-i18n="codes.empty">
-              왼쪽에서 편집할 Excel 파일을 선택하세요.
+        <div class="code-editor" id="codeEditor">
+          <div class="file-bar" id="codeFileList">
+            <span class="none" data-i18n="codes.pickFile">파일 목록을 불러오는 중…</span>
+          </div>
+          <div class="editor-empty" id="codeEmpty" data-i18n="codes.empty">
+            위에서 편집할 Excel 파일을 선택하세요.
+          </div>
+          <div class="editor-main hidden" id="codeMain">
+            <div class="editor-bar">
+              <div class="sheet-tabs" id="sheetTabs"></div>
+              <span class="spacer"></span>
+              <select id="codeFilter" class="rec-filter hidden"></select>
+              <input type="search" id="codeSearch" class="grid-search" data-i18n-ph="codes.searchPh" placeholder="이 시트에서 검색…" />
+              <button id="codeAddRec" class="icon-btn primary" data-i18n="btn.addRec">＋ 등록</button>
             </div>
-            <div class="editor-main hidden" id="codeMain">
-              <div class="editor-bar">
-                <div class="sheet-tabs" id="sheetTabs"></div>
-                <span class="spacer"></span>
-                <select id="codeFilter" class="rec-filter hidden"></select>
-                <input type="search" id="codeSearch" class="grid-search" data-i18n-ph="codes.searchPh" placeholder="이 시트에서 검색…" />
-                <button id="codeAddRec" class="icon-btn primary" data-i18n="btn.addRec">＋ 등록</button>
+            <div class="editor-toolbar">
+              <div class="mode-switch" id="codeMode" data-i18n-title="rec.hint" title="행을 클릭하면 편집 창이 열립니다.">
+                <button type="button" data-mode="record" class="active" data-i18n="mode.record">🗂 카드 편집</button>
+                <button type="button" data-mode="grid" data-i18n="mode.grid">▦ 표 편집</button>
               </div>
-              <div class="editor-toolbar">
-                <div class="mode-switch" id="codeMode" data-i18n-title="rec.hint" title="행을 클릭하면 편집 창이 열립니다.">
-                  <button type="button" data-mode="record" class="active" data-i18n="mode.record">🗂 카드 편집</button>
-                  <button type="button" data-mode="grid" data-i18n="mode.grid">▦ 표 편집</button>
-                </div>
-                <button id="codeAddRow" class="icon-btn hidden" data-i18n="btn.addRow">＋ 행 추가</button>
-                <span id="codeCount" class="rec-count"></span>
-                <span class="spacer"></span>
-                <span id="codeDirty" class="dirty-flag hidden" data-i18n="codes.unsaved">● 저장되지 않은 변경</span>
-                <button id="codeReloadFile" class="icon-btn" data-i18n="btn.reloadFile">↺ 되돌리기</button>
-                <button id="codeSaveSp" class="icon-btn primary" data-i18n="btn.saveSp">⭱ SharePoint에 저장</button>
-                <button id="codeDownload" class="icon-btn" data-i18n="btn.download">⬇ 다운로드</button>
-              </div>
-              <div id="codeStatus" class="op-status"></div>
-              <div class="rec-scroll" id="codeRecWrap">
-                <table class="rec-grid" id="codeRecs">
-                  <thead></thead>
-                  <tbody></tbody>
-                </table>
-              </div>
-              <div class="rec-pager hidden" id="codePager"></div>
-              <div class="grid-scroll hidden" id="codeGridWrap">
-                <table class="edit-grid" id="editGrid">
-                  <thead></thead>
-                  <tbody></tbody>
-                </table>
-              </div>
+              <button id="codeAddRow" class="icon-btn hidden" data-i18n="btn.addRow">＋ 행 추가</button>
+              <span id="codeCount" class="rec-count"></span>
+              <span class="spacer"></span>
+              <span id="codeDirty" class="dirty-flag hidden" data-i18n="codes.unsaved">● 저장되지 않은 변경</span>
+              <button id="codeReloadFile" class="icon-btn" data-i18n="btn.reloadFile">↺ 되돌리기</button>
+              <button id="codeSaveSp" class="icon-btn primary" data-i18n="btn.saveSp">⭱ SharePoint에 저장</button>
+              <button id="codeDownload" class="icon-btn" data-i18n="btn.download">⬇ 다운로드</button>
+            </div>
+            <div id="codeStatus" class="op-status"></div>
+            <div class="rec-scroll" id="codeRecWrap">
+              <table class="rec-grid" id="codeRecs">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="rec-pager hidden" id="codePager"></div>
+            <div class="grid-scroll hidden" id="codeGridWrap">
+              <table class="edit-grid" id="editGrid">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
             </div>
           </div>
         </div>
