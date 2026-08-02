@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260802a" />
+  <link rel="stylesheet" href="style.css?v=20260802b" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -113,8 +113,12 @@
           <span id="histCount" class="count"></span>
         </section>
 
-        <div class="hist-wrap" id="histWrap">
-          <div id="histBody"></div>
+        <div class="hist-split">
+          <aside class="hist-models">
+            <div class="hm-cap" data-i18n="hist.models">모델</div>
+            <div class="hm-list" id="histModels"></div>
+          </aside>
+          <section class="hist-detail" id="histBody"></section>
         </div>
       </div>
     </section>

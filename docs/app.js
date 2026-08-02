@@ -125,8 +125,12 @@ const I18N = {
     'hist.export': '⬇ Export',
     'hist.exportTitle': '지금 보이는 히스토리를 엑셀(.xlsx)로 저장',
     'hist.model': '모델',
+    'hist.models': '모델 목록',
+    'hist.modelSub': '{n}대 · {m}개월',
+    'hist.chgMonths': '개월 변경',
+    'hist.more': '외 {n}대',
     'hist.prodMonth': '생산월',
-    'hist.base': '기본 (기준 생산월)',
+    'hist.base': '기본',
     'hist.same': '변경 없음',
     'hist.count': '모델 {models}종 · {months}개월 · Commission {n}건',
     'hist.emptyMy': '이 조건에 해당하는 commission 이 없습니다.',
@@ -295,8 +299,12 @@ const I18N = {
     'hist.export': '⬇ Export',
     'hist.exportTitle': 'Download the history shown here as Excel (.xlsx)',
     'hist.model': 'Model',
+    'hist.models': 'Models',
+    'hist.modelSub': '{n} units · {m} months',
+    'hist.chgMonths': ' months changed',
+    'hist.more': '+{n} more',
     'hist.prodMonth': 'Production month',
-    'hist.base': 'Baseline (first month)',
+    'hist.base': 'Baseline',
     'hist.same': 'No change',
     'hist.count': '{models} models · {months} months · {n} commissions',
     'hist.emptyMy': 'No commissions match this selection.',
@@ -1526,6 +1534,8 @@ function histBuild() {
       const codes = new Set();
       sets.forEach((s) => s.forEach((c) => codes.add(c)));
       const varied = [...codes].filter((c) => !sets.every((s) => s.has(c))).sort();
+      // 대표(샘플) commission 이 매번 같도록 번호순으로 정렬해 둔다.
+      rs.sort((a, b) => String(a['Commission no.']).localeCompare(String(b['Commission no.'])));
       cells.set(m, { rows: rs, codes, varied });
     }
     seq.forEach((m, i) => {
@@ -1555,10 +1565,17 @@ function histCellHtml(cell, month) {
     return `<td class="hist-cell gap" title="${esc(t('hist.gapTitle'))}">` +
       `<span class="hist-none">—</span></td>`;
   }
-  const comms = `<div class="hist-comm">` + cell.rows.map((r) => {
-    const i = HIST.rows.push(r) - 1;
-    return `<button type="button" class="cno" data-ri="${i}">Commission ${esc(r['Commission no.'])}</button>`;
-  }).join('') + `</div>`;
+  // 셀 폭을 좁게 유지하려고 commission 은 대표 1건만 칩으로 보여주고,
+  // 나머지는 '외 n대' 로 접는다(툴팁에 전체 번호).
+  const r0 = cell.rows[0];
+  const ri = HIST.rows.push(r0) - 1;
+  const all = cell.rows.map((r) => r['Commission no.']).join(', ');
+  const more = cell.rows.length > 1
+    ? `<span class="cmore" title="${esc(all)}">${esc(t('hist.more', { n: cell.rows.length - 1 }))}</span>`
+    : '';
+  const comms = `<div class="hist-comm">` +
+    `<button type="button" class="cno" data-ri="${ri}" title="Commission ${esc(r0['Commission no.'])}">` +
+    `${esc(r0['Commission no.'])}</button>${more}</div>`;
 
   let body, cls = '', title = '';
   if (cell.base) {
@@ -1577,20 +1594,59 @@ function histCellHtml(cell, month) {
     title = t('hist.cellTitle', { ref: cell.ref, cur: month });
   }
   const warn = cell.varied.length
-    ? `<div class="hist-warn">${esc(histVariedText(cell.varied))}</div>`
+    ? `<div class="hist-warn" title="${esc(histVariedText(cell.varied))}">` +
+      `⚠ ${cell.varied.length}</div>`
     : '';
   return `<td class="hist-cell${cls}"${title ? ` title="${esc(title)}"` : ''}>` +
     `${comms}${body}${warn}</td>`;
 }
 
+// 모델 목록(왼쪽) — 모델별 대수 / 생산월 수 / 변경이 있었던 달 수.
+function histModelListHtml(b) {
+  return b.models.map((g) => {
+    const units = g.months.reduce((s, m) => s + g.cells.get(m).rows.length, 0);
+    const chg = g.months.filter((m) => {
+      const c = g.cells.get(m);
+      return !c.base && (c.added.length || c.removed.length);
+    }).length;
+    const sub = t('hist.modelSub', { n: units, m: g.months.length });
+    const chgHtml = chg
+      ? ` · <b class="chg">${chg}${esc(t('hist.chgMonths'))}</b>` : '';
+    return `<button type="button" class="hm-item${g.key === HIST.model ? ' sel' : ''}" ` +
+      `data-key="${esc(g.key)}" title="${esc(g.key)}">` +
+      `<span class="hm-name">${esc(g.key)}</span>` +
+      `<span class="hm-sub">${esc(sub)}${chgHtml}</span></button>`;
+  }).join('');
+}
+
+// 선택한 모델 1종의 월별 히스토리 표(가로 스크롤). 모델을 하나만 그리므로 세로 스크롤이 없다.
+function histDetailHtml(g, months) {
+  const head = `<tr>` + months.map((m) => {
+    const lb = histMonthLabel(m);
+    const has = g.cells.has(m);
+    return `<th title="${esc(m)}"${has ? '' : ' class="off"'}>` +
+      `<span class="my">${esc(lb.top)}</span>${esc(lb.main)}</th>`;
+  }).join('') + `</tr>`;
+  const body = `<tr>` + months.map((m) => histCellHtml(g.cells.get(m), m)).join('') + `</tr>`;
+  return `<div class="hist-cap">${esc(g.key)}` +
+    `<span class="sub">${esc(histMyLabel(HIST.my))} · ${esc(histSrcLabel())} · ${esc(histBasisLabel())}</span></div>` +
+    `<div class="hist-scroll"><table class="hist-grid">` +
+    `<thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+
 function histRender() {
   const el = $('#histBody');
-  if (!el) return;
+  const listEl = $('#histModels');
+  if (!el || !listEl) return;
   const countEl = $('#histCount');
+  const empty = (msg) => {
+    listEl.innerHTML = '';
+    el.innerHTML = `<div class="hist-empty">${esc(msg)}</div>`;
+  };
   if (!DATA.rows.length) {
     HIST.last = null;
     if (countEl) countEl.textContent = '';
-    el.innerHTML = `<div class="hist-empty">${esc(t('msg.noData'))}</div>`;
+    empty(t('msg.noData'));
     return;
   }
   const b = histBuild();
@@ -1599,28 +1655,25 @@ function histRender() {
     countEl.textContent = t('hist.count',
       { models: b.models.length, months: b.months.length, n: b.total });
   }
-  if (!b.models.length) {
-    el.innerHTML = `<div class="hist-empty">${esc(t('hist.emptyMy'))}</div>`;
-    return;
+  if (!b.models.length) { empty(t('hist.emptyMy')); return; }
+
+  // 선택이 없거나 지금 목록에 없으면 볼거리가 가장 많은 모델(생산월이 긴 쪽)을 고른다.
+  if (!b.models.some((g) => g.key === HIST.model)) {
+    HIST.model = [...b.models].sort((x, y) => y.months.length - x.months.length)[0].key;
   }
 
-  const head =
-    `<tr><th class="hist-model" rowspan="2">${esc(t('hist.model'))}</th>` +
-    `<th colspan="${b.months.length}">${esc(t('hist.prodMonth'))}</th></tr>` +
-    `<tr>` + b.months.map((m) => {
-      const lb = histMonthLabel(m);
-      return `<th title="${esc(m)}"><span class="my">${esc(lb.top)}</span>${esc(lb.main)}</th>`;
-    }).join('') + `</tr>`;
+  listEl.innerHTML = histModelListHtml(b);
+  listEl.querySelectorAll('.hm-item').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      HIST.model = btn.dataset.key;
+      histRender();
+      const sel = $('#histModels').querySelector('.hm-item.sel');
+      if (sel) sel.scrollIntoView({ block: 'nearest' });
+    }));
 
-  const body = b.models.map((g) =>
-    `<tr><td class="hist-model" title="${esc(g.key)}">${esc(g.key)}</td>` +
-    b.months.map((m) => histCellHtml(g.cells.get(m), m)).join('') + `</tr>`).join('');
-
-  el.innerHTML =
-    `<div class="hist-cap">${esc(histMyLabel(HIST.my))}` +
-    `<span class="sub">${esc(histSrcLabel())} · ${esc(histBasisLabel())}</span></div>` +
-    `<table class="hist-grid"><thead>${head}</thead><tbody>${body}</tbody></table>`;
-
+  const g = b.models.find((x) => x.key === HIST.model);
+  // 그 모델이 실제로 생산된 달만 열로 세운다 — 빈 달을 지우면 한 화면에 더 많은 달이 들어온다.
+  el.innerHTML = histDetailHtml(g, g.months);
   el.querySelectorAll('.cno').forEach((btn) =>
     btn.addEventListener('click', () => openDrawer(HIST.rows[Number(btn.dataset.ri)])));
 }
