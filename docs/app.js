@@ -42,8 +42,11 @@ const MY_CODE_DIGIT = {
   V8V: 5, V8W: 6, V8X: 7, V8Y: 8, V8Z: 9,
 };
 function computeMY(r) {
-  for (const c of splitCodes(r && r['_all_sam_codes'])) {
-    if (c in MY_CODE_DIGIT) return String(2020 + MY_CODE_DIGIT[c]);
+  // SAM 쪽 코드가 1순위. SAM 이 없는(No SAM) 차량도 MY 로 묶을 수 있게 WINGS 코드로 보완한다.
+  for (const key of ['_all_sam_codes', '_all_wings_codes']) {
+    for (const c of splitCodes(r && r[key])) {
+      if (c in MY_CODE_DIGIT) return String(2020 + MY_CODE_DIGIT[c]);
+    }
   }
   return '';
 }
@@ -66,6 +69,7 @@ const $ = (s) => document.querySelector(s);
 const I18N = {
   ko: {
     'nav.dashboard': '대시보드',
+    'nav.history': '생산월 비교',
     'nav.matching': '모델 매칭',
     'nav.codes': '코드 관리',
     'meta.loading': '불러오는 중…',
@@ -107,6 +111,31 @@ const I18N = {
     'code.okDiff': '✅ 이상없음 — 누락·차이 없음',
     'code.okMand': '✅ 이상없음 — 아래 필수코드가 양쪽 모두 반영됨',
     'drawer.xls': '⬇ 이 차량 Excel',
+    // 생산월 비교
+    'hist.title': '생산월 비교',
+    'hist.sub': '같은 MY·같은 모델의 WINGS commission 을 생산월 순으로 세워 두고, 달마다 추가(＋)·삭제(−)된 코드를 보여줍니다.',
+    'hist.src.wings': 'WINGS 코드',
+    'hist.src.sam': 'SAM 코드',
+    'hist.basis.title': '각 달의 코드를 무엇과 비교할지',
+    'hist.basis.prev': '이전 생산월 대비',
+    'hist.basis.first': '첫 생산월 대비',
+    'hist.searchPh': '모델 / Commission 검색…',
+    'hist.added': '추가',
+    'hist.removed': '삭제',
+    'hist.export': '⬇ Export',
+    'hist.exportTitle': '지금 보이는 히스토리를 엑셀(.xlsx)로 저장',
+    'hist.model': '모델',
+    'hist.prodMonth': '생산월',
+    'hist.base': '기본 (기준 생산월)',
+    'hist.same': '변경 없음',
+    'hist.count': '모델 {models}종 · {months}개월 · Commission {n}건',
+    'hist.emptyMy': '이 조건에 해당하는 commission 이 없습니다.',
+    'hist.noMy': 'MY 미상',
+    'hist.varied': '⚠ 같은 달 commission 간 코드 차이 {n}개: {codes}',
+    'hist.cellTitle': '{ref} → {cur} 비교',
+    'hist.baseTitle': '{m} — 이 모델의 첫 생산월(기준)',
+    'hist.gapTitle': '이 달에는 생산이 없습니다.',
+    'hist.exportTitleRow': '코드 히스토리 — {my} · {src} · {basis}',
     // 모델 매칭
     'matching.title': '모델 매칭',
     'matching.sub': 'SAM ↔ WINGS 모델 인식 규칙 — 모두 03. model_rules/model_mapping.xlsx 에 저장',
@@ -211,6 +240,7 @@ const I18N = {
   },
   en: {
     'nav.dashboard': 'Dashboard',
+    'nav.history': 'Month History',
     'nav.matching': 'Model Matching',
     'nav.codes': 'Code Manager',
     'meta.loading': 'Loading…',
@@ -252,6 +282,30 @@ const I18N = {
     'code.okDiff': '✅ No issue — nothing missing or different',
     'code.okMand': '✅ No issue — the mandatory codes below are present on both sides',
     'drawer.xls': '⬇ Export this vehicle',
+    'hist.title': 'Production-month History',
+    'hist.sub': 'Lines up the WINGS commissions of one model (same MY) by production month and shows which codes were added (＋) or removed (−) each month.',
+    'hist.src.wings': 'WINGS codes',
+    'hist.src.sam': 'SAM codes',
+    'hist.basis.title': 'What each month is compared against',
+    'hist.basis.prev': 'vs previous month',
+    'hist.basis.first': 'vs first month',
+    'hist.searchPh': 'Search model / commission…',
+    'hist.added': 'added',
+    'hist.removed': 'removed',
+    'hist.export': '⬇ Export',
+    'hist.exportTitle': 'Download the history shown here as Excel (.xlsx)',
+    'hist.model': 'Model',
+    'hist.prodMonth': 'Production month',
+    'hist.base': 'Baseline (first month)',
+    'hist.same': 'No change',
+    'hist.count': '{models} models · {months} months · {n} commissions',
+    'hist.emptyMy': 'No commissions match this selection.',
+    'hist.noMy': 'MY unknown',
+    'hist.varied': '⚠ {n} code(s) differ between commissions of this month: {codes}',
+    'hist.cellTitle': 'Compared {ref} → {cur}',
+    'hist.baseTitle': '{m} — first production month of this model (baseline)',
+    'hist.gapTitle': 'No production in this month.',
+    'hist.exportTitleRow': 'Code history — {my} · {src} · {basis}',
     'matching.title': 'Model Matching',
     'matching.sub': 'SAM ↔ WINGS recognition rules — all stored in 03. model_rules/model_mapping.xlsx',
     'matching.loading': 'Loading model_mapping.xlsx…',
@@ -380,6 +434,7 @@ function toggleLang() {
   renderDashSide();
   fillFilters();
   render();
+  if (VIEW_INIT.history) { histFillMy(); histRender(); }
   if (typeof codeEditor !== 'undefined') codeEditor.refresh();
   if (typeof matchEditor !== 'undefined') matchEditor.refresh();
   if (DRAWER_ROW && !$('#drawer').classList.contains('hidden')) openDrawer(DRAWER_ROW);
@@ -390,12 +445,12 @@ function esc(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// ====================== 뷰 전환 (대시보드 / 모델 매칭 / 코드 관리) ======================
+// ====================== 뷰 전환 (대시보드 / 생산월 비교 / 모델 매칭 / 코드 관리) ======================
 let CUR_VIEW = 'dashboard';
-const VIEW_INIT = { matching: false, codes: false };
+const VIEW_INIT = { history: false, matching: false, codes: false };
 
 function switchView(view) {
-  if (!['dashboard', 'matching', 'codes'].includes(view)) return;
+  if (!['dashboard', 'history', 'matching', 'codes'].includes(view)) return;
   // 저장 안 한 편집이 있으면 이탈 확인 (모델 매칭 / 코드 관리)
   if (view !== CUR_VIEW) {
     const leavingEd = CUR_VIEW === 'codes' ? codeEditor : (CUR_VIEW === 'matching' ? matchEditor : null);
@@ -412,6 +467,7 @@ function switchView(view) {
   // Export 는 대시보드 필터에 대한 기능이라 다른 뷰에서는 숨긴다.
   const exportBtn = $('#exportBtn');
   if (exportBtn) exportBtn.classList.toggle('hidden', view !== 'dashboard');
+  if (view === 'history' && !VIEW_INIT.history) { VIEW_INIT.history = true; initHistory(); }
   if (view === 'matching' && !VIEW_INIT.matching) { VIEW_INIT.matching = true; initMatching(); }
   if (view === 'codes' && !VIEW_INIT.codes) { VIEW_INIT.codes = true; initCodes(); }
 }
@@ -470,6 +526,7 @@ function applyData(d, c) {
   fillFilters();
   renderHead();
   render();
+  if (VIEW_INIT.history) { histFillMy(); histRender(); }
 }
 
 function prodMonth(r) { return String(r['Production date'] || '').slice(0, 7); }
@@ -1386,6 +1443,247 @@ function exportFilteredXlsx() {
 
   const cols = EXPORT_COLS.map((c, i) => ({ min: i + 1, max: i + 1, w: c.w }));
   writeXlsx(`afab_sam_export_${stamp}.xlsx`, 'Filtered', sheet, merges, cols);
+}
+
+// ====================== 생산월 비교 (같은 모델의 코드 변경 히스토리) ======================
+// 같은 MY · 같은 모델(Model · Type · Axle · Cab)의 commission 을 생산월 순으로 늘어놓고,
+// 달마다 어떤 코드가 추가(＋)/삭제(−)됐는지 보여준다. 각 모델의 첫 생산월이 '기본'이 되고,
+// 그 뒤 달은 직전 생산월(기본) 또는 첫 생산월과 비교한다 — 비교 기준은 화면에서 전환.
+const HIST_NO_MY = '-';
+const HIST = { my: '', src: 'wings', basis: 'prev', q: '', rows: [], last: null };
+
+function histModelKey(r) {
+  return [r['Vehicle'], r['Model(WINGS)'], r['Type'], r['Cab']]
+    .map((v) => String(v ?? '').trim()).filter(Boolean).join(' ');
+}
+function histMyOf(r) { return String(r.MY || '') || HIST_NO_MY; }
+function histMyLabel(my) {
+  return my === HIST_NO_MY ? t('hist.noMy') : 'MY' + String(my).slice(-2);
+}
+function histCodes(r) {
+  return splitCodes(HIST.src === 'sam' ? r['_all_sam_codes'] : r['_all_wings_codes']);
+}
+function histBasisLabel() { return t('hist.basis.' + HIST.basis); }
+function histSrcLabel() { return t('hist.src.' + HIST.src); }
+
+// MY 드롭다운 — 데이터에 있는 MY 만(최근 순). 현재 선택은 가능한 한 유지한다.
+function histFillMy() {
+  const sel = $('#histMy');
+  if (!sel) return;
+  const set = new Set();
+  for (const r of DATA.rows) if (prodMonth(r) && histModelKey(r)) set.add(histMyOf(r));
+  const list = [...set].filter((v) => v !== HIST_NO_MY).sort().reverse();
+  if (set.has(HIST_NO_MY)) list.push(HIST_NO_MY);
+  if (!list.includes(HIST.my)) HIST.my = list[0] || '';
+  sel.innerHTML = list.map((v) =>
+    `<option value="${esc(v)}">${esc(histMyLabel(v))}</option>`).join('');
+  sel.value = HIST.my;
+  enhanceSelect(sel);
+  // 언어를 바꾸면 코드 기준 드롭다운의 라벨도 다시 그려야 한다.
+  const src = $('#histSrc');
+  if (src && src._csel) src._csel.refresh();
+}
+
+// 같은 달 안에서 갈린 코드 목록 — 너무 길면 줄인다.
+function histVariedText(varied) {
+  const head = varied.slice(0, 8).join(', ');
+  return t('hist.varied',
+    { n: varied.length, codes: varied.length > 8 ? head + ' …' : head });
+}
+
+// 화면에 그릴 구조를 만든다.
+//   { months: [YYYY-MM…], models: [{ key, months, cells }], total }
+// 한 달에 commission 이 여러 대면 그 달의 코드 집합은 합집합으로 본다. 합집합에는 있지만
+// 그 달 모든 commission 에 다 들어있지는 않은 코드는 '같은 달 안에서 사양이 갈린' 것이라
+// 따로(varied) 표시해 준다 — 합집합 때문에 없는 변경이 생긴 것처럼 보이지 않게.
+function histBuild() {
+  const q = HIST.q.trim().toLowerCase();
+  const models = new Map();
+  const monthSet = new Set();
+  HIST.rows = [];
+  for (const r of DATA.rows) {
+    const month = prodMonth(r);
+    const key = histModelKey(r);
+    if (!month || !key || histMyOf(r) !== HIST.my) continue;
+    if (q && !key.toLowerCase().includes(q)
+      && !String(r['Commission no.'] ?? '').toLowerCase().includes(q)) continue;
+    monthSet.add(month);
+    if (!models.has(key)) models.set(key, new Map());
+    const byMonth = models.get(key);
+    if (!byMonth.has(month)) byMonth.set(month, []);
+    byMonth.get(month).push(r);
+  }
+
+  const out = [];
+  let total = 0;
+  for (const [key, byMonth] of models) {
+    const seq = [...byMonth.keys()].sort();
+    const cells = new Map();
+    for (const m of seq) {
+      const rs = byMonth.get(m);
+      total += rs.length;
+      const sets = rs.map((r) => new Set(histCodes(r)));
+      const codes = new Set();
+      sets.forEach((s) => s.forEach((c) => codes.add(c)));
+      const varied = [...codes].filter((c) => !sets.every((s) => s.has(c))).sort();
+      cells.set(m, { rows: rs, codes, varied });
+    }
+    seq.forEach((m, i) => {
+      const cell = cells.get(m);
+      if (i === 0) { cell.base = true; return; }
+      const refMonth = HIST.basis === 'first' ? seq[0] : seq[i - 1];
+      const ref = cells.get(refMonth).codes;
+      cell.ref = refMonth;
+      cell.added = [...cell.codes].filter((c) => !ref.has(c)).sort();
+      cell.removed = [...ref].filter((c) => !cell.codes.has(c)).sort();
+    });
+    out.push({ key, months: seq, cells });
+  }
+  out.sort((a, b) => a.key.localeCompare(b.key));
+  return { months: [...monthSet].sort(), models: out, total };
+}
+
+// 'YYYY-MM' → 헤더 표시(연도 + n월). 같은 연도가 이어지면 연도는 위에 한 번만.
+function histMonthLabel(m) {
+  const [y, mm] = m.split('-');
+  const num = Number(mm);
+  return { top: y, main: LANG === 'ko' ? num + '월' : m };
+}
+
+function histCellHtml(cell, month) {
+  if (!cell) {
+    return `<td class="hist-cell gap" title="${esc(t('hist.gapTitle'))}">` +
+      `<span class="hist-none">—</span></td>`;
+  }
+  const comms = `<div class="hist-comm">` + cell.rows.map((r) => {
+    const i = HIST.rows.push(r) - 1;
+    return `<button type="button" class="cno" data-ri="${i}">Commission ${esc(r['Commission no.'])}</button>`;
+  }).join('') + `</div>`;
+
+  let body, cls = '', title = '';
+  if (cell.base) {
+    cls = ' base';
+    title = t('hist.baseTitle', { m: month });
+    body = `<div class="hist-base">${esc(t('hist.base'))}</div>`;
+  } else {
+    const line = (c, kind) =>
+      `<span class="hcode ${kind}" title="${esc(describe(c) || c)}">` +
+      `${kind === 'add' ? '＋' : '−'}${esc(c)}</span>`;
+    const lines = cell.added.map((c) => line(c, 'add'))
+      .concat(cell.removed.map((c) => line(c, 'del')));
+    body = lines.length
+      ? `<div class="hist-codes">${lines.join('')}</div>`
+      : `<div class="hist-same">${esc(t('hist.same'))}</div>`;
+    title = t('hist.cellTitle', { ref: cell.ref, cur: month });
+  }
+  const warn = cell.varied.length
+    ? `<div class="hist-warn">${esc(histVariedText(cell.varied))}</div>`
+    : '';
+  return `<td class="hist-cell${cls}"${title ? ` title="${esc(title)}"` : ''}>` +
+    `${comms}${body}${warn}</td>`;
+}
+
+function histRender() {
+  const el = $('#histBody');
+  if (!el) return;
+  const countEl = $('#histCount');
+  if (!DATA.rows.length) {
+    HIST.last = null;
+    if (countEl) countEl.textContent = '';
+    el.innerHTML = `<div class="hist-empty">${esc(t('msg.noData'))}</div>`;
+    return;
+  }
+  const b = histBuild();
+  HIST.last = b;
+  if (countEl) {
+    countEl.textContent = t('hist.count',
+      { models: b.models.length, months: b.months.length, n: b.total });
+  }
+  if (!b.models.length) {
+    el.innerHTML = `<div class="hist-empty">${esc(t('hist.emptyMy'))}</div>`;
+    return;
+  }
+
+  const head =
+    `<tr><th class="hist-model" rowspan="2">${esc(t('hist.model'))}</th>` +
+    `<th colspan="${b.months.length}">${esc(t('hist.prodMonth'))}</th></tr>` +
+    `<tr>` + b.months.map((m) => {
+      const lb = histMonthLabel(m);
+      return `<th title="${esc(m)}"><span class="my">${esc(lb.top)}</span>${esc(lb.main)}</th>`;
+    }).join('') + `</tr>`;
+
+  const body = b.models.map((g) =>
+    `<tr><td class="hist-model" title="${esc(g.key)}">${esc(g.key)}</td>` +
+    b.months.map((m) => histCellHtml(g.cells.get(m), m)).join('') + `</tr>`).join('');
+
+  el.innerHTML =
+    `<div class="hist-cap">${esc(histMyLabel(HIST.my))}` +
+    `<span class="sub">${esc(histSrcLabel())} · ${esc(histBasisLabel())}</span></div>` +
+    `<table class="hist-grid"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+
+  el.querySelectorAll('.cno').forEach((btn) =>
+    btn.addEventListener('click', () => openDrawer(HIST.rows[Number(btn.dataset.ri)])));
+}
+
+// 지금 보이는 히스토리를 그대로 엑셀로. 한 셀에 commission + 변경 코드 줄바꿈으로 담는다.
+function histExportXlsx() {
+  const b = HIST.last;
+  if (!b || !b.models.length) { alert(t('hist.emptyMy')); return; }
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}`;
+  const ts = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const lastCol = _colName(b.months.length);
+
+  const sheet = [];
+  const merges = [];
+  sheet.push([{ v: t('hist.exportTitleRow',
+    { my: histMyLabel(HIST.my), src: histSrcLabel(), basis: histBasisLabel() }), s: 1 }]);
+  sheet.push([{ v: t('export.exportedAt', { ts }), s: 0 }]);
+  sheet.push([]);
+  for (let i = 1; i <= 2; i++) merges.push(`A${i}:${lastCol}${i}`);
+
+  sheet.push([{ v: t('hist.model'), s: 2 }].concat(b.months.map((m) => ({ v: m, s: 2 }))));
+  for (const g of b.models) {
+    sheet.push([{ v: g.key, s: 3 }].concat(b.months.map((m) => {
+      const cell = g.cells.get(m);
+      if (!cell) return { v: '', s: 4 };
+      const lines = cell.rows.map((r) => 'Commission ' + r['Commission no.']);
+      if (cell.base) lines.push(t('hist.base'));
+      else if (cell.added.length || cell.removed.length) {
+        cell.added.forEach((c) => lines.push('+' + c));
+        cell.removed.forEach((c) => lines.push('-' + c));
+      } else lines.push(t('hist.same'));
+      if (cell.varied.length) lines.push(histVariedText(cell.varied));
+      return { v: lines.join('\n'), s: 3 };
+    })));
+  }
+
+  const cols = [{ min: 1, max: 1, w: 32 }].concat(
+    b.months.map((m, i) => ({ min: i + 2, max: i + 2, w: 24 })));
+  writeXlsx(`afab_code_history_${histMyLabel(HIST.my)}_${stamp}.xlsx`,
+    'History', sheet, merges, cols);
+}
+
+function initHistory() {
+  histFillMy();
+  const src = $('#histSrc');
+  if (src) { src.value = HIST.src; enhanceSelect(src); }
+
+  $('#histMy').addEventListener('input', (e) => { HIST.my = e.target.value; histRender(); });
+  if (src) src.addEventListener('input', (e) => { HIST.src = e.target.value; histRender(); });
+  $('#histSearch').addEventListener('input', (e) => { HIST.q = e.target.value; histRender(); });
+  $('#histBasis').querySelectorAll('button[data-basis]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      HIST.basis = btn.dataset.basis;
+      $('#histBasis').querySelectorAll('button').forEach((b2) =>
+        b2.classList.toggle('active', b2 === btn));
+      histRender();
+    }));
+  const ex = $('#histExport');
+  if (ex) ex.addEventListener('click', histExportXlsx);
+
+  histRender();
 }
 
 // ====================== 공용 시트 에디터 (모델 매칭 · 코드 관리 공유) ======================

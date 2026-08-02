@@ -547,3 +547,69 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 }
 .build-log .bl-body .ok  { color: var(--ok-fg); font-weight: 600; }
 .build-log .bl-body .err { color: var(--danger); font-weight: 600; }
+
+/* ===================== 생산월 비교 (코드 히스토리) ===================== */
+#view-history.active { display: flex; }
+#view-history .page {
+  max-width: none; display: flex; flex-direction: column; flex: 1; min-height: 0; padding-bottom: 20px;
+}
+.hist-controls { padding: 0 0 10px; }
+.hist-controls input[type="search"] { flex: 0 1 260px; min-width: 180px; }
+.hist-legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+
+.hist-wrap {
+  flex: 1; min-height: 0; overflow: auto;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--card); box-shadow: var(--shadow-sm);
+}
+.hist-cap {
+  position: sticky; left: 0; display: flex; align-items: baseline; gap: 10px;
+  padding: 12px 14px 8px; font-size: 16px; font-weight: 800; letter-spacing: -.01em;
+}
+.hist-cap .sub { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+
+.hist-grid { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 13px; }
+.hist-grid th, .hist-grid td {
+  border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
+  padding: 8px 10px; vertical-align: top; text-align: left;
+}
+.hist-grid thead th {
+  position: sticky; top: 0; z-index: 3; background: var(--thead-bg);
+  border-bottom: 1px solid var(--border-strong);
+  font-size: 12px; font-weight: 700; color: var(--muted); text-align: center; white-space: nowrap;
+}
+.hist-grid thead th .my { font-size: 11px; font-weight: 600; color: var(--muted); display: block; }
+/* 2단 헤더: 두 번째 줄은 첫 줄(약 33px) 아래에 붙는다. */
+.hist-grid thead tr:nth-child(2) th { top: 33px; }
+.hist-grid th.hist-model, .hist-grid td.hist-model {
+  position: sticky; left: 0; z-index: 2; background: var(--card);
+  min-width: 220px; max-width: 320px; font-weight: 700; vertical-align: middle;
+}
+.hist-grid thead th.hist-model { z-index: 4; background: var(--thead-bg); }
+.hist-grid tbody tr:hover td { background: var(--row-hover); }
+.hist-grid tbody tr:hover td.hist-model { background: var(--row-hover); }
+.hist-grid td.hist-cell { min-width: 190px; max-width: 280px; }
+.hist-grid td.hist-cell.base { background: var(--accent-softer); }
+.hist-grid td.hist-cell.gap { background: repeating-linear-gradient(135deg,
+  transparent 0 6px, rgba(0,0,0,.025) 6px 12px); }
+.hist-grid tbody tr:hover td.hist-cell.base { background: var(--accent-soft); }
+
+.hist-comm { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.hist-comm .cno {
+  font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 700;
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--chip-mand-bd);
+  border-radius: 999px; padding: 1px 8px; cursor: pointer;
+}
+.hist-comm .cno:hover { background: var(--accent); color: #fff; }
+.hist-codes { display: flex; flex-direction: column; gap: 2px; }
+.hcode {
+  font-family: "Consolas", ui-monospace, monospace; font-size: 12px; font-weight: 700;
+  border-radius: 5px; padding: 1px 6px; width: fit-content;
+}
+.hcode.add { background: var(--ok-bg); color: var(--ok-fg); }
+.hcode.del { background: var(--miss-bg); color: var(--miss-fg); }
+.hist-base { font-weight: 700; color: var(--muted); }
+.hist-same { color: var(--muted); }
+.hist-none { color: var(--border-strong); }
+.hist-warn { margin-top: 6px; font-size: 11px; font-weight: 700; color: var(--warn); }
+.hist-empty { padding: 28px 16px; color: var(--muted); text-align: center; }

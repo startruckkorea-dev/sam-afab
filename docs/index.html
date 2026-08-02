@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260729a" />
+  <link rel="stylesheet" href="style.css?v=20260802a" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -16,6 +16,7 @@
     </a>
     <nav class="nav" id="nav">
       <button class="nav-link active" data-view="dashboard" data-i18n="nav.dashboard">대시보드</button>
+      <button class="nav-link" data-view="history" data-i18n="nav.history">생산월 비교</button>
       <button class="nav-link" data-view="matching" data-i18n="nav.matching">모델 매칭</button>
       <button class="nav-link" data-view="codes" data-i18n="nav.codes">코드 관리</button>
     </nav>
@@ -79,6 +80,43 @@
         </table>
         <div id="statusMsg" class="status-msg hidden"></div>
       </section>
+    </section>
+
+    <!-- ===================== 생산월 비교 뷰 ===================== -->
+    <section class="view" id="view-history">
+      <div class="page">
+        <div class="page-head">
+          <div>
+            <h1 data-i18n="hist.title">생산월 비교</h1>
+            <p class="page-sub" data-i18n="hist.sub">같은 MY·같은 모델의 WINGS commission 을 생산월 순으로 세워 두고, 달마다 추가(＋)·삭제(−)된 코드를 보여줍니다.</p>
+          </div>
+          <div class="page-actions">
+            <button id="histExport" class="icon-btn" data-i18n="hist.export" data-i18n-title="hist.exportTitle" title="지금 보이는 히스토리를 엑셀로 저장">⬇ Export</button>
+          </div>
+        </div>
+
+        <section class="controls hist-controls">
+          <select id="histMy"></select>
+          <select id="histSrc">
+            <option value="wings" data-i18n="hist.src.wings">WINGS 코드</option>
+            <option value="sam" data-i18n="hist.src.sam">SAM 코드</option>
+          </select>
+          <div class="mode-switch" id="histBasis" data-i18n-title="hist.basis.title" title="각 달을 무엇과 비교할지">
+            <button type="button" data-basis="prev" class="active" data-i18n="hist.basis.prev">이전 생산월 대비</button>
+            <button type="button" data-basis="first" data-i18n="hist.basis.first">첫 생산월 대비</button>
+          </div>
+          <input type="search" id="histSearch" data-i18n-ph="hist.searchPh" placeholder="모델 검색&hellip;" />
+          <span class="hist-legend">
+            <span class="hcode add">＋ <span data-i18n="hist.added">추가</span></span>
+            <span class="hcode del">− <span data-i18n="hist.removed">삭제</span></span>
+          </span>
+          <span id="histCount" class="count"></span>
+        </section>
+
+        <div class="hist-wrap" id="histWrap">
+          <div id="histBody"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ===================== 모델 매칭 뷰 ===================== -->
