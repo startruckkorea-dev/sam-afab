@@ -325,10 +325,19 @@
       // No SAM: 비교 대상이 없으므로 차이/Mandatory 계산 결과를 남기지 않는다.
       const noSam = (matchSource === 'none' || !samFile);
 
+      // WINGS 표기에 축이 섞여 들어오기도 한다('4153 K' 와 '4153 K 8x4' 가 같은 차).
+      // 축은 축 칸으로 옮기고 표기는 통일해야 같은 모델이 두 줄로 갈라지지 않는다.
+      let modelDisplay = strip(('Model' in r) ? r['Model'] : modelRaw).replace(/DNA$/, '');
+      const inlineAxle = /(?<![0-9])(\d+x\d+)(?![0-9])/i.exec(modelDisplay);
+      if (inlineAxle) {
+        modelDisplay = strip(modelDisplay.replace(inlineAxle[0], '').replace(/\s{2,}/g, ' '));
+        if (!axleType) axleType = inlineAxle[1];
+      }
+
       const rowDict = {
         'Commission no.': com,
         'Baumuster': ('Baumuster' in r) ? r['Baumuster'] : '',
-        'Model(WINGS)': strip(('Model' in r) ? r['Model'] : modelRaw).replace(/DNA$/, ''),
+        'Model(WINGS)': modelDisplay,
         'Vehicle': vehicle,
         'Category': rowCat,
         'Type': axleType,
@@ -387,7 +396,27 @@
       }
       out.push(rowDict);
     }
+    // 축·차종은 SAM 파일명(또는 차종키워드)에서만 나오므로 매칭이 없는 행에서는 비어 버린다.
+    // 같은 Baumuster(공장코드)는 같은 사양이니, 그 값을 아는 다른 행에서 옮겨 채운다.
+    fillFromBaumuster(out, 'Type');
+    fillFromBaumuster(out, 'Vehicle');
     return out;
+  }
+
+  // 같은 Baumuster 안에서 값이 하나로 모일 때만 채운다(갈리면 그대로 비워 둔다).
+  function fillFromBaumuster(rows, col) {
+    const known = new Map();
+    for (const r of rows) {
+      const bm = strip(r['Baumuster']), v = strip(r[col]);
+      if (!bm || !v) continue;
+      if (!known.has(bm)) known.set(bm, v);
+      else if (known.get(bm) !== v) known.set(bm, '');
+    }
+    for (const r of rows) {
+      if (strip(r[col])) continue;
+      const v = known.get(strip(r['Baumuster']));
+      if (v) r[col] = v;
+    }
   }
 
   const api = { compare: compare, _toDate: toDate, _fmtDate: fmtDate };

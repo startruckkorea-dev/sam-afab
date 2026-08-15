@@ -383,12 +383,21 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         #   Baumuster = body 'Vehicle type' (원본/구형), now = filename model (수정/현행).
         _sam_baumuster = sam_data.get('model_baumuster', '') if sam_data else ''
         _sam_now = sam_data.get('model_now', '') if sam_data else ''
+        # WINGS spells the same truck both ways ('4153 K' and '4153 K 8x4'). Move the
+        # axle into its own column so one model does not split into two rows.
+        _model_display = re.sub(r'DNA$', '',
+            str(r.get('Model', model_raw) if 'Model' in r.index else model_raw).strip())
+        _inline_axle = re.search(r'(?<![0-9])(\d+x\d+)(?![0-9])', _model_display, re.IGNORECASE)
+        if _inline_axle:
+            _model_display = re.sub(r'\s{2,}', ' ',
+                                    _model_display.replace(_inline_axle.group(0), '')).strip()
+            if not _axle_type:
+                _axle_type = _inline_axle.group(1)
+
         row_dict = {
             'Commission no.': com,
             'Baumuster': r.get('Baumuster', '') if 'Baumuster' in r.index else baumuster_num,
-            # WINGS model shown exactly as read (no display substitution).
-            'Model(WINGS)': re.sub(r'DNA$', '',
-                str(r.get('Model', model_raw) if 'Model' in r.index else model_raw).strip()),
+            'Model(WINGS)': _model_display,
             'Vehicle': _vehicle,
             'Category': _row_cat,
             'Type': _axle_type,
@@ -453,4 +462,28 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
                 row_dict[col] = r[col]
 
         rows.append(row_dict)
+
+    # Axle and vehicle only come from the SAM filename (or the vehicle-keyword rule), so
+    # a row with no matched SAM has neither. A Baumuster is one spec, so borrow the value
+    # from the rows that do know it -- only when they all agree.
+    _fill_from_baumuster(rows, 'Type')
+    _fill_from_baumuster(rows, 'Vehicle')
     return pd.DataFrame(rows)
+
+
+def _fill_from_baumuster(rows: list, col: str) -> None:
+    known: dict = {}
+    for row in rows:
+        bm, v = str(row.get('Baumuster', '') or '').strip(), str(row.get(col, '') or '').strip()
+        if not bm or not v:
+            continue
+        if bm not in known:
+            known[bm] = v
+        elif known[bm] != v:
+            known[bm] = ''
+    for row in rows:
+        if str(row.get(col, '') or '').strip():
+            continue
+        v = known.get(str(row.get('Baumuster', '') or '').strip())
+        if v:
+            row[col] = v
