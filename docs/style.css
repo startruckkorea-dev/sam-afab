@@ -268,11 +268,12 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 /* ===================== 페이지 (모델 매칭 / 코드 관리) ===================== */
 .page { max-width: 1180px; margin: 0 auto; padding: 26px 24px 60px; width: 100%; }
 #view-codes .page, #view-matching .page { max-width: none; display: flex; flex-direction: column; flex: 1; min-height: 0; padding-bottom: 20px; }
-#view-matching .code-editor { margin-top: 6px; }
-/* 모델 매칭은 '매칭 결과 + 대조표 편집기' 두 덩어리라 한 화면에 눌러 담으면 아래가 잘린다.
-   페이지 전체를 세로로 스크롤시키고, 편집기에는 표가 스스로 스크롤할 최소 높이를 준다. */
-#view-matching .page { overflow-y: auto; }
-#view-matching .code-editor { min-height: 480px; }
+#view-matching .code-editor { margin-top: 2px; gap: 8px; }
+#view-matching .page-sub { font-size: 12px; }
+/* 모델 매칭은 '매칭 결과'와 '대조표'를 서브탭으로 갈아 끼운다 — 보이는 쪽이 화면을 다 쓰고
+   표는 자기 안에서 스크롤하므로 페이지 자체는 스크롤되지 않는다. */
+#view-matching .page { overflow: hidden; }
+#view-matching .page-actions { align-items: center; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
 .page-head h1 { margin: 0 0 3px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
 .page-sub { margin: 0; color: var(--muted); font-size: 13px; }
@@ -334,14 +335,14 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .file-bar .none.err { color: var(--danger); }
 
 /* 모델 매칭 뷰 — 매칭 결과(대시보드와 같은 항목 + 붙은 SAM 파일) */
-.match-sum { flex: none; margin: 0 0 18px; }
-.ms-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-.ms-head h2 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
-.ms-sub { margin: 0; color: var(--muted); font-size: 12.5px; }
-/* 매칭 결과 필터 줄 — 대시보드 controls 를 그대로 쓰되 페이지 여백에 맞춘다. */
-.ms-filters { padding: 0 0 10px; gap: 8px; }
+.match-sum { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* 화면 설명은 목록 자리를 뺏지 않게 한 줄·작게. */
+.pane-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.pane-hint code { font-family: "Consolas", monospace; font-size: .92em; }
+/* 필터 줄 — 대시보드 controls 를 그대로 쓰되 페이지 여백에 맞춘다. */
+.ms-filters { padding: 0 0 8px; gap: 8px; flex: none; }
 .ms-filters input[type="search"] { min-width: 200px; }
-.ms-scroll { max-height: 320px; overflow: auto; border: 1px solid var(--border);
+.ms-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border);
   border-radius: 12px; background: var(--card); box-shadow: var(--shadow-sm); }
 .ms-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
 .ms-grid th, .ms-grid td { border-bottom: 1px solid var(--border); padding: 8px 11px;

@@ -338,17 +338,21 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         _vehicle = _axle_type = _cab_code = _pto_flag = ''
         _file_cab, _file_pto = '', False
         if sam_file:
-            _veh_m = re.search(r'\b(Actros-L|Actros|Arocs|Atego|eActros|Econic|Unimog)\b',
-                               sam_file, re.IGNORECASE)
+            # \b counts '_' as a word char, so 'quotation_Actros' and '4x2_M&M' gave no
+            # boundary and left vehicle/axle blank. Filenames are underscore-separated:
+            # require a non-alphanumeric neighbour instead of a word boundary.
+            _veh_m = re.search(
+                r'(?<![A-Za-z0-9])(Actros-L|Actros|Arocs|Atego|eActros|Econic|Unimog)(?![A-Za-z])',
+                sam_file, re.IGNORECASE)
             if _veh_m:
                 _vehicle = _veh_m.group(1)
-            _axle_m = re.search(r'\b(\d+x\d+)\b', sam_file, re.IGNORECASE)
+            _axle_m = re.search(r'(?<![0-9])(\d+x\d+)(?![0-9])', sam_file, re.IGNORECASE)
             if _axle_m:
                 _axle_type = _axle_m.group(1)
-            _cab_m = re.search(r'\b([A-Z]\d[A-Z])\b', sam_file)
+            _cab_m = re.search(r'(?<![A-Za-z0-9])([A-Z]\d[A-Z])(?![A-Za-z0-9])', sam_file)
             if _cab_m:
                 _file_cab = _cab_m.group(1)
-            if re.search(r'\bPTO\b', sam_file, re.IGNORECASE):
+            if re.search(r'(?<![A-Za-z])PTO(?![A-Za-z])', sam_file, re.IGNORECASE):
                 _file_pto = True
         # SAM side: cab codes in the document; only if it names none (some tipper
         # files) fall back to the cab token in the filename.

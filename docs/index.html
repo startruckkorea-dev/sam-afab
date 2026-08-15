@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260815d" />
+  <link rel="stylesheet" href="style.css?v=20260815e" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -129,26 +129,22 @@
         <div class="page-head">
           <div>
             <h1 data-i18n="matching.title">모델 매칭</h1>
-            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 규칙 — 모두 <code>03. model_rules/model_mapping.xlsx</code> 에 저장</p>
+            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 — 규칙은 <code>model_mapping.xlsx</code></p>
           </div>
           <div class="page-actions">
+            <!-- 매칭 결과 / 대조표를 한 화면에 쌓지 않고 서브탭으로 갈아 끼운다 -->
+            <div class="mode-switch" id="matchPane">
+              <button type="button" data-pane="result" class="active" data-i18n="matching.paneResult">매칭 결과</button>
+              <button type="button" data-pane="sheet" data-i18n="matching.paneSheet">대조표</button>
+            </div>
             <a id="matchFolderLink" class="icon-btn" target="_blank" rel="noopener" data-i18n="btn.openFolder">📂 SharePoint 폴더 열기</a>
           </div>
         </div>
 
-        <p class="note" data-i18n-html="matching.note">
-          모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·옵션)이
-          이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면
-          <code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다.
-          <code>인식모델_대조표</code> 시트는 확인용 보기라, 이 화면을 열 때마다 지금 데이터로 다시 만들어집니다
-          (대시보드와 같은 <b>Model · Type · Axle · Cab · MY · PTO</b> 항목).
-        </p>
-
         <!-- 지금 데이터가 어떤 SAM 파일에 붙었는지 — 대시보드와 같은 항목으로 -->
         <section class="match-sum" id="matchSum">
-          <div class="ms-head">
-            <h2 data-i18n="matching.result">매칭 결과</h2>
-            <p class="ms-sub" data-i18n="matching.resultSub">모델(대시보드 표기 그대로) → 실제로 비교된 SAM 파일. 캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠ 로 표시합니다.</p>
+          <div class="controls ms-filters">
+            <span class="pane-hint" data-i18n="matching.resultSub">모델 → 비교된 SAM 파일. 캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠.</span>
             <span id="matchSumCount" class="count"></span>
           </div>
           <div class="controls ms-filters">
@@ -171,7 +167,11 @@
           </div>
         </section>
 
-        <div class="code-editor" id="matchEditor">
+        <div class="code-editor hidden" id="matchEditor">
+          <p class="pane-hint" data-i18n-html="matching.note">
+            <code>인식모델_대조표</code>는 열 때마다 지금 데이터로 다시 만들어지는 확인용 보기입니다.
+            규칙 시트를 고쳐 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.
+          </p>
           <div class="editor-empty" id="matchEmpty" data-i18n="matching.loading">model_mapping.xlsx 를 불러오는 중…</div>
           <div class="editor-main hidden" id="matchMain">
             <div class="editor-bar">
@@ -320,7 +320,7 @@
   <script src="lib/samparse.js?v=20260724b"></script>
   <script src="lib/wingsparse.js?v=20260724b"></script>
   <script src="lib/refdata.js?v=20260815c"></script>
-  <script src="lib/compare.js?v=20260815c"></script>
+  <script src="lib/compare.js?v=20260815e"></script>
   <script src="lib/pipeline.js?v=20260815a"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),

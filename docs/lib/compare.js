@@ -275,13 +275,15 @@
       // (파일명은 SAM 쪽 코드가 없을 때만 폴백) 두 값을 다 남겨 화면에서 불일치를 표시한다.
       let vehicle = '', axleType = '', fileCab = '', filePto = false;
       if (samFile) {
-        const vm = /\b(Actros-L|Actros|Arocs|Atego|eActros|Econic|Unimog)\b/i.exec(samFile);
+        // \b 는 밑줄도 단어문자로 보므로 'quotation_Actros'·'4x2_M&M' 에서는 경계가 생기지 않아
+        // 차종·축이 통째로 비었다. 파일명은 _ 로 토막나 있으니 앞뒤를 직접 본다.
+        const vm = /(?<![A-Za-z0-9])(Actros-L|Actros|Arocs|Atego|eActros|Econic|Unimog)(?![A-Za-z])/i.exec(samFile);
         if (vm) vehicle = vm[1];
-        const am = /\b(\d+x\d+)\b/i.exec(samFile);
+        const am = /(?<![0-9])(\d+x\d+)(?![0-9])/i.exec(samFile);
         if (am) axleType = am[1];
-        const cm = /\b([A-Z]\d[A-Z])\b/.exec(samFile);
+        const cm = /(?<![A-Za-z0-9])([A-Z]\d[A-Z])(?![A-Za-z0-9])/.exec(samFile);
         if (cm) fileCab = cm[1];
-        if (/\bPTO\b/i.test(samFile)) filePto = true;
+        if (/(?<![A-Za-z])PTO(?![A-Za-z])/i.test(samFile)) filePto = true;
       }
       const samCabs = samCodes.size ? cabsIn(samCodes) : new Set();
       if (!samCabs.size && fileCab) samCabs.add(fileCab);

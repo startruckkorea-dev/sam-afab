@@ -142,11 +142,12 @@ const I18N = {
     'hist.exportTitleRow': '코드 히스토리 — {my} · {src} · {basis}',
     // 모델 매칭
     'matching.title': '모델 매칭',
-    'matching.sub': 'SAM ↔ WINGS 모델 인식 규칙 — 모두 03. model_rules/model_mapping.xlsx 에 저장',
+    'matching.sub': 'SAM ↔ WINGS 모델 인식 — 규칙은 model_mapping.xlsx',
+    'matching.paneResult': '매칭 결과',
+    'matching.paneSheet': '대조표',
     'matching.loading': 'model_mapping.xlsx 를 불러오는 중…',
     'matching.result': '매칭 결과',
-    'matching.resultSub': '모델(대시보드 표기 그대로) → 실제로 비교된 SAM 파일. ' +
-      '캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠ 로 표시합니다.',
+    'matching.resultSub': '모델 → 비교된 SAM 파일. 캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠.',
     'match.count': '모델 {n}종',
     'match.countOf': '모델 {n}종 / 전체 {total}종',
     'match.allPto': '전체 PTO',
@@ -157,11 +158,8 @@ const I18N = {
     'match.status': '상태',
     'match.noFile': '매칭된 SAM 없음',
     'matching.note':
-      '모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·옵션)이 ' +
-      '이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면 ' +
-      '<code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다. ' +
-      '<code>인식모델_대조표</code> 시트는 확인용 보기라, 이 화면을 열 때마다 지금 데이터로 다시 만들어집니다 ' +
-      '(대시보드와 같은 <b>Model · Type · Axle · Cab · MY · PTO</b> 항목).',
+      '<code>인식모델_대조표</code>는 열 때마다 지금 데이터로 다시 만들어지는 확인용 보기입니다. ' +
+      '규칙 시트를 고쳐 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.',
     // 코드 관리
     'codes.title': '코드 관리',
     'codes.sub': "SharePoint 04. code 폴더의 Excel 파일을 웹에서 직접 편집·저장",
@@ -328,11 +326,12 @@ const I18N = {
     'hist.gapTitle': 'No production in this month.',
     'hist.exportTitleRow': 'Code history — {my} · {src} · {basis}',
     'matching.title': 'Model Matching',
-    'matching.sub': 'SAM ↔ WINGS recognition rules — all stored in 03. model_rules/model_mapping.xlsx',
+    'matching.sub': 'SAM ↔ WINGS model recognition — rules live in model_mapping.xlsx',
+    'matching.paneResult': 'Matching result',
+    'matching.paneSheet': 'Recognition table',
     'matching.loading': 'Loading model_mapping.xlsx…',
     'matching.result': 'Matching result',
-    'matching.resultSub': 'Model (same columns as the dashboard) → the SAM file it was actually ' +
-      'compared against. Cab and PTO are read from the codes; ≠ marks a WINGS/SAM difference.',
+    'matching.resultSub': 'Model → the SAM file it was compared against. Cab and PTO come from the codes; ≠ marks a difference.',
     'match.count': '{n} models',
     'match.countOf': '{n} of {total} models',
     'match.allPto': 'All PTO',
@@ -343,12 +342,9 @@ const I18N = {
     'match.status': 'Status',
     'match.noFile': 'No SAM matched',
     'matching.note':
-      'Every model-matching rule (normalization, previous/current model, vehicle keywords, ' +
-      'options) lives as a sheet in this workbook. Switch sheet tabs to edit, then ' +
-      '<b>Save to SharePoint</b> to write it back to <code>model_mapping.xlsx</code>; it takes effect on the next ' +
-      '<b>Recompute Data</b>. The <code>인식모델_대조표</code> sheet is a verification view, rebuilt from the ' +
-      'current data every time this page opens — same columns as the dashboard ' +
-      '(<b>Model · Type · Axle · Cab · MY · PTO</b>).',
+      '<code>인식모델_대조표</code> is a verification view, rebuilt from the current data every ' +
+      'time this page opens. Edit a rule sheet and <b>Save to SharePoint</b>; it applies on the ' +
+      'next <b>Recompute Data</b>.',
     'codes.title': 'Code Manager',
     'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
     'codes.note':
@@ -2351,7 +2347,29 @@ function initMatching() {
     const el = $(id);
     if (el) el.addEventListener('input', renderMatchSummary);
   }
+  const pane = $('#matchPane');
+  if (pane) {
+    pane.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-pane]');
+      if (b) showMatchPane(b.dataset.pane);
+    });
+  }
+  showMatchPane(localStorage.getItem('matchPane') || 'result');
   renderMatchSummary();
+}
+
+// 매칭 결과 / 대조표는 한 번에 하나만 — 보이는 쪽이 화면 높이를 다 쓴다.
+function showMatchPane(name) {
+  const which = name === 'sheet' ? 'sheet' : 'result';
+  localStorage.setItem('matchPane', which);
+  const sum = $('#matchSum'), ed = $('#matchEditor');
+  if (sum) sum.classList.toggle('hidden', which !== 'result');
+  if (ed) ed.classList.toggle('hidden', which !== 'sheet');
+  const pane = $('#matchPane');
+  if (pane) {
+    pane.querySelectorAll('button[data-pane]').forEach((b) =>
+      b.classList.toggle('active', b.dataset.pane === which));
+  }
 }
 
 // ---- 매칭 결과: 지금 데이터의 '모델 → 실제로 비교된 SAM 파일' ----
