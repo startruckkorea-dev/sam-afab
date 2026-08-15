@@ -269,6 +269,10 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .page { max-width: 1180px; margin: 0 auto; padding: 26px 24px 60px; width: 100%; }
 #view-codes .page, #view-matching .page { max-width: none; display: flex; flex-direction: column; flex: 1; min-height: 0; padding-bottom: 20px; }
 #view-matching .code-editor { margin-top: 6px; }
+/* 모델 매칭은 '매칭 결과 + 대조표 편집기' 두 덩어리라 한 화면에 눌러 담으면 아래가 잘린다.
+   페이지 전체를 세로로 스크롤시키고, 편집기에는 표가 스스로 스크롤할 최소 높이를 준다. */
+#view-matching .page { overflow-y: auto; }
+#view-matching .code-editor { min-height: 480px; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
 .page-head h1 { margin: 0 0 3px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
 .page-sub { margin: 0; color: var(--muted); font-size: 13px; }
@@ -334,6 +338,9 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .ms-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .ms-head h2 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
 .ms-sub { margin: 0; color: var(--muted); font-size: 12.5px; }
+/* 매칭 결과 필터 줄 — 대시보드 controls 를 그대로 쓰되 페이지 여백에 맞춘다. */
+.ms-filters { padding: 0 0 10px; gap: 8px; }
+.ms-filters input[type="search"] { min-width: 200px; }
 .ms-scroll { max-height: 320px; overflow: auto; border: 1px solid var(--border);
   border-radius: 12px; background: var(--card); box-shadow: var(--shadow-sm); }
 .ms-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }

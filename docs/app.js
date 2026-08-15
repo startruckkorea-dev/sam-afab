@@ -148,6 +148,10 @@ const I18N = {
     'matching.resultSub': '모델(대시보드 표기 그대로) → 실제로 비교된 SAM 파일. ' +
       '캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠ 로 표시합니다.',
     'match.count': '모델 {n}종',
+    'match.countOf': '모델 {n}종 / 전체 {total}종',
+    'match.allPto': '전체 PTO',
+    'match.searchPh': '모델 / SAM 파일 검색…',
+    'match.noHit': '이 조건에 맞는 모델이 없습니다.',
     'match.samFile': '비교된 SAM 파일',
     'match.units': '대수',
     'match.status': '상태',
@@ -330,6 +334,10 @@ const I18N = {
     'matching.resultSub': 'Model (same columns as the dashboard) → the SAM file it was actually ' +
       'compared against. Cab and PTO are read from the codes; ≠ marks a WINGS/SAM difference.',
     'match.count': '{n} models',
+    'match.countOf': '{n} of {total} models',
+    'match.allPto': 'All PTO',
+    'match.searchPh': 'Search model / SAM file…',
+    'match.noHit': 'No model matches this selection.',
     'match.samFile': 'Compared SAM file',
     'match.units': 'Units',
     'match.status': 'Status',
@@ -1959,6 +1967,8 @@ function makeSheetEditor(cfg) {
               cols: [], filterCol: null, page: 1 };
   const el = (k) => (cfg.els[k] ? document.getElementById(cfg.els[k]) : null);
   const stSel = '#' + cfg.els.status;
+  // 자동 생성 시트(cfg.readOnlySheets)는 고쳐 봐야 다시 만들 때 덮어써지므로 편집을 막는다.
+  const readOnly = () => (cfg.readOnlySheets || []).indexOf(S.sheet) !== -1;
 
   function setDirty(v) { S.dirty = v; const d = el('dirty'); if (d) d.classList.toggle('hidden', !v); }
   function curAoa() { return S.sheets[S.sheet] || []; }
@@ -2043,19 +2053,20 @@ function makeSheetEditor(cfg) {
     if (S.page > pages) S.page = pages;
     const slice = rows.slice((S.page - 1) * REC_PAGE_SIZE, S.page * REC_PAGE_SIZE);
 
+    const ro = readOnly();
     thead.innerHTML = '<tr><th class="rownum">#</th>' +
       S.cols.map((col) => `<th${col.type === 'bool' ? ' class="tight"' : (col.mono ? ' class="code-col-cell"' : '')}>${esc(col.label)}</th>`).join('') +
-      `<th class="rowact">${esc(t('rec.actions'))}</th></tr>`;
+      (ro ? '' : `<th class="rowact">${esc(t('rec.actions'))}</th>`) + '</tr>';
 
     if (!slice.length) {
-      tbody.innerHTML = `<tr><td class="none" colspan="${S.cols.length + 2}">${esc(t('rec.empty'))}</td></tr>`;
+      tbody.innerHTML = `<tr><td class="none" colspan="${S.cols.length + (ro ? 1 : 2)}">${esc(t('rec.empty'))}</td></tr>`;
     } else {
       tbody.innerHTML = slice.map((r) => {
         const row = aoa[r] || [];
         return `<tr data-r="${r}"><td class="rownum">${r}</td>` +
           S.cols.map((col) => `<td${col.type === 'bool' ? ' class="tight"' : (col.mono ? ' class="code-col-cell"' : '')}>${recCellHtml(col, row[col.c], r)}</td>`).join('') +
-          `<td class="rowact"><button type="button" class="link-btn rec-edit" data-r="${r}">${esc(t('btn.edit'))}</button>` +
-          `<button type="button" class="link-btn danger rec-del" data-r="${r}">${esc(t('btn.delete'))}</button></td></tr>`;
+          (ro ? '' : `<td class="rowact"><button type="button" class="link-btn rec-edit" data-r="${r}">${esc(t('btn.edit'))}</button>` +
+            `<button type="button" class="link-btn danger rec-del" data-r="${r}">${esc(t('btn.delete'))}</button></td>`) + '</tr>';
       }).join('');
     }
 
@@ -2129,8 +2140,8 @@ function makeSheetEditor(cfg) {
     const show = (k, on) => { const e2 = el(k); if (e2) e2.classList.toggle('hidden', !on); };
     show('recWrap', mode === 'record');
     show('gridWrap', mode === 'grid');
-    show('addRec', mode === 'record');
-    show('addRow', mode === 'grid');
+    show('addRec', mode === 'record' && !readOnly());
+    show('addRow', mode === 'grid' && !readOnly());
     if (mode !== 'record') { const pg = el('pager'); if (pg) { pg.classList.add('hidden'); pg.innerHTML = ''; } }
     const cnt = el('count'); if (cnt && mode !== 'record') cnt.textContent = '';
     buildFilter();
@@ -2152,9 +2163,10 @@ function makeSheetEditor(cfg) {
     }
     const ncol = aoa.reduce((m, r) => Math.max(m, r.length), 1);
     const header = aoa[0] || [];
+    const ed = readOnly() ? 'false' : 'true';
     let thead = '<tr><th class="rownum">#</th>';
     for (let c = 0; c < ncol; c++)
-      thead += `<th><div class="cell-edit hdr" contenteditable="true" data-r="0" data-c="${c}">${esc(header[c] ?? '')}</div></th>`;
+      thead += `<th><div class="cell-edit hdr" contenteditable="${ed}" data-r="0" data-c="${c}">${esc(header[c] ?? '')}</div></th>`;
     thead += '<th class="rowact"></th></tr>';
     grid.querySelector('thead').innerHTML = thead;
     let body = '';
@@ -2162,13 +2174,14 @@ function makeSheetEditor(cfg) {
       const row = aoa[r] || [];
       body += `<tr data-r="${r}"><td class="rownum">${r}</td>`;
       for (let c = 0; c < ncol; c++)
-        body += `<td><div class="cell-edit" contenteditable="true" data-r="${r}" data-c="${c}">${esc(row[c] ?? '')}</div></td>`;
-      body += `<td class="rowact"><button class="row-del" data-r="${r}" title="행 삭제">🗑</button></td></tr>`;
+        body += `<td><div class="cell-edit" contenteditable="${ed}" data-r="${r}" data-c="${c}">${esc(row[c] ?? '')}</div></td>`;
+      body += `<td class="rowact">${ed === 'true' ? `<button class="row-del" data-r="${r}" title="행 삭제">🗑</button>` : ''}</td></tr>`;
     }
     grid.querySelector('tbody').innerHTML = body;
   }
 
   function onInput(e) {
+    if (readOnly()) return;
     const cell = e.target.closest('.cell-edit'); if (!cell) return;
     const r = +cell.dataset.r, c = +cell.dataset.c;
     const aoa = curAoa();
@@ -2322,6 +2335,8 @@ const matchEditor = makeSheetEditor({
   onLoaded: refreshRecognitionSheet,
   // 수동 교정 시트는 폐기했다 — 매칭은 SAM 문서의 번호·코드로만 결정한다.
   dropSheets: ['수동매핑', '매칭_별칭(수동)'],
+  // 대조표는 데이터로 다시 만드는 보기라 편집해도 남지 않는다 — 편집 UI 자체를 숨긴다.
+  readOnlySheets: [RECOG_SHEET],
   els: { tabs: 'matchTabs', grid: 'matchGrid', addRow: 'matchAddRow', revert: 'matchLoadSp',
          saveSp: 'matchSaveSp', download: 'matchDownload', dirty: 'matchDirty',
          status: 'matchStatus', search: 'matchSearch', main: 'matchMain', empty: 'matchEmpty',
@@ -2332,6 +2347,10 @@ function initMatching() {
   const link = $('#matchFolderLink'); if (window.Graph) link.href = Graph.folders.model_rules.shareUrl;
   matchEditor.wire();
   matchEditor.open(MODEL_MAPPING_FILE);
+  for (const id of MS_FIELDS.map((f) => f.id).concat(['#msStatus', '#msSearch'])) {
+    const el = $(id);
+    if (el) el.addEventListener('input', renderMatchSummary);
+  }
   renderMatchSummary();
 }
 
@@ -2354,16 +2373,82 @@ function matchSummaryRows() {
   return [...m.values()].sort((a, b) => b.n - a.n || name(a).localeCompare(name(b)));
 }
 
+// 매칭 결과 위의 필터 — 대시보드와 같은 항목(+상태)으로 좁혀 본다.
+const MS_FIELDS = [
+  { id: '#msModel', key: 'Vehicle', allKey: 'filter.allModel' },
+  { id: '#msType', key: 'Model(WINGS)', allKey: 'filter.allType' },
+  { id: '#msAxle', key: 'Type', allKey: 'filter.allAxle' },
+  { id: '#msCab', key: 'Cab', allKey: 'filter.allCab' },
+  { id: '#msMy', key: 'MY', allKey: 'filter.allMY' },
+  { id: '#msPto', key: 'PTO', allKey: 'match.allPto' },
+];
+function msSearchTerm() {
+  const el = $('#msSearch');
+  return el ? el.value.trim() : '';
+}
+// 검색어를 셀에서 노랗게 짚어 준다(대시보드 목록의 hl 과 같은 방식, 검색창만 다름).
+function msHl(text) {
+  const q = msSearchTerm();
+  const safe = esc(text);
+  if (!q) return safe;
+  try {
+    const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return safe.replace(re, '<mark>$1</mark>');
+  } catch { return safe; }
+}
+function msFilterGroups(groups) {
+  const q = msSearchTerm().toLowerCase();
+  const st = $('#msStatus') ? $('#msStatus').value : '';
+  return groups.filter((g) => {
+    for (const f of MS_FIELDS) {
+      const sel = $(f.id);
+      const v = sel ? sel.value : '';
+      if (v && String(g.sample[f.key] ?? '').trim() !== v) return false;
+    }
+    if (st === 'Match' && !g.match) return false;
+    if (st === 'Mismatch' && !g.mismatch) return false;
+    if (st === 'No SAM' && !g.noSam) return false;
+    if (q) {
+      const hay = HIST_COLS.map((k) => String(g.sample[k] ?? ''))
+        .concat(String(g.sample['Compared SAM file name'] || '')).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+// 드롭다운 값은 (필터 전) 전체 그룹에서 뽑고, 고른 값은 유지한다.
+function msFillFilters(groups) {
+  for (const f of MS_FIELDS) {
+    const sel = $(f.id);
+    if (!sel) continue;
+    const vals = [...new Set(groups.map((g) => String(g.sample[f.key] ?? '').trim())
+      .filter(Boolean))].sort();
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">${esc(t(f.allKey))}</option>` +
+      vals.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    sel.value = vals.includes(prev) ? prev : '';
+    enhanceSelect(sel);
+  }
+  const st = $('#msStatus'); if (st) enhanceSelect(st);
+}
+
 function renderMatchSummary() {
   const table = $('#matchSumGrid');
   if (!table) return;
   const cntEl = $('#matchSumCount');
-  const groups = DATA.rows.length ? matchSummaryRows() : [];
-  if (cntEl) cntEl.textContent = groups.length ? t('match.count', { n: groups.length }) : '';
+  const all = DATA.rows.length ? matchSummaryRows() : [];
+  msFillFilters(all);
+  const groups = msFilterGroups(all);
+  if (cntEl) {
+    cntEl.textContent = all.length
+      ? t(groups.length === all.length ? 'match.count' : 'match.countOf',
+        { n: groups.length, total: all.length })
+      : '';
+  }
   if (!groups.length) {
     table.querySelector('thead').innerHTML = '';
     table.querySelector('tbody').innerHTML =
-      `<tr><td class="none">${esc(t('msg.noData'))}</td></tr>`;
+      `<tr><td class="none">${esc(t(all.length ? 'match.noHit' : 'msg.noData'))}</td></tr>`;
     return;
   }
   table.querySelector('thead').innerHTML = '<tr>'
@@ -2376,9 +2461,9 @@ function renderMatchSummary() {
       const v = String(r[k] ?? '').trim();
       const kind = k === 'Cab' ? 'cab' : (k === 'PTO' ? 'pto' : '');
       if (kind && pairMismatch(r, kind)) {
-        return `<td class="pair-diff" title="${esc(pairTitle(r, kind))}">${esc(v)}<span class="ne">≠</span></td>`;
+        return `<td class="pair-diff" title="${esc(pairTitle(r, kind))}">${msHl(v)}<span class="ne">≠</span></td>`;
       }
-      return `<td>${esc(v)}</td>`;
+      return `<td>${msHl(v)}</td>`;
     }).join('');
     const file = String(r['Compared SAM file name'] || '');
     const chips = [
@@ -2387,7 +2472,7 @@ function renderMatchSummary() {
       g.noSam ? `<span class="status NoSAM">${g.noSam}</span>` : '',
     ].join(' ');
     return `<tr>${cells}<td class="ms-file" title="${esc(file)}">`
-      + `${esc(file) || `<span class="none">${esc(t('match.noFile'))}</span>`}</td>`
+      + `${file ? msHl(file) : `<span class="none">${esc(t('match.noFile'))}</span>`}</td>`
       + `<td class="num">${g.n}</td><td>${chips}</td></tr>`;
   }).join('');
 }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260815a" />
+  <link rel="stylesheet" href="style.css?v=20260815d" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -150,6 +150,21 @@
             <h2 data-i18n="matching.result">매칭 결과</h2>
             <p class="ms-sub" data-i18n="matching.resultSub">모델(대시보드 표기 그대로) → 실제로 비교된 SAM 파일. 캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠ 로 표시합니다.</p>
             <span id="matchSumCount" class="count"></span>
+          </div>
+          <div class="controls ms-filters">
+            <select id="msModel"></select>
+            <select id="msType"></select>
+            <select id="msAxle"></select>
+            <select id="msCab"></select>
+            <select id="msMy"></select>
+            <select id="msPto"></select>
+            <select id="msStatus">
+              <option value="" data-i18n="filter.allStatus">전체 상태</option>
+              <option value="Match">Match</option>
+              <option value="Mismatch">Mismatch</option>
+              <option value="No SAM">No SAM</option>
+            </select>
+            <input type="search" id="msSearch" data-i18n-ph="match.searchPh" placeholder="모델 / SAM 파일 검색&hellip;" />
           </div>
           <div class="ms-scroll">
             <table class="ms-grid" id="matchSumGrid"><thead></thead><tbody></tbody></table>
