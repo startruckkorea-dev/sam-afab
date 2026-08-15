@@ -48,8 +48,22 @@ def _autofit(ws, widths):
         ws.column_dimensions[get_column_letter(i)].width = w
 
 
+# Model year lives only in the codes: V8Q..V8Z = model year 0..9 (V8W -> 2026).
+# data.json carries no MY column — the dashboard derives it the same way (app.js).
+_MY_DIGIT = {f'V8{c}': i for i, c in enumerate('QRSTUVWXYZ')}
+
+
+def _model_year(r) -> str:
+    for key in ('_all_sam_codes', '_all_wings_codes'):
+        for code in str(r.get(key, '') or '').split(','):
+            code = code.strip()
+            if code in _MY_DIGIT:
+                return str(2020 + _MY_DIGIT[code])
+    return ''
+
+
 def _ref_rows():
-    """Distinct recognized (WINGS, SAM Baumuster, SAM now, status) from docs/data.json."""
+    """Distinct recognized models from docs/data.json — dashboard columns + SAM file."""
     if not DATA_PATH.exists():
         return []
     data = json.loads(DATA_PATH.read_text(encoding='utf-8'))
@@ -59,18 +73,21 @@ def _ref_rows():
         if not wings:
             continue
         row = (
-            str(r.get('Vehicle', '') or '').strip(),
-            wings,
+            str(r.get('Vehicle', '') or '').strip(),          # Model
+            wings,                                            # Type
+            str(r.get('Type', '') or '').strip(),             # Axle
+            str(r.get('Cab', '') or '').strip(),
+            _model_year(r),
+            str(r.get('PTO', '') or '').strip(),
             str(r.get('SAM Baumuster', '') or '').strip(),
             str(r.get('SAM now', '') or '').strip(),
             str(r.get('Baumuster', '') or '').strip(),
             str(r.get('Subcategory (ID)', '') or '').strip(),
             str(r.get('SAM Status', '') or '').strip(),
-            str(r.get('PTO', '') or '').strip(),
             Path(str(r.get('Compared SAM file name', '') or '')).name,
         )
         seen.setdefault(row, row)
-    return sorted(seen.values(), key=lambda k: (k[0], k[1], k[8]))
+    return sorted(seen.values(), key=lambda k: (k[0], k[1], k[11]))
 
 
 def build():
@@ -81,13 +98,15 @@ def build():
     # --- Sheet 1: recognition table (auto) -----------------------------------
     ws = wb.active
     ws.title = '인식모델_대조표'
-    cols = ['차종(Vehicle)', 'WINGS 모델', 'SAM Baumuster(원본)', 'SAM now(수정)',
-            'Baumuster', 'Subcategory', '매칭상태', 'PTO', 'SAM 파일']
+    # 앞 6개는 대시보드 목록과 같은 항목·순서(Model · Type · Axle · Cab · MY · PTO).
+    cols = ['Model(차종)', 'Type(WINGS 모델)', 'Axle(축)', 'Cab(캡)', 'MY', 'PTO',
+            'SAM Baumuster(원본)', 'SAM now(수정)', 'Baumuster', 'Subcategory',
+            '매칭상태', 'SAM 파일']
     ws.append(cols)
     for row in _ref_rows():
         ws.append(list(row))
     _style_header(ws, len(cols))
-    _autofit(ws, [16, 16, 18, 16, 12, 11, 12, 8, 52])
+    _autofit(ws, [14, 16, 9, 9, 7, 7, 18, 16, 12, 11, 12, 52])
 
     # --- Sheet 2: manual overrides (editable, wins over auto-recognition) -----
     sm = wb.create_sheet('수동매핑')

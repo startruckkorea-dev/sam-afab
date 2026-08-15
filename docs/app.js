@@ -156,7 +156,8 @@ const I18N = {
       '모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이 ' +
       '이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면 ' +
       '<code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다. ' +
-      '<code>인식모델_대조표</code> 시트는 로컬 도구가 만드는 확인용 보기입니다(브라우저 빌드는 이 시트를 갱신하지 않음).',
+      '<code>인식모델_대조표</code> 시트는 확인용 보기라, 이 화면을 열 때마다 지금 데이터로 다시 만들어집니다 ' +
+      '(대시보드와 같은 <b>Model · Type · Axle · Cab · MY · PTO</b> 항목).',
     // 코드 관리
     'codes.title': '코드 관리',
     'codes.sub': "SharePoint 04. code 폴더의 Excel 파일을 웹에서 직접 편집·저장",
@@ -337,7 +338,9 @@ const I18N = {
       'Every model-matching rule (normalization, previous/current model, vehicle keywords, aliases, ' +
       'manual map, options) lives as a sheet in this workbook. Switch sheet tabs to edit, then ' +
       '<b>Save to SharePoint</b> to write it back to <code>model_mapping.xlsx</code>; it takes effect on the next ' +
-      '<b>Recompute Data</b>. The <code>인식모델_대조표</code> sheet is a verification view produced by the local Python tool (the browser build does not refresh it).',
+      '<b>Recompute Data</b>. The <code>인식모델_대조표</code> sheet is a verification view, rebuilt from the ' +
+      'current data every time this page opens — same columns as the dashboard ' +
+      '(<b>Model · Type · Axle · Cab · MY · PTO</b>).',
     'codes.title': 'Code Manager',
     'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
     'codes.note':
@@ -552,7 +555,12 @@ function applyData(d, c) {
   renderHead();
   render();
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
-  if (VIEW_INIT.matching) renderMatchSummary();
+  if (VIEW_INIT.matching) {
+    renderMatchSummary();
+    // 대조표는 이 데이터로 만드는 보기라, 다시 계산했으면 열려 있는 시트도 새로 그린다.
+    refreshRecognitionSheet(matchEditor.S);
+    matchEditor.refresh();
+  }
 }
 
 function prodMonth(r) { return String(r['Production date'] || '').slice(0, 7); }
@@ -2206,6 +2214,7 @@ function makeSheetEditor(cfg) {
       for (const n of wb.SheetNames)
         S.sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
       S.sheet = S.order[0] || null;
+      if (cfg.onLoaded) cfg.onLoaded(S);
       setDirty(false);
       const emp = el('empty'); if (emp) emp.classList.add('hidden');
       const mn = el('main'); if (mn) mn.classList.remove('hidden');
@@ -2265,9 +2274,50 @@ function makeSheetEditor(cfg) {
   return { S, open, saveSp, wire, refresh };
 }
 
+// ---- 인식모델_대조표: data.json 으로 만드는 확인용 시트 ----
+// 로컬 파이썬 도구(build_model_rules_xlsx.py)가 만드는 시트지만, 브라우저에서 워크북을 열 때도
+// 지금 데이터로 다시 만든다 — 그래야 대시보드·목록·편집 창의 항목과 값이 어긋나지 않는다.
+// 컬럼 앞부분은 대시보드 목록과 같은 Model · Type · Axle · Cab · MY · PTO.
+const RECOG_SHEET = '인식모델_대조표';
+const RECOG_COLS = [
+  ['Model(차종)', 'Vehicle'],
+  ['Type(WINGS 모델)', 'Model(WINGS)'],
+  ['Axle(축)', 'Type'],
+  ['Cab(캡)', 'Cab'],
+  ['MY', 'MY'],
+  ['PTO', 'PTO'],
+  ['SAM Baumuster(원본)', 'SAM Baumuster'],
+  ['SAM now(수정)', 'SAM now'],
+  ['Baumuster', 'Baumuster'],
+  ['Subcategory', 'Subcategory (ID)'],
+  ['매칭상태', 'SAM Status'],
+  ['SAM 파일', 'Compared SAM file name'],
+];
+function recognitionAoa() {
+  const seen = new Map();
+  for (const r of DATA.rows) {
+    if (!String(r['Model(WINGS)'] ?? '').trim()) continue;
+    const row = RECOG_COLS.map(([, key]) => {
+      let v = String(r[key] ?? '').trim();
+      if (key === 'Compared SAM file name') v = v.split(/[\\/]/).pop();
+      return v;
+    });
+    const k = row.join('');
+    if (!seen.has(k)) seen.set(k, row);
+  }
+  const rows = [...seen.values()].sort((a, b) =>
+    a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]) || a[11].localeCompare(b[11]));
+  return [RECOG_COLS.map(([label]) => label)].concat(rows);
+}
+function refreshRecognitionSheet(S) {
+  if (!DATA.rows.length || !S.sheets[RECOG_SHEET]) return;
+  S.sheets[RECOG_SHEET] = recognitionAoa();
+}
+
 // ---- 모델 매칭: model_mapping.xlsx (03. model_rules) 전체 시트 편집 ----
 const matchEditor = makeSheetEditor({
   folderKey: 'model_rules', fixedFile: MODEL_MAPPING_FILE,
+  onLoaded: refreshRecognitionSheet,
   els: { tabs: 'matchTabs', grid: 'matchGrid', addRow: 'matchAddRow', revert: 'matchLoadSp',
          saveSp: 'matchSaveSp', download: 'matchDownload', dirty: 'matchDirty',
          status: 'matchStatus', search: 'matchSearch', main: 'matchMain', empty: 'matchEmpty',
