@@ -462,7 +462,8 @@
 <p>단순히 가장 가까운 달이 아니라, <b>캡(cab) 종류가 맞는</b> 후보를 우선합니다.</p>
 <ul class="tight">
   <li>WINGS의 cab 코드(예: <code>F1J</code>)를 <code>code/cab.xlsx</code>로 변형명(예: <code>G5F</code>)으로 변환</li>
-  <li>SAM 파일 제목에 그 변형명이 들어있으면 <b>강한 매칭</b></li>
+  <li>SAM <b>문서의 코드</b>에서 같은 방식으로 뽑은 변형명이 일치하면 <b>강한 매칭</b>.
+      SAM 코드에 cab 코드가 하나도 없을 때만 <b>파일 제목</b>의 cab 토큰을 봅니다</li>
   <li>예: 한 달 떨어진 <b>GigaSpace</b> 파일이, 같은 달의 <b>StreamSpace</b> 파일보다 더 정확한 비교 대상</li>
 </ul>
 <p>탐색은 가까운 달부터 돌며, cab 신호가 있으면 <b>cab이 맞는 첫 달</b>에서 멈춥니다.
@@ -473,7 +474,7 @@
 <table>
   <thead><tr><th>신호</th><th>가중치</th></tr></thead>
   <tbody>
-    <tr><td>Cab 변형명이 SAM 제목에 있음</td><td>+3</td></tr>
+    <tr><td>Cab 변형명 일치(SAM 코드 우선, 없으면 제목)</td><td>+3</td></tr>
     <tr><td>Baumuster(공장코드) 일치</td><td>+2</td></tr>
     <tr><td>Subcategory 일치</td><td>+1</td></tr>
   </tbody>
@@ -488,11 +489,18 @@
 </ul>
 
 <h3 id="c-pto">6.2 ② PTO 판정 &amp; 정교화</h3>
-<p>1차 PTO 판정: WINGS 코드 설명에 PTO가 있거나 <code>WINGS_has_pto</code>가 참이면 PTO.</p>
+<p>1차 PTO 판정: WINGS 코드 중 <b>설명에 PTO가 들어간 코드</b>가 있거나
+<code>WINGS_has_pto</code>가 참이면 PTO.</p>
 <p><b>정교화:</b> 처음엔 non-PTO로 봤는데, 매칭된 SAM 엔트리에 PTO·non-PTO 두 변형이 모두 있고
 WINGS 코드가 <b>PTO 변형에만 있는 고유 코드</b>를 포함하면 → PTO로 승격합니다.</p>
 <pre><code>pto_unique = PTO변형코드 - nonPTO변형코드
 if wings_codes &amp; pto_unique:  is_pto = True</code></pre>
+<div class="card warn">
+<h4>PTO는 엄격 필터</h4>
+<p class="muted" style="margin:0">확정된 PTO 여부와 <b>같은 변형만</b> 후보로 씁니다.
+반대 변형으로 넘어가지 않으므로, 그 변형이 어느 달에도 없으면 그 차량은 <code>No SAM</code>이 됩니다.
+(예전에는 반대 변형으로 조용히 폴백해 PTO 차량이 비PTO 문서와 비교되곤 했습니다.)</p>
+</div>
 
 <h3 id="c-diff">6.3 ③ 코드 차이 분류</h3>
 <p>매칭된 SAM 코드집합과 WINGS 코드집합을 비교해 세 갈래로 나눕니다.
@@ -534,8 +542,12 @@ SAM 파일을 못 찾은 행은 <code>Only_in_WINGS</code>를 비워둡니다(�
 </div>
 
 <h3 id="c-status">6.6 ⑥ 부가 정보 &amp; 상태 결정</h3>
-<p>SAM 파일명에서 정규식으로 차종·축·캡·PTO를 뽑아 표시용으로 채웁니다
-(제목에 캡 토큰이 없는 tipper 파일 등은 WINGS cab 코드→cab.xlsx로 보완).</p>
+<p>차종·축은 문서에 따로 없어 <b>SAM 파일명</b>에서 정규식으로 뽑습니다.
+<b>캡·PTO는 양쪽의 실제 코드</b>로 판정하고(캡=cab.xlsx 변형명, PTO=설명에 PTO가 든 코드),
+SAM 코드에 신호가 없을 때만 파일명을 폴백으로 씁니다. 두 값은
+<code>_cab_wings</code>/<code>_cab_sam</code>, <code>_pto_wings</code>/<code>_pto_sam</code> 로 모두 남겨
+화면(<b>대시보드 목록·생산월 비교·모델 매칭</b>)에서 불일치를 <code>≠</code>로 표시합니다.
+목록 칸에는 WINGS 값을, WINGS에 신호가 없으면 SAM 값을 보여줍니다.</p>
 <pre><code>if not sam_file:                              → "No SAM"
 elif Only_in_SAM/WINGS 있음 or Paint/Tyre 불일치 → "Mismatch"
 else:                                          → "Match"</code></pre>
@@ -549,6 +561,7 @@ else:                                          → "Match"</code></pre>
 <code>Only_in_SAM</code>, <code>Only_in_WINGS</code>, <code>Factory Control Codes</code>,
 <code>Mandatory Codes</code>, <code>Changeability Date</code>, <code>Until Dealine</code>,
 <code>_all_wings_codes</code>/<code>_all_sam_codes</code>(전체목록),
+<code>_cab_wings</code>/<code>_cab_sam</code>, <code>_pto_wings</code>/<code>_pto_sam</code>(양쪽 캡·PTO),
 <code>_paint_*</code>/<code>_tyre_*</code>, <code>Compared SAM file name</code>, <code>SAM Status</code>.
 (<code>_</code> 접두 컬럼은 상세창 전용 원본 데이터.)</p>
 </div>

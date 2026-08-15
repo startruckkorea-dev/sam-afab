@@ -38,20 +38,47 @@
     return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   }
 
+  // ---- 캡·PTO 는 파일명이 아니라 '실제 코드'로 판정한다 ----
+  // 캡 : cab.xlsx 의 { WINGS 캡 코드 → SAM 캡 variant }  (F1J → G5F)
+  // PTO: 코드 설명에 PTO 가 들어간 코드
+  // 둘 다 compare() 시작에서 ref 로 채운다(후보 선택 헬퍼가 모듈 스코프라 여기 둔다).
+  let CAB_MAP = {};
+  let CODE_DESC = {};
+  function cabsIn(codes) {
+    const out = new Set();
+    for (const c of (codes || [])) if (CAB_MAP[c]) out.add(CAB_MAP[c]);
+    return out;
+  }
+  function ptoCodesIn(codes) {
+    const out = new Set();
+    for (const c of (codes || [])) {
+      if (s(CODE_DESC[c]).toUpperCase().indexOf('PTO') !== -1) out.add(c);
+    }
+    return out;
+  }
+  // SAM 후보의 캡: 문서의 실제 코드가 1순위, 없으면 파일명 토큰.
+  function dataCabMatch(data, expectedCabs) {
+    if (!data || !expectedCabs || !expectedCabs.size) return false;
+    const cabs = cabsIn(data.codes);
+    for (const cv of expectedCabs) if (cv && cabs.has(cv)) return true;
+    if (cabs.size) return false;                 // 코드가 있는데 안 맞으면 파일명은 안 본다
+    const f = s(data.file).toUpperCase();
+    for (const cv of expectedCabs) if (cv && f.indexOf(cv) !== -1) return true;
+    return false;
+  }
+
   // ---- 후보 선택 헬퍼 (_candidates / _match_score / _pick / _cab_ok) ----
+  // PTO 는 엄격 필터다 — 요청한 PTO 변형이 없으면 후보 없음(= No SAM). 예전처럼 반대
+  // 변형으로 넘어가면 PTO 차량이 비PTO SAM 과 조용히 비교돼 차이가 통째로 묻힌다.
   function candidates(entry, preferPto) {
     if (!entry || typeof entry !== 'object') return [];
-    const a = entry[preferPto ? 'true' : 'false'];
-    const b = entry[preferPto ? 'false' : 'true'];
-    const lst = (a && a.length) ? a : ((b && b.length) ? b : []);
+    const lst = entry[preferPto ? 'true' : 'false'];
+    if (!lst) return [];
     return Array.isArray(lst) ? lst : [lst];
   }
   function matchScore(data, wingsBm, wingsSub, expectedCabs) {
     let score = 0;
-    if (expectedCabs && expectedCabs.size) {
-      const f = s(data.file).toUpperCase();
-      for (const cv of expectedCabs) { if (cv && f.indexOf(cv) !== -1) { score += 3; break; } }
-    }
+    if (expectedCabs && expectedCabs.size && dataCabMatch(data, expectedCabs)) score += 3;
     if (wingsBm && strip(data.bm) === wingsBm) score += 2;
     if (wingsSub && strip(data.sub).toLowerCase() === wingsSub) score += 1;
     return score;
@@ -67,12 +94,7 @@
     }
     return best;
   }
-  function cabOk(data, expectedCabs) {
-    if (!data || !expectedCabs || !expectedCabs.size) return false;
-    const f = s(data.file).toUpperCase();
-    for (const cv of expectedCabs) if (cv && f.indexOf(cv) !== -1) return true;
-    return false;
-  }
+  function cabOk(data, expectedCabs) { return dataCabMatch(data, expectedCabs); }
   function findSamDataByFile(samMapsList, preferPto, fileSub) {
     const fs = strip(fileSub).toLowerCase();
     if (!fs) return null;
@@ -115,6 +137,8 @@
     const modelCategory = ref.modelCategory || {};
     const cabMap = ref.cabMap || {};
     const codeDesc = ref.codeDesc || {};
+    CAB_MAP = cabMap;
+    CODE_DESC = codeDesc;
     const today = ref.today ? new Date(ref.today) : new Date();
     const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
 
@@ -161,14 +185,10 @@
       const wingsBm = strip(r['Baumuster']);
       const wingsSub = strip(r['Subcategory (ID)']).toLowerCase();
 
-      const expectedCabs = new Set();
-      for (const c of wingsCodes) if (cabMap[c]) expectedCabs.add(cabMap[c]);
-
-      let isPto = false;
-      for (const c of wingsCodes) {
-        if (s(codeDesc[c]).toUpperCase().indexOf('PTO') !== -1) { isPto = true; break; }
-      }
-      if (!isPto && r['WINGS_has_pto']) isPto = true;
+      // WINGS 쪽 캡·PTO — 주문에 실제로 걸린 코드에서 찾는다.
+      const expectedCabs = cabsIn(wingsCodes);
+      const wingsPtoCodes = ptoCodesIn(wingsCodes);
+      let isPto = wingsPtoCodes.size > 0 || !!r['WINGS_has_pto'];
 
       function entryForModel(map, pto) {
         const cand = map.get(modelNorm);
@@ -277,19 +297,25 @@
       const paintMismatch = !!(samData && wingsPaint.size && samPaint.size && setXor(wingsPaint, samPaint).size);
       const tyreMismatch = !!(samData && wingsTyre.size && samTyre.size && setXor(wingsTyre, samTyre).size);
 
-      // SAM 파일명에서 차종/축/캐빈/PTO
-      let vehicle = '', axleType = '', cabCode = '', ptoFlag = '';
+      // 차종·축은 문서에 따로 없어 SAM 파일명에서 뽑는다. 캡·PTO 는 양쪽 '코드'로 판정하고
+      // (파일명은 SAM 쪽 코드가 없을 때만 폴백) 두 값을 다 남겨 화면에서 불일치를 표시한다.
+      let vehicle = '', axleType = '', fileCab = '', filePto = false;
       if (samFile) {
         const vm = /\b(Actros-L|Actros|Arocs|Atego|eActros|Econic|Unimog)\b/i.exec(samFile);
         if (vm) vehicle = vm[1];
         const am = /\b(\d+x\d+)\b/i.exec(samFile);
         if (am) axleType = am[1];
         const cm = /\b([A-Z]\d[A-Z])\b/.exec(samFile);
-        if (cm) cabCode = cm[1];
-        if (/\bPTO\b/i.test(samFile)) ptoFlag = 'PTO';
+        if (cm) fileCab = cm[1];
+        if (/\bPTO\b/i.test(samFile)) filePto = true;
       }
-      if (!cabCode && expectedCabs.size) cabCode = [...expectedCabs].sort()[0];
-      if (!ptoFlag && isPto) ptoFlag = 'PTO';
+      const samCabs = samCodes.size ? cabsIn(samCodes) : new Set();
+      if (!samCabs.size && fileCab) samCabs.add(fileCab);
+      const samPtoCodes = ptoCodesIn(samCodes);
+      const samPto = samPtoCodes.size > 0 || filePto;
+      // 목록에 한 값만 보여야 하므로 WINGS 기준을 쓰고, WINGS 에 신호가 없으면 SAM 값을 쓴다.
+      const cabCode = sortedArr(expectedCabs)[0] || sortedArr(samCabs)[0] || '';
+      const ptoFlag = (isPto || samPto) ? 'PTO' : '';
       if (!vehicle) {
         const mu = s(modelRaw).toUpperCase();
         const vk = rules.vehicle_keywords || {};
@@ -346,6 +372,12 @@
         'Mandatory Codes': noSam ? '' : mandRow.join(','),
         '_all_wings_codes': sortedArr(wingsCodes).join(','),
         '_all_sam_codes': sortedArr(samCodes).join(','),
+        // 캡·PTO 도 Paint/Tyre 처럼 양쪽 값을 그대로 남긴다 — 화면에서 불일치를 표시한다.
+        // PTO 는 코드가 아니라 문구(WINGS 텍스트·SAM 파일명)로만 잡힐 수 있어 그때는 'PTO'.
+        '_cab_wings': sortedArr(expectedCabs).join(','),
+        '_cab_sam': sortedArr(samCabs).join(','),
+        '_pto_wings': isPto ? (sortedArr(wingsPtoCodes).join(',') || 'PTO') : '',
+        '_pto_sam': samPto ? (sortedArr(samPtoCodes).join(',') || 'PTO') : '',
         '_paint_wings': sortedArr(wingsPaint).join(','),
         '_paint_sam': sortedArr(samPaint).join(','),
         '_tyre_wings': sortedArr(wingsTyre).join(','),

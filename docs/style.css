@@ -222,6 +222,10 @@ table#grid { border-collapse: separate; border-spacing: 0; width: 100%; backgrou
 #grid tbody tr:hover td:first-child { background: var(--row-hover); }
 #grid td.num { text-align: center; font-variant-numeric: tabular-nums; }
 
+/* 캡·PTO 처럼 WINGS/SAM 양쪽 값이 있는 칸 — 두 값이 다르면 ≠ 를 붙인다. */
+.pair-diff { color: var(--miss-fg); font-weight: 700; }
+.pair-diff .ne { margin-left: 4px; font-size: 11px; opacity: .85; }
+
 .status { font-weight: 700; border-radius: 6px; text-align: center; padding: 3px 10px; display: inline-block; font-size: 12px; }
 .status.Match { background: var(--match-bg); color: var(--match-fg); }
 .status.Mismatch { background: var(--miss-bg); color: var(--miss-fg); }
@@ -324,6 +328,27 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .fi-meta { font-size: 11px; opacity: .7; font-weight: 500; }
 .file-bar .none { color: var(--muted); font-size: 13px; padding: 6px 2px; }
 .file-bar .none.err { color: var(--danger); }
+
+/* 모델 매칭 뷰 — 매칭 결과(대시보드와 같은 항목 + 붙은 SAM 파일) */
+.match-sum { flex: none; margin: 0 0 18px; }
+.ms-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.ms-head h2 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.ms-sub { margin: 0; color: var(--muted); font-size: 12.5px; }
+.ms-scroll { max-height: 320px; overflow: auto; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--card); box-shadow: var(--shadow-sm); }
+.ms-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+.ms-grid th, .ms-grid td { border-bottom: 1px solid var(--border); padding: 8px 11px;
+  text-align: center; white-space: nowrap; }
+.ms-grid thead th {
+  position: sticky; top: 0; z-index: 2; background: var(--thead-bg); font-weight: 700;
+  color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .02em;
+  border-bottom: 1px solid var(--border-strong);
+}
+.ms-grid tbody tr:last-child td { border-bottom: none; }
+.ms-grid td.num { font-variant-numeric: tabular-nums; }
+.ms-grid td.ms-file { text-align: left; max-width: 420px; overflow: hidden;
+  text-overflow: ellipsis; font-size: 12px; color: var(--muted); }
+.ms-grid td .none { color: var(--danger); font-size: 12px; }
 
 .code-editor { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .editor-empty {
@@ -594,6 +619,15 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
   border-bottom: 1px solid var(--border); background: var(--thead-bg);
 }
 .hist-cap .sub { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+/* 선택한 모델 — 대시보드 목록과 같은 항목·라벨·모양으로 한 줄. */
+.hist-model { border-collapse: separate; border-spacing: 0; background: var(--card);
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 13px; }
+.hist-model th, .hist-model td { padding: 6px 14px; text-align: center; white-space: nowrap; }
+.hist-model thead th {
+  background: var(--thead-bg); font-weight: 700; color: var(--muted); font-size: 11.5px;
+  text-transform: uppercase; letter-spacing: .02em; border-bottom: 1px solid var(--border-strong);
+}
+.hist-model tbody td { font-weight: 700; }
 .hist-scroll { flex: 1; min-height: 0; overflow: auto; }
 
 .hist-grid { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12px; }

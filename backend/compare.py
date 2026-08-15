@@ -100,15 +100,29 @@ def _split_model(s: str):
     return s, ''
 
 
+def _cabs_in(codes) -> set:
+    """Cab variants (e.g. {'G5F'}) for the given codes, via cab.xlsx (F1J -> G5F)."""
+    return {CAB_MAP[c] for c in (codes or ()) if c in CAB_MAP}
+
+
+def _pto_codes_in(codes, allcode_custom=None) -> set:
+    """Codes whose description mentions PTO — the PTO signal on either side."""
+    extra = allcode_custom or {}
+    return {c for c in (codes or ())
+            if 'PTO' in OPTION_CODE_MAP.get(c, '').upper()
+            or 'PTO' in extra.get(c, '').upper()}
+
+
 def _candidates(entry, prefer_pto: bool):
     """Return the list of candidate data-dicts for the requested PTO variant.
 
-    A sam_map entry is { is_pto(bool): [data, ...] }. Falls back to the other PTO
-    variant when the requested one is absent.
+    PTO is a strict filter: a row with PTO is never compared against the non-PTO
+    variant (and vice versa). With no candidate for the requested variant the row
+    ends up as 'No SAM' rather than silently comparing the wrong document.
     """
     if not isinstance(entry, dict) or not entry:
         return []
-    lst = entry.get(prefer_pto) or entry.get(not prefer_pto) or []
+    lst = entry.get(prefer_pto) or []
     return lst if isinstance(lst, list) else [lst]
 
 
@@ -116,13 +130,11 @@ def _match_score(data, wings_bm: str, wings_sub: str, expected_cabs=()) -> int:
     """Higher = better SAM candidate for a WINGS row. Cab > Baumuster > Subcategory.
 
     expected_cabs: cab variants (e.g. {'G5F'}) derived from the WINGS row's cab
-    code via CAB_MAP. A SAM file whose title contains one is a strong match.
+    code via CAB_MAP. A SAM document carrying one of them is a strong match.
     """
     score = 0
-    if expected_cabs:
-        f = str(data.get('file', '')).upper()
-        if any(cv and cv in f for cv in expected_cabs):
-            score += 3
+    if expected_cabs and _cab_ok(data, expected_cabs):
+        score += 3
     if wings_bm and str(data.get('bm', '')).strip() == wings_bm:
         score += 2
     if wings_sub and str(data.get('sub', '')).strip().lower() == wings_sub:
@@ -139,9 +151,16 @@ def _pick(entry, prefer_pto: bool, wings_bm: str = '', wings_sub: str = '', expe
 
 
 def _cab_ok(data, expected_cabs) -> bool:
-    """True if the candidate's SAM filename contains one of the expected cab variants."""
+    """True if the candidate carries one of the expected cab variants.
+
+    The document's own codes decide; the filename is only consulted when the SAM
+    codes carry no cab code at all (some tipper files name no cab).
+    """
     if not data or not expected_cabs:
         return False
+    cabs = _cabs_in(data.get('codes') or ())
+    if cabs:
+        return bool(cabs & set(expected_cabs))
     f = str(data.get('file', '')).upper()
     return any(cv and cv in f for cv in expected_cabs)
 
@@ -231,14 +250,10 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         wings_bm = str(r.get('Baumuster', '') or '').strip()
         wings_sub = str(r.get('Subcategory (ID)', '') or '').strip().lower()
 
-        # Cab signal: WINGS cab code (e.g. F1J) -> variant in SAM title (e.g. G5F).
-        expected_cabs = {CAB_MAP[c] for c in wings_codes if c in CAB_MAP}
-
-        is_pto = any(
-            'PTO' in OPTION_CODE_MAP.get(c, '').upper() or
-            'PTO' in _allcode_custom.get(c, '').upper()
-            for c in wings_codes
-        ) or bool(r.get('WINGS_has_pto', False))
+        # Cab + PTO come from the codes the order actually carries, not the filename.
+        expected_cabs = _cabs_in(wings_codes)
+        wings_pto_codes = _pto_codes_in(wings_codes, _allcode_custom)
+        is_pto = bool(wings_pto_codes) or bool(r.get('WINGS_has_pto', False))
 
         # Find the SAM entry whose model matches, scanning months by production-date
         # proximity. Normally the nearest month with a candidate wins, BUT a cab-correct
@@ -347,8 +362,12 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         _tyre_mismatch = bool(sam_data and wings_tyre and sam_tyre
                               and (wings_tyre ^ sam_tyre))
 
-        # Vehicle / axle / cab / PTO from SAM filename.
+        # Vehicle / axle still come from the SAM filename (the document carries no
+        # such field). Cab / PTO come from the codes on BOTH sides — the filename is
+        # only a fallback for the SAM side — and both values are kept so the UI can
+        # flag a WINGS/SAM difference.
         _vehicle = _axle_type = _cab_code = _pto_flag = ''
+        _file_cab, _file_pto = '', False
         if sam_file:
             _veh_m = re.search(r'\b(Actros-L|Actros|Arocs|Atego|eActros|Econic|Unimog)\b',
                                sam_file, re.IGNORECASE)
@@ -359,16 +378,19 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
                 _axle_type = _axle_m.group(1)
             _cab_m = re.search(r'\b([A-Z]\d[A-Z])\b', sam_file)
             if _cab_m:
-                _cab_code = _cab_m.group(1)
+                _file_cab = _cab_m.group(1)
             if re.search(r'\bPTO\b', sam_file, re.IGNORECASE):
-                _pto_flag = 'PTO'
-        # Fallback: some SAM filenames carry no cab token (e.g. tipper "4153 K"
-        # files "...Arocs 4153 K 8x4 2026-04..."). Derive the cab variant from the
-        # WINGS cab code via cab.xlsx (F1B -> C3M) so the column is not left blank.
-        if not _cab_code and expected_cabs:
-            _cab_code = sorted(expected_cabs)[0]
-        if not _pto_flag and is_pto:
-            _pto_flag = 'PTO'
+                _file_pto = True
+        # SAM side: cab codes in the document; only if it names none (some tipper
+        # files) fall back to the cab token in the filename.
+        sam_cabs = _cabs_in(sam_codes) if sam_codes else set()
+        if not sam_cabs and _file_cab:
+            sam_cabs = {_file_cab}
+        sam_pto_codes = _pto_codes_in(sam_codes, _allcode_custom)
+        sam_pto = bool(sam_pto_codes) or _file_pto
+        # The list shows one value per column: WINGS first, SAM when WINGS is silent.
+        _cab_code = (sorted(expected_cabs) or sorted(sam_cabs) or [''])[0]
+        _pto_flag = 'PTO' if (is_pto or sam_pto) else ''
         if not _vehicle:
             _mu = str(model_raw).upper()
             for _veh, _kws in RULES['vehicle_keywords'].items():
@@ -416,6 +438,12 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
             'Mandatory Codes': ','.join(mand_codes_row),
             '_all_wings_codes': ','.join(sorted(wings_codes)),
             '_all_sam_codes': ','.join(sorted(sam_codes)),
+            # Cab / PTO — both sides kept so the UI can mark a difference. PTO can
+            # be signalled by text only (WINGS column, SAM filename): then it is 'PTO'.
+            '_cab_wings': ','.join(sorted(expected_cabs)),
+            '_cab_sam': ','.join(sorted(sam_cabs)),
+            '_pto_wings': (','.join(sorted(wings_pto_codes)) or 'PTO') if is_pto else '',
+            '_pto_sam': (','.join(sorted(sam_pto_codes)) or 'PTO') if sam_pto else '',
             # Paint / Tyre (CTT) — compared and displayed on their own, above the
             # general codes, in the detail chart.
             '_paint_wings': ','.join(sorted(wings_paint)),

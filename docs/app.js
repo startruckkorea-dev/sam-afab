@@ -9,9 +9,9 @@ const COLS = [
   { key: 'Vehicle', label: 'Model' },
   { key: 'Model(WINGS)', label: 'Type' },
   { key: 'Type', label: 'Axle' },
-  { key: 'Cab', label: 'Cab' },
+  { key: 'Cab', label: 'Cab', pair: 'cab' },
   { key: 'MY', label: 'MY' },
-  { key: 'PTO', label: 'PTO' },
+  { key: 'PTO', label: 'PTO', pair: 'pto' },
   { key: 'Production date', label: 'Production' },
   { key: 'Changeability Date', label: 'Changeability' },
   { key: 'Until Dealine', label: 'Changeability D-Day', dday: true },
@@ -144,6 +144,14 @@ const I18N = {
     'matching.title': '모델 매칭',
     'matching.sub': 'SAM ↔ WINGS 모델 인식 규칙 — 모두 03. model_rules/model_mapping.xlsx 에 저장',
     'matching.loading': 'model_mapping.xlsx 를 불러오는 중…',
+    'matching.result': '매칭 결과',
+    'matching.resultSub': '모델(대시보드 표기 그대로) → 실제로 비교된 SAM 파일. ' +
+      '캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠ 로 표시합니다.',
+    'match.count': '모델 {n}종',
+    'match.samFile': '비교된 SAM 파일',
+    'match.units': '대수',
+    'match.status': '상태',
+    'match.noFile': '매칭된 SAM 없음',
     'matching.note':
       '모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이 ' +
       '이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면 ' +
@@ -317,6 +325,14 @@ const I18N = {
     'matching.title': 'Model Matching',
     'matching.sub': 'SAM ↔ WINGS recognition rules — all stored in 03. model_rules/model_mapping.xlsx',
     'matching.loading': 'Loading model_mapping.xlsx…',
+    'matching.result': 'Matching result',
+    'matching.resultSub': 'Model (same columns as the dashboard) → the SAM file it was actually ' +
+      'compared against. Cab and PTO are read from the codes; ≠ marks a WINGS/SAM difference.',
+    'match.count': '{n} models',
+    'match.samFile': 'Compared SAM file',
+    'match.units': 'Units',
+    'match.status': 'Status',
+    'match.noFile': 'No SAM matched',
     'matching.note':
       'Every model-matching rule (normalization, previous/current model, vehicle keywords, aliases, ' +
       'manual map, options) lives as a sheet in this workbook. Switch sheet tabs to edit, then ' +
@@ -445,6 +461,7 @@ function toggleLang() {
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
   if (typeof codeEditor !== 'undefined') codeEditor.refresh();
   if (typeof matchEditor !== 'undefined') matchEditor.refresh();
+  if (VIEW_INIT.matching) renderMatchSummary();
   if (DRAWER_ROW && !$('#drawer').classList.contains('hidden')) openDrawer(DRAWER_ROW);
 }
 
@@ -535,6 +552,7 @@ function applyData(d, c) {
   renderHead();
   render();
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
+  if (VIEW_INIT.matching) renderMatchSummary();
 }
 
 function prodMonth(r) { return String(r['Production date'] || '').slice(0, 7); }
@@ -1011,6 +1029,9 @@ function render() {
       }
       if (c.dday) return `<td class="num">${ddayHtml(v)}</td>`;
       if (c.count) return `<td class="num">${countCell(diffCount(r, c.count), c.count)}</td>`;
+      if (c.pair && pairMismatch(r, c.pair)) {
+        return `<td class="pair-diff" title="${esc(pairTitle(r, c.pair))}">${hl(v)}<span class="ne">≠</span></td>`;
+      }
       return `<td>${hl(v)}</td>`;
     }).join('');
     return `<tr data-i="${i}">${tds}</tr>`;
@@ -1027,6 +1048,24 @@ function splitCodes(csv) { return (csv || '').split(',').map((c) => c.trim()).fi
 // 페인트·타이어는 Only_in_* CSV 에 들어가지 않고 별도 그룹으로 비교된다(상세 창의 🎨/🛞 섹션).
 // 목록·정렬·Export 의 '차이 개수'에는 그 그룹 차이도 함께 센다 — 타이어만 다른 차량이
 // Mismatch 인데 목록에는 ✓ 로 보이던 문제를 없애기 위함.
+// 캡·PTO 는 compare 가 WINGS/SAM 양쪽 값을 남긴다(_cab_wings/_cab_sam, _pto_wings/_pto_sam).
+// 목록엔 한 값만 들어가므로, 양쪽이 다르면 셀에 ≠ 를 붙이고 툴팁에 두 값을 보여준다.
+// 캡은 양쪽 다 신호가 있을 때만, PTO 는 '있다/없다'가 갈릴 때 불일치로 본다.
+function pairSides(r, kind) {
+  return { wings: splitCodes(r['_' + kind + '_wings']), sam: splitCodes(r['_' + kind + '_sam']) };
+}
+function pairMismatch(r, kind) {
+  if (!r || !r['Compared SAM file name']) return false;   // 비교 대상 자체가 없으면 불일치 아님
+  const { wings, sam } = pairSides(r, kind);
+  if (kind === 'pto') return (wings.length > 0) !== (sam.length > 0);
+  if (!wings.length || !sam.length) return false;
+  return wings.join(',') !== sam.join(',');
+}
+function pairTitle(r, kind) {
+  const { wings, sam } = pairSides(r, kind);
+  return `WINGS: ${wings.join(', ') || '—'}  /  SAM: ${sam.join(', ') || '—'}`;
+}
+
 const DIFF_GROUPS = ['_paint', '_tyre'];
 function diffCodes(r, kind) {
   if (kind === 'mand') return splitCodes(r['Mandatory Codes']);
@@ -1150,7 +1189,10 @@ function openDrawer(r) {
     .map((k) => {
       let val;
       if (DDAY_KEYS.has(k)) val = ddayHtml(r[k]);
-      else if (k === 'SAM Status') {
+      else if ((k === 'Cab' || k === 'PTO') && pairMismatch(r, k.toLowerCase())) {
+        val = `<span class="pair-diff" title="${esc(pairTitle(r, k.toLowerCase()))}">` +
+          `${esc(r[k])}<span class="ne">≠</span></span>`;
+      } else if (k === 'SAM Status') {
         const s = String(r[k]);
         const upd = r['SAM Update'] ? ` <span class="status SAMupdate">${esc(t('tile.samupd'))}</span>` : '';
         val = `<span class="status ${statusClass(s)}">${esc(s)}</span>${upd}`;
@@ -1174,6 +1216,8 @@ function openDrawer(r) {
       <button class="tab" data-tab="full">📄 Full Code List</button>
     </div>
     <div class="tab-pane" data-pane="diff">
+      ${alignedGroupHtml('🚪 Cab', r['_cab_sam'], r['_cab_wings'], 'cab', true)}
+      ${alignedGroupHtml('⚙️ PTO', r['_pto_sam'], r['_pto_wings'], 'pto', true)}
       ${alignedGroupHtml('🎨 Paint', r['_paint_sam'], r['_paint_wings'], 'paint', true)}
       ${alignedGroupHtml('🛞 Tyre', r['_tyre_sam'], r['_tyre_wings'], 'tyre', true)}
       <div class="code-cols">
@@ -1186,6 +1230,8 @@ function openDrawer(r) {
       </div>
     </div>
     <div class="tab-pane hidden" data-pane="full">
+      ${alignedGroupHtml('🚪 Cab', r['_cab_sam'], r['_cab_wings'], 'cab')}
+      ${alignedGroupHtml('⚙️ PTO', r['_pto_sam'], r['_pto_wings'], 'pto')}
       ${alignedGroupHtml('🎨 Paint', r['_paint_sam'], r['_paint_wings'], 'paint')}
       ${alignedGroupHtml('🛞 Tyre', r['_tyre_sam'], r['_tyre_wings'], 'tyre')}
       ${alignedFullHtml(r['_all_sam_codes'], r['_all_wings_codes'])}
@@ -1460,9 +1506,16 @@ function exportFilteredXlsx() {
 const HIST_NO_MY = '-';
 const HIST = { my: '', src: 'wings', basis: 'prev', q: '', rows: [], last: null };
 
+// 모델을 이루는 항목은 대시보드 목록과 똑같이 Model · Type · Axle · Cab · MY · PTO.
+// MY 는 화면 위 드롭다운으로 이미 고른 값이라 모델 키에서는 빼고, 표에만 함께 보여준다.
+const HIST_COLS = ['Vehicle', 'Model(WINGS)', 'Type', 'Cab', 'MY', 'PTO'];
+function colLabel(key) {
+  const c = COLS.find((x) => x.key === key);
+  return c ? c.label : key;
+}
 function histModelKey(r) {
-  return [r['Vehicle'], r['Model(WINGS)'], r['Type'], r['Cab']]
-    .map((v) => String(v ?? '').trim()).filter(Boolean).join(' ');
+  return HIST_COLS.filter((k) => k !== 'MY')
+    .map((k) => String(r[k] ?? '').trim()).filter(Boolean).join(' ');
 }
 function histMyOf(r) { return String(r.MY || '') || HIST_NO_MY; }
 function histMyLabel(my) {
@@ -1547,7 +1600,8 @@ function histBuild() {
       cell.added = [...cell.codes].filter((c) => !ref.has(c)).sort();
       cell.removed = [...ref].filter((c) => !cell.codes.has(c)).sort();
     });
-    out.push({ key, months: seq, cells });
+    // 모델 표(대시보드와 같은 항목)를 그릴 때 쓰는 대표 행 — 같은 키면 항목 값이 같다.
+    out.push({ key, months: seq, cells, sample: cells.get(seq[0]).rows[0] });
   }
   out.sort((a, b) => a.key.localeCompare(b.key));
   return { months: [...monthSet].sort(), models: out, total };
@@ -1628,10 +1682,27 @@ function histDetailHtml(g, months) {
       `<span class="my">${esc(lb.top)}</span>${esc(lb.main)}</th>`;
   }).join('') + `</tr>`;
   const body = `<tr>` + months.map((m) => histCellHtml(g.cells.get(m), m)).join('') + `</tr>`;
-  return `<div class="hist-cap">${esc(g.key)}` +
-    `<span class="sub">${esc(histMyLabel(HIST.my))} · ${esc(histSrcLabel())} · ${esc(histBasisLabel())}</span></div>` +
+  return `<div class="hist-cap">${histModelTableHtml(g.sample)}` +
+    `<span class="sub">${esc(histSrcLabel())} · ${esc(histBasisLabel())}</span></div>` +
     `<div class="hist-scroll"><table class="hist-grid">` +
     `<thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+
+// 선택한 모델을 대시보드 목록과 똑같은 항목·라벨로 한 줄 표에 보여준다.
+// 캡·PTO 는 WINGS/SAM 이 갈리면 ≠ 로 표시한다(툴팁에 양쪽 값).
+function histModelTableHtml(r) {
+  if (!r) return '';
+  const head = HIST_COLS.map((k) => `<th>${esc(colLabel(k))}</th>`).join('');
+  const body = HIST_COLS.map((k) => {
+    const v = String(r[k] ?? '').trim();
+    const kind = k === 'Cab' ? 'cab' : (k === 'PTO' ? 'pto' : '');
+    if (kind && pairMismatch(r, kind)) {
+      return `<td class="pair-diff" title="${esc(pairTitle(r, kind))}">${esc(v)}<span class="ne">≠</span></td>`;
+    }
+    return `<td>${esc(v)}</td>`;
+  }).join('');
+  return `<table class="hist-model"><thead><tr>${head}</tr></thead>` +
+    `<tbody><tr>${body}</tr></tbody></table>`;
 }
 
 function histRender() {
@@ -2207,6 +2278,64 @@ function initMatching() {
   const link = $('#matchFolderLink'); if (window.Graph) link.href = Graph.folders.model_rules.shareUrl;
   matchEditor.wire();
   matchEditor.open(MODEL_MAPPING_FILE);
+  renderMatchSummary();
+}
+
+// ---- 매칭 결과: 지금 데이터의 '모델 → 실제로 비교된 SAM 파일' ----
+// 모델 항목은 대시보드 목록과 똑같이 Model · Type · Axle · Cab · MY · PTO 로 묶는다.
+function matchSummaryRows() {
+  const m = new Map();
+  for (const r of DATA.rows) {
+    const key = HIST_COLS.map((k) => String(r[k] ?? '').trim())
+      .concat(String(r['Compared SAM file name'] || '')).join('');
+    let g = m.get(key);
+    if (!g) { g = { sample: r, n: 0, match: 0, mismatch: 0, noSam: 0 }; m.set(key, g); }
+    g.n++;
+    const st = String(r['SAM Status'] || '');
+    if (st === 'Match') g.match++;
+    else if (st === 'Mismatch') g.mismatch++;
+    else g.noSam++;
+  }
+  const name = (g) => HIST_COLS.map((k) => String(g.sample[k] ?? '')).join(' ');
+  return [...m.values()].sort((a, b) => b.n - a.n || name(a).localeCompare(name(b)));
+}
+
+function renderMatchSummary() {
+  const table = $('#matchSumGrid');
+  if (!table) return;
+  const cntEl = $('#matchSumCount');
+  const groups = DATA.rows.length ? matchSummaryRows() : [];
+  if (cntEl) cntEl.textContent = groups.length ? t('match.count', { n: groups.length }) : '';
+  if (!groups.length) {
+    table.querySelector('thead').innerHTML = '';
+    table.querySelector('tbody').innerHTML =
+      `<tr><td class="none">${esc(t('msg.noData'))}</td></tr>`;
+    return;
+  }
+  table.querySelector('thead').innerHTML = '<tr>'
+    + HIST_COLS.map((k) => `<th>${esc(colLabel(k))}</th>`).join('')
+    + `<th>${esc(t('match.samFile'))}</th><th>${esc(t('match.units'))}</th>`
+    + `<th>${esc(t('match.status'))}</th></tr>`;
+  table.querySelector('tbody').innerHTML = groups.map((g) => {
+    const r = g.sample;
+    const cells = HIST_COLS.map((k) => {
+      const v = String(r[k] ?? '').trim();
+      const kind = k === 'Cab' ? 'cab' : (k === 'PTO' ? 'pto' : '');
+      if (kind && pairMismatch(r, kind)) {
+        return `<td class="pair-diff" title="${esc(pairTitle(r, kind))}">${esc(v)}<span class="ne">≠</span></td>`;
+      }
+      return `<td>${esc(v)}</td>`;
+    }).join('');
+    const file = String(r['Compared SAM file name'] || '');
+    const chips = [
+      g.match ? `<span class="status Match">${g.match}</span>` : '',
+      g.mismatch ? `<span class="status Mismatch">${g.mismatch}</span>` : '',
+      g.noSam ? `<span class="status NoSAM">${g.noSam}</span>` : '',
+    ].join(' ');
+    return `<tr>${cells}<td class="ms-file" title="${esc(file)}">`
+      + `${esc(file) || `<span class="none">${esc(t('match.noFile'))}</span>`}</td>`
+      + `<td class="num">${g.n}</td><td>${chips}</td></tr>`;
+  }).join('');
 }
 
 // ---- 코드 관리: 04. code 폴더의 모든 xlsx ----
