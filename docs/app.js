@@ -69,7 +69,7 @@ const $ = (s) => document.querySelector(s);
 const I18N = {
   ko: {
     'nav.dashboard': '대시보드',
-    'nav.history': '생산월 비교',
+    'nav.history': '생산월 이력관리',
     'nav.matching': '모델 매칭',
     'nav.codes': '코드 관리',
     'meta.loading': '불러오는 중…',
@@ -111,8 +111,8 @@ const I18N = {
     'code.okDiff': '✅ 이상없음 — 누락·차이 없음',
     'code.okMand': '✅ 이상없음 — 아래 필수코드가 양쪽 모두 반영됨',
     'drawer.xls': '⬇ 이 차량 Excel',
-    // 생산월 비교
-    'hist.title': '생산월 비교',
+    // 생산월 이력관리
+    'hist.title': '생산월 이력관리',
     'hist.sub': '같은 MY·같은 모델의 WINGS commission 을 생산월 순으로 세워 두고, 달마다 추가(＋)·삭제(−)된 코드를 보여줍니다.',
     'hist.src.wings': 'WINGS 코드',
     'hist.src.sam': 'SAM 코드',
@@ -487,7 +487,7 @@ function esc(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// ====================== 뷰 전환 (대시보드 / 생산월 비교 / 모델 매칭 / 코드 관리) ======================
+// ====================== 뷰 전환 (대시보드 / 생산월 이력관리 / 모델 매칭 / 코드 관리) ======================
 let CUR_VIEW = 'dashboard';
 const VIEW_INIT = { history: false, matching: false, codes: false };
 
@@ -1521,7 +1521,7 @@ function exportFilteredXlsx() {
   writeXlsx(`afab_sam_export_${stamp}.xlsx`, 'Filtered', sheet, merges, cols);
 }
 
-// ====================== 생산월 비교 (같은 모델의 코드 변경 히스토리) ======================
+// ====================== 생산월 이력관리 (같은 모델의 코드 변경 히스토리) ======================
 // 같은 MY · 같은 모델(Model · Type · Axle · Cab)의 commission 을 생산월 순으로 늘어놓고,
 // 달마다 어떤 코드가 추가(＋)/삭제(−)됐는지 보여준다. 각 모델의 첫 생산월이 '기본'이 되고,
 // 그 뒤 달은 직전 생산월(기본) 또는 첫 생산월과 비교한다 — 비교 기준은 화면에서 전환.

@@ -31,7 +31,7 @@
     cache: { cacheLocation: 'localStorage' },
   };
   var LOGIN_REQUEST = { scopes: ['User.Read'] };
-  var APP_SCRIPT = 'app.js?v=20260816b';
+  var APP_SCRIPT = 'app.js?v=20260816c';
 
   var pca = null;
   var activeAccount = null;
