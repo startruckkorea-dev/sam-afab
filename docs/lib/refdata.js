@@ -152,7 +152,6 @@
       'Actros': ['3363'],
       'Arocs': ['2643', '3343', '4153', '4453', '3253', '2135', '4440', '4140'],
     },
-    manual_map: {},
   };
   const MAP_SHEETS = {
     '정규화_과거번호': 'normalize_historic',
@@ -160,8 +159,8 @@
     '현재모델': 'current_model',
     'WINGS표시치환': 'wings_display_replace',
   };
+  // 수동 교정 시트(수동매핑·매칭_별칭(수동))는 폐기했다 — SAM 문서의 번호·코드로만 매칭한다.
   const LIST_SHEETS = {
-    '매칭_별칭(수동)': 'reverse_aliases',
     '차종키워드': 'vehicle_keywords',
   };
 
@@ -200,17 +199,6 @@
           merged.normalize_28xx_to_26xx = ['true', '1', 'yes', 'y', 'on'].indexOf(v.toLowerCase()) !== -1;
         }
       }
-    }
-    if (wb.SheetNames.indexOf('수동매핑') !== -1) {
-      const aoa = sheetAoa(wb, '수동매핑');
-      const mm = {};
-      for (let i = 1; i < aoa.length; i++) {
-        const row = aoa[i] || [];
-        const wings = s(row[0]);
-        if (!wings) continue;
-        mm[wings] = { baumuster: s(row[1]), now: s(row[2]), file: s(row[3]) };
-      }
-      merged.manual_map = mm;
     }
     return merged;
   }

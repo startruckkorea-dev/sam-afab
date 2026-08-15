@@ -153,7 +153,7 @@ const I18N = {
     'match.status': '상태',
     'match.noFile': '매칭된 SAM 없음',
     'matching.note':
-      '모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·매칭 별칭·수동매핑·옵션)이 ' +
+      '모델 매칭과 관련된 모든 규칙(정규화·이전/현재 모델·차종 키워드·옵션)이 ' +
       '이 워크북의 시트로 관리됩니다. 시트 탭을 바꿔 편집한 뒤 <b>SharePoint에 저장</b>하면 ' +
       '<code>model_mapping.xlsx</code> 에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다. ' +
       '<code>인식모델_대조표</code> 시트는 확인용 보기라, 이 화면을 열 때마다 지금 데이터로 다시 만들어집니다 ' +
@@ -335,8 +335,8 @@ const I18N = {
     'match.status': 'Status',
     'match.noFile': 'No SAM matched',
     'matching.note':
-      'Every model-matching rule (normalization, previous/current model, vehicle keywords, aliases, ' +
-      'manual map, options) lives as a sheet in this workbook. Switch sheet tabs to edit, then ' +
+      'Every model-matching rule (normalization, previous/current model, vehicle keywords, ' +
+      'options) lives as a sheet in this workbook. Switch sheet tabs to edit, then ' +
       '<b>Save to SharePoint</b> to write it back to <code>model_mapping.xlsx</code>; it takes effect on the next ' +
       '<b>Recompute Data</b>. The <code>인식모델_대조표</code> sheet is a verification view, rebuilt from the ' +
       'current data every time this page opens — same columns as the dashboard ' +
@@ -2210,8 +2210,10 @@ function makeSheetEditor(cfg) {
     try {
       const buf = await Graph.download(cfg.folderKey, filename);
       const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
-      S.file = filename; S.sheets = {}; S.order = wb.SheetNames.slice();
-      for (const n of wb.SheetNames)
+      // 폐기한 시트(cfg.dropSheets)는 열지도, 다시 저장하지도 않는다 — 저장하면 파일에서 사라진다.
+      const drop = new Set(cfg.dropSheets || []);
+      S.file = filename; S.sheets = {}; S.order = wb.SheetNames.filter((n) => !drop.has(n));
+      for (const n of S.order)
         S.sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
       S.sheet = S.order[0] || null;
       if (cfg.onLoaded) cfg.onLoaded(S);
@@ -2318,6 +2320,8 @@ function refreshRecognitionSheet(S) {
 const matchEditor = makeSheetEditor({
   folderKey: 'model_rules', fixedFile: MODEL_MAPPING_FILE,
   onLoaded: refreshRecognitionSheet,
+  // 수동 교정 시트는 폐기했다 — 매칭은 SAM 문서의 번호·코드로만 결정한다.
+  dropSheets: ['수동매핑', '매칭_별칭(수동)'],
   els: { tabs: 'matchTabs', grid: 'matchGrid', addRow: 'matchAddRow', revert: 'matchLoadSp',
          saveSp: 'matchSaveSp', download: 'matchDownload', dirty: 'matchDirty',
          status: 'matchStatus', search: 'matchSearch', main: 'matchMain', empty: 'matchEmpty',
@@ -2413,7 +2417,9 @@ async function loadCodeFileList() {
   box.innerHTML = `<span class="none">${esc(t('codes.pickFile'))}</span>`;
   try {
     const items = await Graph.list('code');
-    CODE_FILES = items.filter((i) => !i.isFolder && /\.xlsx?$/i.test(i.name));
+    // code-overview.xlsx 는 코드 설명용 문서라 비교 로직이 참조하지 않는다 — 목록에서 뺀다.
+    CODE_FILES = items.filter((i) => !i.isFolder && /\.xlsx?$/i.test(i.name)
+      && !/^code-overview\.xlsx?$/i.test(i.name));
     if (!CODE_FILES.length) { box.innerHTML = `<span class="none">${esc(t('codes.noXlsx'))}</span>`; return; }
     box.innerHTML = CODE_FILES.map((f) => {
       const kb = f.size ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : '';

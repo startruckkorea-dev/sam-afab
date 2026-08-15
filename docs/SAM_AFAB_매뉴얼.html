@@ -481,12 +481,11 @@
 </table>
 <p class="anno">모델 키가 정확히 없을 땐 <code>_split_model</code>로 숫자부/접미부를 나눠 유사 키까지 탐색합니다.</p>
 
-<h4>수동 매핑 오버라이드</h4>
-<p><code>model_mapping.xlsx</code>의 <code>수동매핑</code> 시트로 특정 WINGS 모델을 강제 지정할 수 있습니다.</p>
-<ul class="tight">
-  <li><b>파일 지정</b>: 자동 매칭이 고른 SAM 파일을 <b>완전히 대체</b>(코드·비교 모두 그 파일 사용)</li>
-  <li><b>Baumuster/now 텍스트</b>: <b>표시값만</b> 덮어씀(SAM 파일이 없어도 동작)</li>
-</ul>
+<h4>수동 오버라이드는 없앴습니다</h4>
+<p>예전에는 <code>수동매핑</code>·<code>매칭_별칭(수동)</code> 시트로 특정 WINGS 모델을 특정 SAM 파일에
+강제로 붙일 수 있었지만, 지금은 SAM 문서가 두 번호(제목=SAM now, 본문=SAM Baumuster)와 캡·PTO 코드를
+직접 들고 있어 손으로 지정할 것이 남지 않아 두 시트를 폐기했습니다.
+매칭이 틀리면 SAM 문서나 <code>cab.xlsx</code> 쪽 데이터를 고치세요.</p>
 
 <h3 id="c-pto">6.2 ② PTO 판정 &amp; 정교화</h3>
 <p>1차 PTO 판정: WINGS 코드 중 <b>설명에 PTO가 들어간 코드</b>가 있거나
@@ -582,9 +581,7 @@ else:                                          → "Match"</code></pre>
     <tr><td><code>정규화_과거번호</code></td><td>normalize_historic</td><td>과거번호 정규화 맵</td></tr>
     <tr><td><code>이전모델</code> / <code>현재모델</code></td><td>previous/current_model</td><td>세대 번호 매핑</td></tr>
     <tr><td><code>WINGS표시치환</code></td><td>wings_display_replace</td><td>표시용 문자열 치환</td></tr>
-    <tr><td><code>매칭_별칭(수동)</code></td><td>reverse_aliases</td><td>구↔신 번호 별칭</td></tr>
     <tr><td><code>차종키워드</code></td><td>vehicle_keywords</td><td>번호→차종(Actros/Arocs…) 추정</td></tr>
-    <tr><td><code>수동매핑</code></td><td>manual_map</td><td>WINGS 모델→SAM 강제 지정(<a href="#c-match">6.1</a>)</td></tr>
     <tr><td><code>인식모델_대조표</code></td><td>(자동생성)</td>
       <td>확인용 보기(편집 안 함). 컬럼은 대시보드와 동일 —
       Model · Type · Axle · Cab · MY · PTO + SAM Baumuster/now · Baumuster · Subcategory · 매칭상태 · SAM 파일</td></tr>
@@ -755,8 +752,9 @@ CRC32·ZIP 로컬헤더·중앙디렉터리·스타일시트 XML을 손으로 �
 <h3>자주 겪는 상황</h3>
 <div class="card">
 <h4>Q. 특정 차량이 계속 잘못된 SAM 파일과 비교돼요.</h4>
-<p class="muted" style="margin:0"><code>model_mapping.xlsx</code> → <code>수동매핑</code> 시트에 WINGS 모델과 SAM 파일명을 지정하고 저장 후 재빌드.
-자동 매칭을 완전히 덮어씁니다.</p>
+<p class="muted" style="margin:0">모델 매칭 화면의 <b>매칭 결과</b> 표에서 그 모델이 어떤 SAM 파일에 붙었는지 먼저 확인하세요.
+캡이 다르면 <code>cab.xlsx</code>의 코드→변형명 행을, PTO가 다르면 SAM 문서의 PTO 코드/제목을 점검합니다.
+(수동 지정 시트는 폐기했습니다.)</p>
 </div>
 <div class="card">
 <h4>Q. 멀쩡한데 "누락"으로 뜨는 코드가 있어요.</h4>

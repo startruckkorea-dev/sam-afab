@@ -17,8 +17,9 @@ RULES_PATH = ROOT / 'docs' / 'rules.json'
 XLSX_PATH = ROOT / 'model_rules' / 'model_mapping.xlsx'
 
 # model_mapping.xlsx editable sheets -> rules key. The '인식모델_대조표' sheet is an
-# auto-generated recognition view and is ignored here. Every other matching rule now
-# lives in this workbook (single source of truth), so the build reads them all back.
+# auto-generated recognition view and is ignored here. The hand-correction sheets
+# ('수동매핑', '매칭_별칭(수동)') were dropped: matching is decided by the numbers and
+# codes in the SAM documents themselves, so there is nothing left to hand-pin.
 _XLSX_MAP_SHEETS = {
     '정규화_과거번호': 'normalize_historic',
     '이전모델': 'previous_model',
@@ -26,7 +27,6 @@ _XLSX_MAP_SHEETS = {
     'WINGS표시치환': 'wings_display_replace',
 }
 _XLSX_LIST_SHEETS = {
-    '매칭_별칭(수동)': 'reverse_aliases',
     '차종키워드': 'vehicle_keywords',
 }
 
@@ -53,9 +53,6 @@ DEFAULTS = {
         'Actros': ['3363'],
         'Arocs': ['2643', '3343', '4153', '4453', '3253', '2135', '4440', '4140'],
     },
-    # Manual display overrides, keyed by WINGS model. { wings: {'baumuster','now'} }.
-    # Wins over auto-recognized SAM Baumuster/now. Edited in model_mapping.xlsx '수동매핑'.
-    'manual_map': {},
 }
 
 
@@ -95,20 +92,6 @@ def load_rules_from_xlsx(path: Path | None = None) -> dict:
         for k, v in _rows(wb['옵션']):
             if k == 'normalize_28xx_to_26xx':
                 out['normalize_28xx_to_26xx'] = str(v).strip().lower() in ('true', '1', 'yes', 'y', 'on')
-
-    # 수동매핑: WINGS 모델 | SAM Baumuster(원본) | SAM now(수정) | SAM 파일 지정(선택)
-    if '수동매핑' in wb.sheetnames:
-        mm = {}
-        for i, row in enumerate(wb['수동매핑'].iter_rows(values_only=True)):
-            if i == 0 or not row:
-                continue
-            def _c(idx):
-                return '' if len(row) <= idx or row[idx] is None else str(row[idx]).strip()
-            wings = _c(0)
-            if not wings:
-                continue
-            mm[wings] = {'baumuster': _c(1), 'now': _c(2), 'file': _c(3)}
-        out['manual_map'] = mm
 
     wb.close()
     return out

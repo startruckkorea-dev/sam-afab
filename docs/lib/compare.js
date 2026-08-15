@@ -95,23 +95,6 @@
     return best;
   }
   function cabOk(data, expectedCabs) { return dataCabMatch(data, expectedCabs); }
-  function findSamDataByFile(samMapsList, preferPto, fileSub) {
-    const fs = strip(fileSub).toLowerCase();
-    if (!fs) return null;
-    for (const prefer of [preferPto, !preferPto]) {
-      const flag = prefer ? 'true' : 'false';
-      for (const map of samMapsList) {
-        for (const entry of map.values()) {
-          if (!entry || typeof entry !== 'object') continue;
-          for (const d of (entry[flag] || [])) {
-            if (s(d.file).toLowerCase().indexOf(fs) !== -1) return d;
-          }
-        }
-      }
-    }
-    return null;
-  }
-
   function splitModel(str) {
     const m = /^(\d+)([A-Z]*)$/.exec(str);
     return m ? [m[1], m[2]] : [str, ''];
@@ -159,9 +142,6 @@
       return !!c && (fcCodes.has(c) || fcPrefixes.has(c[0]));
     }
 
-    const manualNorm = {};
-    for (const k of Object.keys(rules.manual_map || {})) manualNorm[normalizeModel(k)] = rules.manual_map[k];
-
     const sortedYyyymm = Object.keys(samMapsByMonth).map(Number).sort((a, b) => a - b);
 
     // yyyymm(=년*100+월)에서 k개월 이전의 yyyymm.
@@ -204,8 +184,6 @@
         return null;
       }
 
-      const mo = manualNorm[modelNorm];
-
       // 우선순위 월 맵 목록에서 모델을 해석한다. { data, pto } 반환(없으면 data=null).
       function resolveIn(mapList) {
         let localPto = isPto;
@@ -227,11 +205,7 @@
             if (setInter(wingsCodes, ptoUnique).size) localPto = true;
           }
         }
-        let data = pick(entry, localPto, wingsBm, wingsSub, expectedCabs);
-        if (mo && mo.file) {
-          const pinned = findSamDataByFile(mapList, localPto, mo.file);
-          if (pinned) data = pinned;
-        }
+        const data = pick(entry, localPto, wingsBm, wingsSub, expectedCabs);
         return { data: data, pto: localPto };
       }
 
@@ -335,12 +309,9 @@
       // (= 생산월 폴더엔 없고 이전 월 대체본으로 매칭됨) 요청. 상태(Match/Mismatch)와 무관하게 병기.
       const samUpdate = (matchSource === 'prev' && samFile) ? 'Y' : '';
 
-      let samBaumuster = samData ? s(samData.model_baumuster) : '';
-      let samNow = samData ? s(samData.model_now) : '';
-      if (mo) {
-        if (mo.baumuster) samBaumuster = mo.baumuster;
-        if (mo.now) samNow = mo.now;
-      }
+      // SAM 번호는 매칭된 파일에서 그대로 온다(수동 덮어쓰기 없음).
+      const samBaumuster = samData ? s(samData.model_baumuster) : '';
+      const samNow = samData ? s(samData.model_now) : '';
 
       const prodOut = (function () {
         if (!('Requested delivery date' in r)) return '';

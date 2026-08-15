@@ -183,26 +183,6 @@ def _get_sam_models(entry, prefer_pto: bool, wings_bm: str = '', wings_sub: str 
     return '', ''
 
 
-def _find_sam_data_by_file(sam_maps_list, prefer_pto: bool, file_sub: str):
-    """Find a SAM candidate whose filename contains file_sub (manual file pin).
-
-    Searches all priority maps; prefers the requested PTO variant. Used to force a
-    WINGS row onto a specific SAM file when auto-matching picked the wrong one.
-    """
-    fs = (file_sub or '').strip().lower()
-    if not fs:
-        return None
-    for prefer in (prefer_pto, not prefer_pto):
-        for _map in sam_maps_list:
-            for entry in _map.values():
-                if not isinstance(entry, dict):
-                    continue
-                for d in (entry.get(prefer) or []):
-                    if fs in str(d.get('file', '')).lower():
-                        return d
-    return None
-
-
 def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
             except_codes: set | None = None, mand_codes: set | None = None,
             allcode_custom: dict | None = None) -> pd.DataFrame:
@@ -210,9 +190,6 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
     _exc_set = except_codes if except_codes is not None else DEFAULT_EXCEPT_CODES
     _mand_set = mand_codes if mand_codes is not None else DEFAULT_MAND_CODES
     _allcode_custom = allcode_custom or {}
-
-    # Manual overrides (model_mapping.xlsx '수동매핑'), keyed by normalized WINGS model.
-    _manual_norm = {normalize_model(k): v for k, v in (RULES.get('manual_map') or {}).items()}
 
     sorted_yyyymm = sorted(sam_maps_by_month.keys())
 
@@ -306,14 +283,6 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
 
         # Best auto-matched candidate for this row.
         sam_data = _pick(sam_entry, is_pto, wings_bm, wings_sub, expected_cabs)
-
-        # Manual override ('수동매핑'): file pin replaces the matched SAM file entirely
-        # (so codes/comparison use it); baumuster/now text overrides just the display.
-        _mo = _manual_norm.get(model_norm)
-        if _mo and _mo.get('file'):
-            _pinned = _find_sam_data_by_file(sam_maps_list, is_pto, _mo['file'])
-            if _pinned is not None:
-                sam_data = _pinned
 
         sam_codes = sam_data['codes'] if sam_data else set()
         sam_file = sam_data['file'] if sam_data else ''
@@ -410,12 +379,6 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         #   Baumuster = body 'Vehicle type' (원본/구형), now = filename model (수정/현행).
         _sam_baumuster = sam_data.get('model_baumuster', '') if sam_data else ''
         _sam_now = sam_data.get('model_now', '') if sam_data else ''
-        # Manual text override wins for display (works even with no SAM file).
-        if _mo:
-            if _mo.get('baumuster'):
-                _sam_baumuster = _mo['baumuster']
-            if _mo.get('now'):
-                _sam_now = _mo['now']
         row_dict = {
             'Commission no.': com,
             'Baumuster': r.get('Baumuster', '') if 'Baumuster' in r.index else baumuster_num,

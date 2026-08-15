@@ -134,10 +134,10 @@ def sheet_files(wb):
         ('backend', 'backend/wings_parser.py', 'Python', 107, 'WINGS CSV/Excel 파싱 → 정규화 DataFrame(Commission별 1행, WINGS_codes 집합, PTO 플래그).'),
         ('backend', 'backend/sam_parser.py', 'Python', 202, 'SAM .docx 파싱 → {정규화모델: {PTO여부: [{codes,file,model_now,model_baumuster,bm,sub}]}}. 모델명 정규화 포함.'),
         ('backend', 'backend/compare.py', 'Python', 308, 'SAM↔WINGS 비교 핵심 로직. 모델/PTO/Baumuster 매칭, Only_in_SAM/WINGS, 공장통제/필수 코드 분류, 상태(Match/Mismatch/No SAM) 산출.'),
-        ('backend', 'backend/rules.py', 'Python', 142, '모델 변환 규칙 로더. 우선순위 model_mapping.xlsx > docs/rules.json > 내장 DEFAULTS. 수동매핑/별칭/차종 키워드 제공.'),
+        ('backend', 'backend/rules.py', 'Python', 142, '모델 변환 규칙 로더. 우선순위 model_mapping.xlsx > docs/rules.json > 내장 DEFAULTS. 정규화/이전·현재 모델/차종 키워드 제공.'),
         ('backend', 'backend/option_codes.py', 'Python', 2250, '참조 데이터. OPTION_CODE_MAP(≈2,149개 옵션코드→설명), MANDATORY_CODES(21개 필수), MANDATORY_GROUPS. 순수 데이터.'),
         ('backend', 'backend/wings_scraper.py', 'Python', 1774, 'WINGS 자동 다운로드(Playwright+로컬 Chrome 프로필). 로그인/TOTP/Extended Search로 Excel 다운로드.'),
-        ('backend', 'backend/build_model_rules_xlsx.py', 'Python', 117, 'model_rules/model_mapping.xlsx 생성. 인식모델 대조표(자동) + 수동매핑/매칭별칭(편집) 시트.'),
+        ('backend', 'backend/build_model_rules_xlsx.py', 'Python', 117, 'model_rules/model_mapping.xlsx 생성. 인식모델_대조표(자동, 대시보드 컬럼) + 규칙 시트.'),
         ('docs', 'docs/index.html', 'HTML', 94, 'GitHub Pages 진입점. 테이블/필터 UI 골격.'),
         ('docs', 'docs/app.js', 'JS', 644, 'data.json/codes.json 로드 → 테이블 렌더링, 필터/검색/코드 설명 팝업.'),
         ('docs', 'docs/style.css', 'CSS', '-', '프런트 스타일.'),
@@ -145,7 +145,7 @@ def sheet_files(wb):
         ('docs', 'docs/codes.json', 'JSON', '(생성)', '코드 설명 사전 폴백 사본 (options, mandatory).'),
         ('docs', 'docs/rules.json', 'JSON', '-', '모델 변환 규칙 폴백 파일 (xlsx가 우선).'),
         ('config', 'config.json', 'JSON', '-', 'SAM/WINGS 폴더 경로, 코드사전 파일/시트 설정.'),
-        ('설정', 'model_rules/model_mapping.xlsx', 'XLSX', '-', 'WINGS↔SAM 모델 인식표 + 수동매핑/별칭 (사람 편집·자동 갱신).'),
+        ('설정', 'model_rules/model_mapping.xlsx', 'XLSX', '-', 'WINGS↔SAM 모델 인식표(자동 갱신) + 매칭 규칙 시트(사람 편집).'),
         ('참조', 'code/mbtruck-spec-data.xlsx', 'XLSX', '-', '옵션코드 스펙/사전 원본 (code_dict 시트 = 코드→영문설명).'),
         ('docs', 'docs/lib/pipeline.js', 'JS', '-', '브라우저 빌드 오케스트레이터. SharePoint 01~04 읽기 → 비교 → 05. output 저장.'),
     ]
@@ -188,7 +188,6 @@ def sheet_functions(wb):
         ('compare(df_wings, sam_maps_by_month, ...)', 'WINGS 각 행을 생산월 근접 SAM맵과 비교. 모델/PTO/Baumuster·Subcategory로 최적 SAM 후보 선택 → 결과 DataFrame.'),
         ('_get_sam_maps_for_prod_date()', '요청 납기월과 가까운 순으로 SAM 월맵 정렬(없으면 최신순).'),
         ('_pick / _candidates / _match_score', '엔트리에서 PTO변형·Baumuster·Subcategory 점수로 최적 SAM 후보 선택.'),
-        ('_find_sam_data_by_file()', '수동매핑 파일 지정 시 파일명 부분일치로 SAM 후보 강제 선택.'),
         ('is_pto / PTO 재판정', 'WINGS 코드/플래그로 PTO 판정 후, PTO변형 고유코드가 WINGS에 있으면 재확정.'),
         ('Only_in_SAM/WINGS, Factory Control, Mandatory', '차집합에서 공장통제(I/O/Z/U 접두 등)·필수코드 분류. 상태 Match/Mismatch/No SAM.'),
         ('Changeability Date / Until Dealine', 'Vehicle alterable until → 표시일자 + 마감까지 남은 일수(또는 Passed).'),
@@ -196,12 +195,12 @@ def sheet_functions(wb):
     ])
     block('rules.py — 모델 규칙', [
         ('load_rules()', 'DEFAULTS 위에 rules.json, 그 위에 model_mapping.xlsx 병합(빈 시트는 무시).'),
-        ('load_rules_from_xlsx()', 'xlsx의 매칭별칭/옵션/수동매핑 시트 파싱(openpyxl 지연 로드, 실패 무시).'),
+        ('load_rules_from_xlsx()', 'xlsx의 규칙 시트(정규화·이전/현재 모델·차종키워드·옵션) 파싱(openpyxl 지연 로드, 실패 무시).'),
         ('apply_map(s, mapping)', '가장 긴 키 우선으로 문자열 치환.'),
-        ('RULES / DEFAULTS', '전역 규칙 딕셔너리 및 내장 기본값(reverse_aliases, vehicle_keywords, manual_map 등).'),
+        ('RULES / DEFAULTS', '전역 규칙 딕셔너리 및 내장 기본값(reverse_aliases, vehicle_keywords 등).'),
     ])
     block('build_model_rules_xlsx.py', [
-        ('build()', 'docs/data.json 기반 인식모델_대조표(자동) + 수동매핑 + 매칭별칭 시트로 model_mapping.xlsx 생성.'),
+        ('build()', 'docs/data.json 기반 인식모델_대조표(자동) + 규칙 시트로 model_mapping.xlsx 생성.'),
         ('_ref_rows()', 'data.json에서 (차종,WINGS,SAM번호,상태 등) 중복 제거 행 생성.'),
     ])
     block('wings_scraper.py', [
