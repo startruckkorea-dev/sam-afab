@@ -157,6 +157,7 @@ const I18N = {
     'match.units': '대수',
     'match.status': '상태',
     'match.noFile': '매칭된 SAM 없음',
+    'match.files': '문서 {n}개',
     'matching.note':
       '<code>인식모델_대조표</code>는 열 때마다 지금 데이터로 다시 만들어지는 확인용 보기입니다. ' +
       '규칙 시트를 고쳐 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.',
@@ -341,6 +342,7 @@ const I18N = {
     'match.units': 'Units',
     'match.status': 'Status',
     'match.noFile': 'No SAM matched',
+    'match.files': '{n} documents',
     'matching.note':
       '<code>인식모델_대조표</code> is a verification view, rebuilt from the current data every ' +
       'time this page opens. Edit a rule sheet and <b>Save to SharePoint</b>; it applies on the ' +
@@ -2373,22 +2375,39 @@ function showMatchPane(name) {
 }
 
 // ---- 매칭 결과: 지금 데이터의 '모델 → 실제로 비교된 SAM 파일' ----
-// 모델 항목은 대시보드 목록과 똑같이 Model · Type · Axle · Cab · MY · PTO 로 묶는다.
+// 한 줄 = 모델 하나(대시보드와 같은 Model · Type · Axle · Cab · MY · PTO).
+// 매칭은 차 한 대씩 그 차의 생산월 폴더를 보므로, 같은 모델이라도 생산월에 따라 다른
+// 견적서(월별 개정본)에 붙는다. 그 문서들은 한 줄 안에 접어 두고 펼쳐서 본다.
+function tallyStatus(acc, status) {
+  if (status === 'Match') acc.match++;
+  else if (status === 'Mismatch') acc.mismatch++;
+  else acc.noSam++;
+}
 function matchSummaryRows() {
   const m = new Map();
   for (const r of DATA.rows) {
-    const key = HIST_COLS.map((k) => String(r[k] ?? '').trim())
-      .concat(String(r['Compared SAM file name'] || '')).join('');
+    const key = HIST_COLS.map((k) => String(r[k] ?? '').trim()).join('');
     let g = m.get(key);
-    if (!g) { g = { sample: r, n: 0, match: 0, mismatch: 0, noSam: 0 }; m.set(key, g); }
-    g.n++;
+    if (!g) {
+      g = { key: key, sample: r, n: 0, match: 0, mismatch: 0, noSam: 0, files: new Map() };
+      m.set(key, g);
+    }
     const st = String(r['SAM Status'] || '');
-    if (st === 'Match') g.match++;
-    else if (st === 'Mismatch') g.mismatch++;
-    else g.noSam++;
+    g.n++;
+    tallyStatus(g, st);
+    const f = String(r['Compared SAM file name'] || '');
+    let fe = g.files.get(f);
+    if (!fe) { fe = { file: f, n: 0, match: 0, mismatch: 0, noSam: 0 }; g.files.set(f, fe); }
+    fe.n++;
+    tallyStatus(fe, st);
   }
   const name = (g) => HIST_COLS.map((k) => String(g.sample[k] ?? '')).join(' ');
-  return [...m.values()].sort((a, b) => b.n - a.n || name(a).localeCompare(name(b)));
+  const out = [...m.values()];
+  for (const g of out) {
+    g.fileList = [...g.files.values()]
+      .sort((a, b) => b.n - a.n || a.file.localeCompare(b.file));
+  }
+  return out.sort((a, b) => b.n - a.n || name(a).localeCompare(name(b)));
 }
 
 // 매칭 결과 위의 필터 — 대시보드와 같은 항목(+상태)으로 좁혀 본다.
@@ -2400,6 +2419,8 @@ const MS_FIELDS = [
   { id: '#msMy', key: 'MY', allKey: 'filter.allMY' },
   { id: '#msPto', key: 'PTO', allKey: 'match.allPto' },
 ];
+// 펼쳐 둔 모델(그룹 키) — 다시 그려도 유지된다.
+const MS_OPEN = new Set();
 function msSearchTerm() {
   const el = $('#msSearch');
   return el ? el.value.trim() : '';
@@ -2428,7 +2449,7 @@ function msFilterGroups(groups) {
     if (st === 'No SAM' && !g.noSam) return false;
     if (q) {
       const hay = HIST_COLS.map((k) => String(g.sample[k] ?? ''))
-        .concat(String(g.sample['Compared SAM file name'] || '')).join(' ').toLowerCase();
+        .concat(g.fileList.map((f) => f.file)).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -2473,7 +2494,7 @@ function renderMatchSummary() {
     + HIST_COLS.map((k) => `<th>${esc(colLabel(k))}</th>`).join('')
     + `<th>${esc(t('match.samFile'))}</th><th>${esc(t('match.units'))}</th>`
     + `<th>${esc(t('match.status'))}</th></tr>`;
-  table.querySelector('tbody').innerHTML = groups.map((g) => {
+  table.querySelector('tbody').innerHTML = groups.map((g, i) => {
     const r = g.sample;
     const cells = HIST_COLS.map((k) => {
       const v = String(r[k] ?? '').trim();
@@ -2483,16 +2504,48 @@ function renderMatchSummary() {
       }
       return `<td>${msHl(v)}</td>`;
     }).join('');
-    const file = String(r['Compared SAM file name'] || '');
-    const chips = [
-      g.match ? `<span class="status Match">${g.match}</span>` : '',
-      g.mismatch ? `<span class="status Mismatch">${g.mismatch}</span>` : '',
-      g.noSam ? `<span class="status NoSAM">${g.noSam}</span>` : '',
-    ].join(' ');
-    return `<tr>${cells}<td class="ms-file" title="${esc(file)}">`
-      + `${file ? msHl(file) : `<span class="none">${esc(t('match.noFile'))}</span>`}</td>`
-      + `<td class="num">${g.n}</td><td>${chips}</td></tr>`;
+    const open = MS_OPEN.has(g.key);
+    const multi = g.fileList.length > 1;
+    let rows = `<tr class="ms-row${multi ? ' multi' : ''}${open ? ' open' : ''}" data-i="${i}">${cells}`
+      + `<td class="ms-file">${msFileCellHtml(g, open)}</td>`
+      + `<td class="num">${g.n}</td><td>${msChipsHtml(g)}</td></tr>`;
+    // 문서가 여럿일 때만 펼침 — 어느 견적서에 몇 대가 붙었는지 한 줄씩.
+    if (open && multi) {
+      rows += g.fileList.map((f) => `<tr class="ms-sub">`
+        + `<td colspan="${HIST_COLS.length}"></td>`
+        + `<td class="ms-file">${msFileNameHtml(f.file)}</td>`
+        + `<td class="num">${f.n}</td><td>${msChipsHtml(f)}</td></tr>`).join('');
+    }
+    return rows;
   }).join('');
+  table.querySelectorAll('.ms-row').forEach((tr) => tr.addEventListener('click', () => {
+    const g = groups[Number(tr.dataset.i)];
+    if (!g || g.fileList.length < 2) return;
+    if (MS_OPEN.has(g.key)) MS_OPEN.delete(g.key); else MS_OPEN.add(g.key);
+    renderMatchSummary();
+  }));
+}
+
+// 상태 뱃지(Match / Mismatch / No SAM 대수) — 모델 줄과 문서 줄이 같이 쓴다.
+function msChipsHtml(o) {
+  return [
+    o.match ? `<span class="status Match">${o.match}</span>` : '',
+    o.mismatch ? `<span class="status Mismatch">${o.mismatch}</span>` : '',
+    o.noSam ? `<span class="status NoSAM">${o.noSam}</span>` : '',
+  ].join(' ');
+}
+function msFileNameHtml(file) {
+  return file
+    ? `<span title="${esc(file)}">${msHl(file)}</span>`
+    : `<span class="none">${esc(t('match.noFile'))}</span>`;
+}
+// 문서가 하나면 그대로, 여럿이면 '문서 N개'로 접는다(클릭하면 펼침).
+function msFileCellHtml(g, open) {
+  if (g.fileList.length <= 1) return msFileNameHtml(g.fileList.length ? g.fileList[0].file : '');
+  const names = g.fileList.map((f) => `${f.file || t('match.noFile')} (${f.n})`).join('\n');
+  return `<button type="button" class="ms-more" title="${esc(names)}">`
+    + `<span class="caret">${open ? '▾' : '▸'}</span>`
+    + `${esc(t('match.files', { n: g.fileList.length }))}</button>`;
 }
 
 // ---- 코드 관리: 04. code 폴더의 모든 xlsx ----
