@@ -650,6 +650,19 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 }
 .hist-model tbody td { font-weight: 700; }
 .hist-scroll { flex: 1; min-height: 0; overflow: auto; }
+/* WINGS + SAM 대조 모드 — 한 셀에 두 소스를 위아래로, 아래에 그 달의 차이 요약 */
+.hist-codes.tagged, .hist-same.tagged { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 3px; }
+.hsrc {
+  flex: none; font-size: 10px; font-weight: 800; line-height: 1.6;
+  min-width: 15px; text-align: center; border-radius: 4px; padding: 0 3px;
+}
+.hsrc.wings { background: var(--chip-win-bg); color: var(--chip-win-fg); }
+.hsrc.sam { background: var(--chip-sam-bg); color: var(--chip-sam-fg); }
+.hist-x {
+  margin-top: 3px; font-size: 11px; font-weight: 700; color: var(--miss-fg);
+  background: var(--miss-bg); border-radius: 5px; padding: 1px 5px; display: inline-block;
+}
+.hist-x.ok { color: var(--ok-fg); background: var(--ok-bg); }
 
 .hist-grid { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12px; }
 .hist-grid th, .hist-grid td {
