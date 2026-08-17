@@ -678,18 +678,26 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .hist-grid thead th .my { font-size: 10.5px; font-weight: 600; color: var(--muted); display: block; }
 /* 일치/불일치 줄이 붙으면 월 머리글과의 경계는 옅게 — 두 줄이 한 머리글로 읽히게. */
 .hist-grid thead tr:first-child:not(:last-child) th { border-bottom-color: var(--border); }
-/* 일치/불일치 줄 — 머리글 아래에 붙어 함께 스크롤한다(줄 수가 적어 세로 스크롤은 없다). */
+/* 일치/불일치 줄 — 월 머리글 바로 아래에 함께 붙는다(--h1 은 렌더 후 JS 가 재어 넣는다). */
 .hist-grid thead .hist-xrow th {
-  position: static; text-align: center; padding: 3px 7px;
+  top: var(--h1, 44px); text-align: center; padding: 3px 7px;
   background: var(--card); border-bottom: 1px solid var(--border-strong);
 }
-.hist-grid thead .hist-xrow th.hist-rowhead { position: sticky; left: 0; z-index: 4; }
+.hist-grid thead .hist-xrow th.hist-rowhead { left: 0; z-index: 4; background: var(--thead-bg); }
 .hist-grid th.hist-rowhead {
-  position: sticky; left: 0; z-index: 4; width: 96px; min-width: 96px;
+  position: sticky; left: 0; z-index: 4; width: 112px; min-width: 112px;
   background: var(--thead-bg); text-align: left; vertical-align: middle;
   font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap;
   border-right: 1px solid var(--border-strong);
 }
+/* 갈래(코드·도색·타이어) 라벨 + 그 아래 소스 칩 */
+.hist-grid th.hist-rowhead .hkind {
+  display: block; margin-bottom: 3px; font-size: 11px; font-weight: 700; color: var(--text);
+}
+/* 갈래가 바뀌는 첫 줄 위에만 굵은 선을 둬 두 줄씩 한 덩어리로 읽히게. */
+.hist-grid tbody tr.ktop > * { border-top: 1px solid var(--border-strong); }
+.hist-grid tbody tr.kalt > td { background: var(--thead-bg); }
+.hist-grid tbody tr.kalt > td.base { background: var(--accent-softer); }
 .hist-grid thead th.hist-rowhead.corner { z-index: 5; }
 .hist-grid td.hist-cell { width: 108px; min-width: 108px; max-width: 108px; }
 .hist-grid td.hist-cell.base { background: var(--accent-softer); }
