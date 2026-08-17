@@ -650,19 +650,19 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 }
 .hist-model tbody td { font-weight: 700; }
 .hist-scroll { flex: 1; min-height: 0; overflow: auto; }
-/* WINGS + SAM 대조 모드 — 한 셀에 두 소스를 위아래로, 아래에 그 달의 차이 요약 */
-.hist-codes.tagged, .hist-same.tagged { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 3px; }
+/* 줄 머리(Commission / WINGS / SAM) — 가로로 스크롤해도 왼쪽에 붙어 있는다. */
 .hsrc {
-  flex: none; font-size: 10px; font-weight: 800; line-height: 1.6;
-  min-width: 15px; text-align: center; border-radius: 4px; padding: 0 3px;
+  display: inline-block; font-size: 10.5px; font-weight: 800; line-height: 1.7;
+  text-align: center; border-radius: 5px; padding: 0 6px; letter-spacing: .02em;
 }
 .hsrc.wings { background: var(--chip-win-bg); color: var(--chip-win-fg); }
 .hsrc.sam { background: var(--chip-sam-bg); color: var(--chip-sam-fg); }
+/* 월 머리글 바로 아래 — 그 달의 WINGS↔SAM 일치/불일치 */
 .hist-x {
-  margin-top: 3px; font-size: 11px; font-weight: 700; color: var(--miss-fg);
-  background: var(--miss-bg); border-radius: 5px; padding: 1px 5px; display: inline-block;
+  font-size: 11px; font-weight: 800; color: var(--ok-fg); background: var(--ok-bg);
+  border-radius: 5px; padding: 1px 6px; display: inline-block; cursor: help;
 }
-.hist-x.ok { color: var(--ok-fg); background: var(--ok-bg); }
+.hist-x.bad { color: var(--miss-fg); background: var(--miss-bg); }
 
 .hist-grid { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12px; }
 .hist-grid th, .hist-grid td {
@@ -676,12 +676,27 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
   padding: 5px 7px;
 }
 .hist-grid thead th .my { font-size: 10.5px; font-weight: 600; color: var(--muted); display: block; }
+/* 일치/불일치 줄이 붙으면 월 머리글과의 경계는 옅게 — 두 줄이 한 머리글로 읽히게. */
+.hist-grid thead tr:first-child:not(:last-child) th { border-bottom-color: var(--border); }
+/* 일치/불일치 줄 — 머리글 아래에 붙어 함께 스크롤한다(줄 수가 적어 세로 스크롤은 없다). */
+.hist-grid thead .hist-xrow th {
+  position: static; text-align: center; padding: 3px 7px;
+  background: var(--card); border-bottom: 1px solid var(--border-strong);
+}
+.hist-grid thead .hist-xrow th.hist-rowhead { position: sticky; left: 0; z-index: 4; }
+.hist-grid th.hist-rowhead {
+  position: sticky; left: 0; z-index: 4; width: 96px; min-width: 96px;
+  background: var(--thead-bg); text-align: left; vertical-align: middle;
+  font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap;
+  border-right: 1px solid var(--border-strong);
+}
+.hist-grid thead th.hist-rowhead.corner { z-index: 5; }
 .hist-grid td.hist-cell { width: 108px; min-width: 108px; max-width: 108px; }
 .hist-grid td.hist-cell.base { background: var(--accent-softer); }
 .hist-grid td.hist-cell.gap { background: repeating-linear-gradient(135deg,
   transparent 0 6px, rgba(0,0,0,.025) 6px 12px); }
 
-.hist-comm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px; margin-bottom: 5px; }
+.hist-comm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px; }
 .hist-comm .cno {
   font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 700; font-family: inherit;
   background: var(--accent-soft); color: var(--accent); border: 1px solid var(--chip-mand-bd);

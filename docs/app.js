@@ -120,6 +120,7 @@ const I18N = {
     'hist.xTitle': '이 달 WINGS↔SAM 차이 — WINGS 에만: {w} / SAM 에만: {s}',
     'hist.xNone': '이 달 WINGS 와 SAM 의 코드가 같습니다.',
     'hist.xOk': '일치',
+    'hist.xBad': '불일치',
     'hist.basis.title': '각 달의 코드를 무엇과 비교할지',
     'hist.basis.prev': '이전 생산월 대비',
     'hist.basis.first': '첫 생산월 대비',
@@ -310,6 +311,7 @@ const I18N = {
     'hist.xTitle': 'WINGS↔SAM this month — only in WINGS: {w} / only in SAM: {s}',
     'hist.xNone': 'WINGS and SAM carry the same codes this month.',
     'hist.xOk': 'match',
+    'hist.xBad': 'mismatch',
     'hist.basis.title': 'What each month is compared against',
     'hist.basis.prev': 'vs previous month',
     'hist.basis.first': 'vs first month',
@@ -1657,67 +1659,65 @@ function histMonthLabel(m) {
   return { top: y, main: LANG === 'ko' ? num + '월' : m };
 }
 
-function histCellHtml(cell, month) {
-  if (!cell) {
-    return `<td class="hist-cell gap" title="${esc(t('hist.gapTitle'))}">` +
-      `<span class="hist-none">—</span></td>`;
+// 그 달 아래 붙는 WINGS↔SAM 일치/불일치 띠 — 월 머리글 바로 다음 줄.
+function histXHeadHtml(cell) {
+  if (!cell) return `<th class="hist-xcell off"></th>`;
+  if (cell.onlyW.length || cell.onlyS.length) {
+    const tip = t('hist.xTitle', {
+      w: cell.onlyW.join(', ') || '—', s: cell.onlyS.join(', ') || '—',
+    });
+    return `<th class="hist-xcell"><span class="hist-x bad" title="${esc(tip)}">` +
+      `${esc(t('hist.xBad'))}</span></th>`;
   }
-  // 셀 폭을 좁게 유지하려고 commission 은 대표 1건만 칩으로 보여주고,
-  // 나머지는 '외 n대' 로 접는다(툴팁에 전체 번호).
+  return `<th class="hist-xcell"><span class="hist-x ok" title="${esc(t('hist.xNone'))}">` +
+    `${esc(t('hist.xOk'))}</span></th>`;
+}
+
+// commission 줄 — 셀 폭을 좁게 유지하려고 대표 1건만 칩으로 보여주고,
+// 나머지는 '외 n대' 로 접는다(툴팁에 전체 번호).
+function histCommCellHtml(cell) {
+  if (!cell) return histGapCellHtml();
   const r0 = cell.rows[0];
   const ri = HIST.rows.push(r0) - 1;
   const all = cell.rows.map((r) => r['Commission no.']).join(', ');
   const more = cell.rows.length > 1
     ? `<span class="cmore" title="${esc(all)}">${esc(t('hist.more', { n: cell.rows.length - 1 }))}</span>`
     : '';
-  const comms = `<div class="hist-comm">` +
+  return `<td class="hist-cell comm${cell.base ? ' base' : ''}"><div class="hist-comm">` +
     `<button type="button" class="cno" data-ri="${ri}" title="Commission ${esc(r0['Commission no.'])}">` +
-    `${esc(r0['Commission no.'])}</button>${more}</div>`;
+    `${esc(r0['Commission no.'])}</button>${more}</div></td>`;
+}
 
-  const both = HIST.src === 'both';
-  const srcs = both ? HIST_SRCS : [HIST.src === 'sam' ? 'sam' : 'wings'];
+function histGapCellHtml() {
+  return `<td class="hist-cell gap" title="${esc(t('hist.gapTitle'))}">` +
+    `<span class="hist-none">—</span></td>`;
+}
 
-  let body, cls = '', title = '';
+// 한 소스(WINGS 또는 SAM)의 그 달 칸 — 변경 코드(＋추가 / −삭제) 또는 '기본'·'변경 없음'.
+function histSrcCellHtml(cell, month, src) {
+  if (!cell) return histGapCellHtml();
+  const d = cell[src];
+  let body, cls = '', title;
   if (cell.base) {
     cls = ' base';
     title = t('hist.baseTitle', { m: month });
     body = `<div class="hist-base">${esc(t('hist.base'))}</div>`;
   } else {
-    body = srcs.map((src) => histChangeHtml(cell[src], both ? src : '')).join('');
     title = t('hist.cellTitle', { ref: cell.ref, cur: month });
+    const line = (c, kind) =>
+      `<span class="hcode ${kind}" title="${esc(describe(c) || c)}">` +
+      `${kind === 'add' ? '＋' : '−'}${esc(c)}</span>`;
+    const lines = d.added.map((c) => line(c, 'add'))
+      .concat(d.removed.map((c) => line(c, 'del')));
+    body = lines.length
+      ? `<div class="hist-codes">${lines.join('')}</div>`
+      : `<div class="hist-same">${esc(t('hist.same'))}</div>`;
   }
-  // 같은 달 commission 끼리 갈린 코드(소스별)
-  const varied = srcs.reduce((a, src) => a.concat(cell[src].varied), []);
-  const warn = varied.length
-    ? `<div class="hist-warn" title="${esc(histVariedText(varied))}">⚠ ${varied.length}</div>`
+  // 같은 달 commission 끼리 갈린 코드
+  const warn = d.varied.length
+    ? `<div class="hist-warn" title="${esc(histVariedText(d.varied))}">⚠ ${d.varied.length}</div>`
     : '';
-  // 크로스체크: 그 달 WINGS↔SAM 차이(Only_in_*). 두 소스를 함께 볼 때만 의미가 있다.
-  let cross = '';
-  if (both && (cell.onlyW.length || cell.onlyS.length)) {
-    const tip = t('hist.xTitle', {
-      w: cell.onlyW.join(', ') || '—', s: cell.onlyS.join(', ') || '—',
-    });
-    cross = `<div class="hist-x" title="${esc(tip)}">⇄ W ${cell.onlyW.length} · S ${cell.onlyS.length}</div>`;
-  } else if (both) {
-    cross = `<div class="hist-x ok" title="${esc(t('hist.xNone'))}">⇄ ${esc(t('hist.xOk'))}</div>`;
-  }
-  return `<td class="hist-cell${cls}"${title ? ` title="${esc(title)}"` : ''}>` +
-    `${comms}${body}${warn}${cross}</td>`;
-}
-
-// 한 소스의 그 달 변경(＋추가 / −삭제). src 를 주면 W/S 라벨을 앞에 붙인다.
-function histChangeHtml(d, src) {
-  const line = (c, kind) =>
-    `<span class="hcode ${kind}" title="${esc(describe(c) || c)}">` +
-    `${kind === 'add' ? '＋' : '−'}${esc(c)}</span>`;
-  const lines = d.added.map((c) => line(c, 'add'))
-    .concat(d.removed.map((c) => line(c, 'del')));
-  const tag = src
-    ? `<span class="hsrc ${src}" title="${esc(t('hist.src.' + src))}">${src === 'sam' ? 'S' : 'W'}</span>`
-    : '';
-  return lines.length
-    ? `<div class="hist-codes${src ? ' tagged' : ''}">${tag}${lines.join('')}</div>`
-    : `<div class="hist-same${src ? ' tagged' : ''}">${tag}${esc(t('hist.same'))}</div>`;
+  return `<td class="hist-cell${cls}" title="${esc(title)}">${body}${warn}</td>`;
 }
 
 // 모델 목록(왼쪽) — 모델별 대수 / 생산월 수 / 변경이 있었던 달 수.
@@ -1740,15 +1740,29 @@ function histModelListHtml(b) {
   }).join('');
 }
 
-// 선택한 모델 1종의 월별 히스토리 표(가로 스크롤). 모델을 하나만 그리므로 세로 스크롤이 없다.
+// 선택한 모델 1종의 월별 히스토리 표(가로 스크롤).
+// 열은 생산월, 줄은 commission → WINGS → SAM. 두 소스를 함께 볼 때는 월 머리글 바로 아래에
+// 그 달의 WINGS↔SAM 일치/불일치를 한 줄로 깔아 준다.
 function histDetailHtml(g, months) {
-  const head = `<tr>` + months.map((m) => {
+  const both = HIST.src === 'both';
+  const srcs = both ? HIST_SRCS : [HIST.src === 'sam' ? 'sam' : 'wings'];
+  const corner = `<th class="hist-rowhead corner"></th>`;
+  let head = `<tr>` + corner + months.map((m) => {
     const lb = histMonthLabel(m);
     const has = g.cells.has(m);
     return `<th title="${esc(m)}"${has ? '' : ' class="off"'}>` +
       `<span class="my">${esc(lb.top)}</span>${esc(lb.main)}</th>`;
   }).join('') + `</tr>`;
-  const body = `<tr>` + months.map((m) => histCellHtml(g.cells.get(m), m)).join('') + `</tr>`;
+  if (both) {
+    head += `<tr class="hist-xrow">` + corner +
+      months.map((m) => histXHeadHtml(g.cells.get(m))).join('') + `</tr>`;
+  }
+  let body = `<tr class="r-comm"><th class="hist-rowhead">Commission</th>` +
+    months.map((m) => histCommCellHtml(g.cells.get(m))).join('') + `</tr>`;
+  body += srcs.map((src) =>
+    `<tr><th class="hist-rowhead"><span class="hsrc ${src}" ` +
+    `title="${esc(t('hist.src.' + src))}">${src === 'sam' ? 'SAM' : 'WINGS'}</span></th>` +
+    months.map((m) => histSrcCellHtml(g.cells.get(m), m, src)).join('') + `</tr>`).join('');
   return `<div class="hist-cap">${histModelTableHtml(g.sample)}` +
     `<span class="sub">${esc(histSrcLabel())} · ${esc(histBasisLabel())}</span></div>` +
     `<div class="hist-scroll"><table class="hist-grid">` +
@@ -1845,7 +1859,7 @@ function histExportXlsx() {
       if (cell.base) lines.push(t('hist.base'));
       else {
         for (const src of srcs) {
-          const tag = both ? (src === 'sam' ? 'S ' : 'W ') : '';
+          const tag = both ? (src === 'sam' ? 'SAM ' : 'WINGS ') : '';
           const d = cell[src];
           if (d.added.length || d.removed.length) {
             d.added.forEach((c) => lines.push(tag + '+' + c));
@@ -1858,10 +1872,10 @@ function histExportXlsx() {
       }
       // 크로스체크(그 달 WINGS↔SAM 차이)도 함께 내보낸다.
       if (both && (cell.onlyW.length || cell.onlyS.length)) {
-        lines.push(t('hist.xTitle', {
+        lines.push(t('hist.xBad') + ' — ' + t('hist.xTitle', {
           w: cell.onlyW.join(', ') || '—', s: cell.onlyS.join(', ') || '—',
         }));
-      }
+      } else if (both) lines.push(t('hist.xOk'));
       return { v: lines.join('\n'), s: 3 };
     })));
   }
