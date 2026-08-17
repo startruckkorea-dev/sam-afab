@@ -724,3 +724,138 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .hist-none { color: var(--border-strong); }
 .hist-warn { margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--warn); cursor: help; }
 .hist-empty { padding: 28px 16px; color: var(--muted); text-align: center; }
+
+/* ===================== 사용자 매뉴얼 ===================== */
+#view-manual.active { display: flex; min-height: 0; }
+
+.man-toc {
+  flex: 0 0 268px; width: 268px; overflow-y: auto;
+  background: var(--card); border-right: 1px solid var(--border);
+  padding: 20px 14px 60px;
+}
+.man-brand { padding: 0 8px 14px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.man-brand-t { font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.man-brand-s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.man-toc-cap {
+  font-size: 10.5px; font-weight: 700; color: var(--muted); letter-spacing: .08em;
+  text-transform: uppercase; padding: 0 8px; margin: 4px 0 6px;
+}
+.man-toc-cap.adm { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--warn); }
+.man-tl {
+  display: flex; align-items: baseline; gap: 8px; cursor: pointer;
+  padding: 6px 9px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  color: var(--muted); text-decoration: none; transition: background .12s, color .12s;
+}
+.man-tl i { font-style: normal; font-size: 11px; font-weight: 700; color: var(--border-strong);
+  font-variant-numeric: tabular-nums; }
+.man-tl:hover { background: var(--accent-softer); color: var(--text); }
+.man-tl.sel { background: var(--accent-soft); color: var(--accent); }
+.man-tl.sel i { color: var(--accent); }
+
+.man-body { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: 30px 44px 100px; scroll-behavior: smooth; }
+.man-body > * { max-width: 900px; }
+
+.man-hero { margin-bottom: 34px; }
+.man-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.man-hero h1 { margin: 6px 0 10px; font-size: 30px; font-weight: 800; letter-spacing: -.03em; }
+.man-lead { margin: 0; font-size: 15px; line-height: 1.75; color: var(--text); }
+.man-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 20px; }
+.man-fact {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 13px; box-shadow: var(--shadow-sm);
+}
+.man-fact span { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.man-fact b { font-size: 13px; font-weight: 700; }
+
+.man-sec { margin: 0 0 46px; scroll-margin-top: 8px; position: relative; }
+.man-sec h2 {
+  margin: 0 0 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border);
+  font-size: 21px; font-weight: 800; letter-spacing: -.02em;
+}
+.man-sec h3 { margin: 26px 0 8px; font-size: 15.5px; font-weight: 700; }
+.man-sec h4 { margin: 22px 0 6px; font-size: 14px; font-weight: 700; color: var(--accent); }
+.man-sec h4 code { font-size: 13px; }
+.man-sec p { margin: 9px 0; line-height: 1.8; }
+.man-sec code {
+  font-family: "Consolas", ui-monospace, monospace; background: var(--accent-softer);
+  color: var(--accent); padding: 1px 5px; border-radius: 4px; font-size: .92em;
+}
+.man-sheet { font-size: 11px; font-weight: 700; color: var(--muted); margin-left: 6px; }
+.man-sec.adm h2 { border-bottom-color: var(--warn-bg); }
+.adm-badge {
+  display: inline-block; margin-bottom: 8px; padding: 3px 10px; border-radius: 999px;
+  background: var(--warn-bg); color: var(--warn); font-size: 11px; font-weight: 800; letter-spacing: .03em;
+}
+
+.man-ul, .man-ol { margin: 10px 0; padding-left: 22px; }
+.man-ul li, .man-ol li { margin: 6px 0; line-height: 1.75; }
+.man-ul ul, .man-ol ul { margin: 6px 0; padding-left: 20px; }
+.man-ul ul li { margin: 3px 0; font-size: 13.5px; color: var(--muted); }
+
+.man-tb { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 13px; }
+.man-tb th, .man-tb td { border: 1px solid var(--border); padding: 9px 11px; text-align: left; vertical-align: top; line-height: 1.65; }
+.man-tb thead th { background: var(--thead-bg); font-weight: 700; white-space: nowrap; }
+.man-tb tbody tr:nth-child(even) { background: var(--accent-softer); }
+.man-tb.faq td:first-child { width: 32%; font-weight: 600; }
+
+.man-callout {
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  background: var(--accent-softer); border-radius: 10px;
+  padding: 12px 15px; margin: 16px 0; font-size: 13.5px; line-height: 1.75;
+}
+.man-callout.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+.man-note {
+  font-size: 13px; color: var(--muted); border-left: 2px solid var(--border-strong);
+  padding-left: 12px; margin: 14px 0; line-height: 1.75;
+}
+
+.man-flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; margin: 18px 0; }
+.man-flow .fnode {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 9px 13px; min-width: 128px; box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; justify-content: center;
+}
+.man-flow .fnode.acc { border-color: var(--accent); background: var(--accent-soft); }
+.man-flow .fnode b { font-size: 12.5px; }
+.man-flow .fnode span { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.man-flow .farrow { display: flex; align-items: center; color: var(--accent); font-weight: 700; padding: 0 2px; }
+
+.man-score {
+  margin: 8px 0 2px; padding: 8px 12px; border-radius: 8px;
+  background: var(--accent-softer); font-size: 13px;
+}
+
+.mchip {
+  display: inline-block; padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; vertical-align: middle;
+}
+.mchip.ok { background: var(--match-bg); color: var(--match-fg); }
+.mchip.bad { background: var(--miss-bg); color: var(--miss-fg); }
+.mchip.mut { background: var(--chip-fc-bg); color: var(--chip-fc-fg); }
+.mchip.ne { background: var(--warn-bg); color: var(--warn); }
+.cadd { color: var(--ok-fg); }
+.cdel { color: var(--miss-fg); }
+
+/* 캡처 자리 — <img src="manual/….png"> 로 바꿔 넣으면 됩니다 */
+.shot { margin: 18px 0; }
+.shot img { display: block; width: 100%; height: auto; border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-md); }
+.shot-ph {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: 172px; border: 2px dashed var(--border-strong); border-radius: 10px;
+  background: repeating-linear-gradient(45deg, var(--card), var(--card) 10px, var(--accent-softer) 10px, var(--accent-softer) 20px);
+  color: var(--muted);
+}
+.shot-ph span { font-size: 22px; }
+.shot-ph b { font-size: 13px; font-weight: 700; }
+.shot-ph i { font-style: normal; font-size: 12px; }
+.shot figcaption { margin-top: 7px; font-size: 12px; color: var(--muted); }
+
+.man-foot { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .man-toc { display: none; }
+  .man-body { padding: 24px 20px 80px; }
+}

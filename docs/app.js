@@ -72,6 +72,7 @@ const I18N = {
     'nav.history': '생산월 이력관리',
     'nav.matching': '모델 매칭',
     'nav.codes': '코드 관리',
+    'nav.manual': '사용자메뉴얼',
     'meta.loading': '불러오는 중…',
     'meta.generated': '생성: {when}  ·  WINGS: {file}',
     'search.ph': 'Commission no. / 모델 / 코드 검색…',
@@ -270,6 +271,7 @@ const I18N = {
     'nav.history': 'Month History',
     'nav.matching': 'Model Matching',
     'nav.codes': 'Code Manager',
+    'nav.manual': 'User Manual',
     'meta.loading': 'Loading…',
     'meta.generated': 'Generated: {when}  ·  WINGS: {file}',
     'search.ph': 'Search commission no. / model / code…',
@@ -503,10 +505,10 @@ function esc(s) {
 
 // ====================== 뷰 전환 (대시보드 / 생산월 이력관리 / 모델 매칭 / 코드 관리) ======================
 let CUR_VIEW = 'dashboard';
-const VIEW_INIT = { history: false, matching: false, codes: false };
+const VIEW_INIT = { history: false, matching: false, codes: false, manual: false };
 
 function switchView(view) {
-  if (!['dashboard', 'history', 'matching', 'codes'].includes(view)) return;
+  if (!['dashboard', 'history', 'matching', 'codes', 'manual'].includes(view)) return;
   // 저장 안 한 편집이 있으면 이탈 확인 (모델 매칭 / 코드 관리)
   if (view !== CUR_VIEW) {
     const leavingEd = CUR_VIEW === 'codes' ? codeEditor : (CUR_VIEW === 'matching' ? matchEditor : null);
@@ -526,6 +528,43 @@ function switchView(view) {
   if (view === 'history' && !VIEW_INIT.history) { VIEW_INIT.history = true; initHistory(); }
   if (view === 'matching' && !VIEW_INIT.matching) { VIEW_INIT.matching = true; initMatching(); }
   if (view === 'codes' && !VIEW_INIT.codes) { VIEW_INIT.codes = true; initCodes(); }
+  if (view === 'manual' && !VIEW_INIT.manual) { VIEW_INIT.manual = true; initManual(); }
+}
+
+// ====================== 사용자 매뉴얼 ======================
+// 본문은 index.html 에 그대로 들어 있다(정적 문서). 여기서는 왼쪽 목차 이동과
+// 스크롤에 따른 현재 위치 표시만 담당한다.
+function initManual() {
+  const body = $('#manBody');
+  const toc = $('#manToc');
+  if (!body || !toc) return;
+  const links = [...toc.querySelectorAll('.man-tl')];
+  const secOf = (l) => document.getElementById(l.dataset.sec);
+
+  links.forEach((l) => l.addEventListener('click', () => {
+    const sec = secOf(l);
+    if (sec) body.scrollTo({ top: sec.offsetTop - 12, behavior: 'smooth' });
+  }));
+
+  // 현재 보고 있는 절 — 화면 위쪽(1/3 지점)을 지난 마지막 섹션.
+  function syncActive() {
+    const line = body.scrollTop + body.clientHeight / 3;
+    let cur = links[0];
+    for (const l of links) {
+      const sec = secOf(l);
+      if (sec && sec.offsetTop <= line) cur = l;
+    }
+    links.forEach((l) => l.classList.toggle('sel', l === cur));
+    const sel = toc.querySelector('.man-tl.sel');
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+  }
+  let ticking = false;
+  body.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; syncActive(); });
+  });
+  syncActive();
 }
 
 // op-status 배지 (info/ok/err)

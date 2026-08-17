@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260817c" />
+  <link rel="stylesheet" href="style.css?v=20260817e" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -19,6 +19,7 @@
       <button class="nav-link" data-view="history" data-i18n="nav.history">생산월 이력관리</button>
       <button class="nav-link" data-view="matching" data-i18n="nav.matching">모델 매칭</button>
       <button class="nav-link" data-view="codes" data-i18n="nav.codes">코드 관리</button>
+      <button class="nav-link" data-view="manual" data-i18n="nav.manual">사용자메뉴얼</button>
     </nav>
     <div class="nav-right">
       <button id="exportBtn" class="icon-btn" data-i18n="export.btn" data-i18n-title="export.title" title="현재 필터가 적용된 목록을 엑셀로 저장">⬇ Export</button>
@@ -280,6 +281,727 @@
         </div>
       </div>
     </section>
+    <!-- ===================== 사용자 매뉴얼 뷰 ===================== -->
+    <!-- 화면 캡처를 넣는 방법:
+         아래 <div class="shot-ph">…</div> 통째로를 <img src="manual/파일명.png" alt="설명"> 로 바꾸면 됩니다.
+         이미지는 docs/manual/ 폴더에 올려 두세요(폴더가 없으면 새로 만들면 됩니다). -->
+    <section class="view" id="view-manual">
+      <nav class="man-toc" id="manToc">
+        <div class="man-brand">
+          <div class="man-brand-t">SAM × AFAB</div>
+          <div class="man-brand-s">사용자 매뉴얼</div>
+        </div>
+        <div class="man-toc-cap">목차</div>
+        <a class="man-tl" data-sec="m-00"><i>00</i> 이 앱은 무엇인가</a>
+        <a class="man-tl" data-sec="m-01"><i>01</i> 시작하기 · 로그인</a>
+        <a class="man-tl" data-sec="m-02"><i>02</i> 화면 구성</a>
+        <a class="man-tl" data-sec="m-03"><i>03</i> 데이터가 흐르는 길</a>
+        <a class="man-tl" data-sec="m-04"><i>04</i> 대시보드</a>
+        <a class="man-tl" data-sec="m-05"><i>05</i> 차량 상세 창</a>
+        <a class="man-tl" data-sec="m-06"><i>06</i> 생산월 이력관리</a>
+        <a class="man-tl" data-sec="m-07"><i>07</i> 모델 매칭</a>
+        <a class="man-tl" data-sec="m-08"><i>08</i> 코드 관리</a>
+        <a class="man-tl" data-sec="m-09"><i>09</i> 데이터 다시 계산</a>
+        <div class="man-toc-cap adm">관리자용</div>
+        <a class="man-tl" data-sec="m-10"><i>10</i> 판정 로직 상세</a>
+        <a class="man-tl" data-sec="m-11"><i>11</i> 기준표 파일 사양</a>
+        <a class="man-tl" data-sec="m-12"><i>12</i> 주의사항 · 한계</a>
+        <a class="man-tl" data-sec="m-13"><i>13</i> 문제 해결(FAQ)</a>
+        <a class="man-tl" data-sec="m-14"><i>14</i> 용어 사전</a>
+      </nav>
+
+      <article class="man-body" id="manBody">
+        <header class="man-hero">
+          <div class="man-kicker">SAM × AFAB Dashboard</div>
+          <h1>사용자 매뉴얼</h1>
+          <p class="man-lead">
+            SAM 견적서(Internal quotation)와 WINGS 주문 데이터의 <b>사양 코드를 차량 단위로 대조</b>해
+            생산 전에 차이를 찾아내는 사내 웹 앱입니다. 이 문서는 일반 사용자가 쓰는 방법과
+            관리자가 알아야 할 판정 로직·기준표 관리까지 한 번에 다룹니다.
+          </p>
+          <div class="man-facts">
+            <div class="man-fact"><span>접속 주소</span><b>sam-afab.startruckkorea.com</b></div>
+            <div class="man-fact"><span>로그인</span><b>회사 Microsoft 365 계정</b></div>
+            <div class="man-fact"><span>데이터 보관</span><b>SharePoint · SAM-AFAB 사이트</b></div>
+            <div class="man-fact"><span>계산 위치</span><b>사용자 브라우저(서버 없음)</b></div>
+          </div>
+        </header>
+
+        <!-- ===== 00 ===== -->
+        <section class="man-sec" id="m-00">
+          <h2>00 · 이 앱은 무엇인가</h2>
+          <h3>왜 만들었나</h3>
+          <p>
+            차량 한 대의 사양은 두 곳에 따로 존재합니다. 하나는 영업이 만든 <b>SAM 견적서</b>
+            (<code>Internal quotation … .docx</code>), 다른 하나는 공장에 실제로 전달되는
+            <b>WINGS 주문</b>입니다. 두 곳의 옵션 코드가 어긋난 채로 <b>Changeability(변경 가능 기한)</b>가
+            지나가면 원하는 사양이 아닌 차가 생산됩니다. 이 앱은 그 어긋남을
+            <b>기한이 지나기 전에</b>, 사람이 문서를 일일이 대조하지 않고 찾아내기 위한 도구입니다.
+          </p>
+          <h3>무엇을 답해 주나</h3>
+          <ul class="man-ul">
+            <li><b>이번 달 이후 생산 예정 차량 중 사양이 어긋난 차는 몇 대이고 어느 차인가</b></li>
+            <li>그 차는 <b>어떤 코드</b>가 SAM에만 있고, 어떤 코드가 WINGS에만 있는가</li>
+            <li><b>필수코드(Mandatory)</b>가 한쪽에서 빠지지 않았는가</li>
+            <li>도색(Paint)·타이어(Tyre)·캡(Cab)·PTO가 양쪽에서 같은가</li>
+            <li>생산월이 바뀌는 동안 <b>사양이 어떻게 변해 왔는가</b>(생산월 이력관리)</li>
+            <li>이 차는 <b>어느 SAM 문서</b>와 비교된 것인가(모델 매칭)</li>
+          </ul>
+          <div class="man-callout tip">
+            <b>한 줄 요약</b> — “WINGS 주문 한 줄”을 “같은 모델의 SAM 견적서 한 부”와 짝지어
+            <b>코드 집합끼리 비교</b>하고, 그 결과를 대시보드로 보여 주는 앱입니다.
+          </div>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>대시보드 전체 화면</i></div>
+            <figcaption>그림 0-1. 로그인 직후 첫 화면(대시보드)</figcaption>
+          </figure>
+        </section>
+
+        <!-- ===== 01 ===== -->
+        <section class="man-sec" id="m-01">
+          <h2>01 · 시작하기 · 로그인</h2>
+          <h3>접속</h3>
+          <p>
+            브라우저(Edge·Chrome 권장)에서 <code>https://sam-afab.startruckkorea.com</code> 으로 접속합니다.
+            운영 주소에서는 <b>회사 Microsoft 365 계정 로그인이 필수</b>이며, 로그인 화면에서
+            <b>Microsoft 계정으로 로그인</b>을 누르면 회사 로그인 페이지로 이동했다가 되돌아옵니다.
+          </p>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>로그인 화면</i></div>
+            <figcaption>그림 1-1. Microsoft 365 로그인 게이트</figcaption>
+          </figure>
+          <h3>권한</h3>
+          <p>
+            별도의 앱 내부 권한 표는 없습니다. <b>SharePoint 사이트(SAM-AFAB)의 접근 권한이 곧 이 앱의 권한</b>입니다.
+          </p>
+          <table class="man-tb">
+            <thead><tr><th>하는 일</th><th>필요한 것</th></tr></thead>
+            <tbody>
+              <tr><td>대시보드·이력·매칭 결과 <b>조회</b></td><td>로그인만 하면 가능</td></tr>
+              <tr><td>코드 관리 / 모델 매칭 <b>편집·저장</b></td><td>SharePoint 해당 폴더 <b>쓰기 권한</b></td></tr>
+              <tr><td><b>데이터 다시 계산</b>(빌드)</td><td>SharePoint 읽기 + <code>05. output</code> 쓰기 권한</td></tr>
+            </tbody>
+          </table>
+          <div class="man-callout warn">
+            <b>주의</b> — 쓰기 권한이 없는 계정으로 <b>SharePoint에 저장</b>을 누르면 저장 단계에서
+            Graph 오류(403)가 납니다. 화면에서 미리 버튼을 감추지는 않습니다.
+          </div>
+        </section>
+
+        <!-- ===== 02 ===== -->
+        <section class="man-sec" id="m-02">
+          <h2>02 · 화면 구성</h2>
+          <p>모든 화면은 상단 바 하나로 이동합니다.</p>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>상단 네비게이션 바</i></div>
+            <figcaption>그림 2-1. 상단 바 — 메뉴 5개 + 오른쪽 도구 버튼</figcaption>
+          </figure>
+          <table class="man-tb">
+            <thead><tr><th>메뉴 / 버튼</th><th>하는 일</th></tr></thead>
+            <tbody>
+              <tr><td><b>대시보드</b></td><td>차량 목록과 요약 타일. 앱의 중심 화면</td></tr>
+              <tr><td><b>생산월 이력관리</b></td><td>같은 모델의 사양이 생산월마다 어떻게 바뀌었는지</td></tr>
+              <tr><td><b>모델 매칭</b></td><td>WINGS 모델이 어떤 SAM 문서와 짝지어졌는지 + 매칭 규칙 편집</td></tr>
+              <tr><td><b>코드 관리</b></td><td>기준표 Excel(필수코드·캡·카테고리 등)을 웹에서 편집</td></tr>
+              <tr><td><b>사용자메뉴얼</b></td><td>지금 보고 있는 이 문서</td></tr>
+              <tr><td><b>⬇ Export</b></td><td>대시보드에서만 보이며, <b>지금 필터가 걸린 목록</b>을 Excel로 저장</td></tr>
+              <tr><td><b>⟳ 데이터 다시 계산</b></td><td>SharePoint 원본으로 비교를 다시 계산(→ 09장)</td></tr>
+              <tr><td><b>🌐 EN / 한국어</b></td><td>화면 언어 전환. 선택은 이 브라우저에 기억됩니다</td></tr>
+              <tr><td><b>⎋ 로그아웃</b></td><td>Microsoft 계정 로그아웃</td></tr>
+            </tbody>
+          </table>
+          <div class="man-callout tip">
+            언어 전환은 <b>화면 문구</b>만 바꿉니다. 코드·모델명·SAM 파일명 같은 데이터 값은 원본 그대로 보입니다.
+            이 매뉴얼 본문은 한국어로만 제공됩니다.
+          </div>
+        </section>
+
+        <!-- ===== 03 ===== -->
+        <section class="man-sec" id="m-03">
+          <h2>03 · 데이터가 흐르는 길</h2>
+          <p>
+            이 앱에는 <b>서버가 없습니다</b>. 화면은 GitHub Pages에 올라간 정적 파일이고,
+            데이터는 전부 SharePoint에 있으며, 계산은 <b>“데이터 다시 계산”을 누른 사람의 브라우저</b>에서 돕니다.
+          </p>
+          <div class="man-flow">
+            <div class="fnode"><b>01. SAM_files</b><span>생산월 폴더별 견적서 .docx</span></div>
+            <div class="farrow">→</div>
+            <div class="fnode"><b>02. WINGS_data</b><span>WINGS export .xlsx/.csv</span></div>
+            <div class="farrow">→</div>
+            <div class="fnode acc"><b>브라우저에서 비교</b><span>파싱 → 매칭 → 대조</span></div>
+            <div class="farrow">→</div>
+            <div class="fnode"><b>05. output</b><span>data.json · codes.json</span></div>
+            <div class="farrow">→</div>
+            <div class="fnode"><b>모든 사용자 화면</b><span>재계산 없이 결과만 조회</span></div>
+          </div>
+          <h3>SharePoint 폴더 구조</h3>
+          <p>사이트: <code>startruckkorea.sharepoint.com/sites/SAM-AFAB</code> → 문서 라이브러리 <code>SAM-AFAB_Data</code></p>
+          <table class="man-tb">
+            <thead><tr><th>폴더</th><th>들어가는 것</th><th>규칙</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>01. SAM_files</code></td>
+                <td>SAM 견적서 <code>.docx</code></td>
+                <td><b>생산월 폴더 안</b>에 넣습니다. <code>MY26/2026-07 생산</code> 또는 <code>2026-07 생산</code>처럼
+                    폴더 이름이 <b><code>YYYY-MM</code>으로 시작</b>해야 인식됩니다.</td>
+              </tr>
+              <tr>
+                <td><code>02. WINGS_data</code></td>
+                <td>WINGS export <code>.xlsx / .xls / .csv</code></td>
+                <td>여러 개가 있으면 <b>가장 최신 1개만</b> 사용합니다(→ 12장 “최신 판정”).</td>
+              </tr>
+              <tr>
+                <td><code>03. model_rules</code></td>
+                <td><code>model_mapping.xlsx</code></td>
+                <td>모델 번호 정규화·별칭 등 매칭 규칙</td>
+              </tr>
+              <tr>
+                <td><code>04. code</code></td>
+                <td>기준표 Excel 5종</td>
+                <td>필수코드·공장관리코드·캡·모델 카테고리·코드 사전(→ 11장)</td>
+              </tr>
+              <tr>
+                <td><code>05. output</code></td>
+                <td><code>data.json</code>, <code>codes.json</code></td>
+                <td><b>빌드 결과</b>. 앱이 켜질 때 여기부터 읽습니다. 사람이 직접 건드리지 마세요.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="man-callout warn">
+            <b>중요</b> — SharePoint에 새 파일을 올려도 화면은 바로 바뀌지 않습니다.
+            <b>누군가 “⟳ 데이터 다시 계산”을 눌러야</b> <code>05. output</code>이 갱신되고, 그때부터 전원에게 반영됩니다.
+          </div>
+          <p class="man-note">
+            <code>05. output</code>을 읽지 못하면(권한 없음/빌드 이력 없음) 사이트와 함께 배포된
+            <b>사본 데이터</b>를 씁니다. 이때 화면 상단 회색 줄에 <b>“출처: 배포 사본(빌드 결과 없음)”</b>이 표시됩니다.
+          </p>
+        </section>
+
+        <!-- ===== 04 ===== -->
+        <section class="man-sec" id="m-04">
+          <h2>04 · 대시보드</h2>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>대시보드 상단(타일 + 모델별 대수)</i></div>
+            <figcaption>그림 4-1. 요약 타일과 모델별 대수</figcaption>
+          </figure>
+
+          <h3>4.1 요약 타일</h3>
+          <p>타일은 두 줄입니다. 숫자는 항상 아래 범위 안에서 셉니다.</p>
+          <ul class="man-ul">
+            <li><b>전체 현황 (이번 생산월 이후)</b> — 생산월이 <b>이번 달 이상</b>인 차량 전체</li>
+            <li><b>2주 이내 (Changeability D-14)</b> — 남은 일수가 <b>0~14일</b>인 차량. 가장 급한 대상</li>
+          </ul>
+          <table class="man-tb">
+            <thead><tr><th>타일</th><th>세는 기준</th></tr></thead>
+            <tbody>
+              <tr><td><b>전체 Commission</b></td><td>해당 범위의 전체 대수</td></tr>
+              <tr><td><b>매칭</b> <span class="mchip ok">Match</span></td><td>SAM 문서를 찾았고 차이가 없음</td></tr>
+              <tr><td><b>미스매치</b> <span class="mchip bad">Mismatch</span></td><td>SAM 문서를 찾았지만 코드·도색·타이어 차이가 있음</td></tr>
+              <tr><td><b>No SAM</b> <span class="mchip mut">No SAM</span></td><td>비교할 SAM 문서를 찾지 못함</td></tr>
+              <tr><td><b>Mandatory 누락</b></td><td>필수코드가 한쪽에만 있는 차량</td></tr>
+              <tr><td><b>SAM update요청</b></td><td>생산월 폴더에 문서가 없어 <b>이전 달 문서</b>로 대신 비교한 차량</td></tr>
+            </tbody>
+          </table>
+          <div class="man-callout tip">
+            <b>합계 관계</b> — <code>전체 = 매칭 + 미스매치 + No SAM</code> (겹치지 않음).
+            <b>Mandatory 누락</b>과 <b>SAM update요청</b>은 별도 표시라 위 셋과 <b>겹쳐서</b> 셉니다.
+          </div>
+          <p>
+            <b>타일을 누르면</b> 아래 목록이 그 조건만 남깁니다. 이때 기존 드롭다운·검색은 <b>모두 해제</b>되므로
+            <b>목록 건수 = 타일 숫자</b>가 됩니다. 미스매치·Mandatory 타일은 유용한 순서로 자동 정렬됩니다.
+          </p>
+
+          <h3>4.2 Upcoming changeability 카드</h3>
+          <p>
+            왼쪽 위 카드는 <b>오늘 기준 가장 가까운 Changeability 날짜</b>와 그날 해당하는 Commission 수를 보여 줍니다.
+            앞으로 남은 날짜가 없으면 가장 최근 지난 날짜를 보여 줍니다.
+          </p>
+
+          <h3>4.3 모델별 대수</h3>
+          <p>
+            오른쪽 두 카드는 <b>Model · Type · Axle · Cab · MY</b> 조합을 “1개 모델”로 보고 대수를 셉니다.
+            왼쪽 카드는 이번 생산월 이후 <b>전체</b>, 오른쪽 카드는 <b>지금 필터가 걸린 결과</b>입니다.
+          </p>
+
+          <h3>4.4 필터</h3>
+          <table class="man-tb">
+            <thead><tr><th>필터</th><th>설명</th></tr></thead>
+            <tbody>
+              <tr><td>생산월</td><td>WINGS의 <code>Requested delivery date</code> 기준 연-월</td></tr>
+              <tr><td>MY</td><td>모델이어. SAM/WINGS 코드 <code>V8Q~V8Z</code>로 판정(→ 10.7)</td></tr>
+              <tr><td>Model / Type / Axle / Cab</td><td>차종(Arocs 등) / 모델표기(4153L 등) / 축(8x4) / 캡 코드</td></tr>
+              <tr><td>검색창</td><td>Commission·모델·코드 등 <b>행의 모든 값</b>을 대상으로 부분 일치</td></tr>
+              <tr><td>전체 상태</td><td>Match / Mismatch / No SAM</td></tr>
+              <tr><td><b>Display only production from this month</b></td><td>기본 켜짐. 생산월이 이번 달 이상인 행만</td></tr>
+            </tbody>
+          </table>
+          <div class="man-callout tip">
+            드롭다운은 <b>서로 연동</b>됩니다. Model을 고르면 Type·Axle·Cab 목록도 그 모델에 실제로 존재하는 값만 남습니다.
+            “아무리 골라도 0건”이 나오지 않도록 하는 장치입니다.
+          </div>
+
+          <h3>4.5 목록 읽는 법</h3>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>차량 목록 표</i></div>
+            <figcaption>그림 4-2. 차량 목록 — 열 제목을 누르면 정렬</figcaption>
+          </figure>
+          <table class="man-tb">
+            <thead><tr><th>열</th><th>의미</th></tr></thead>
+            <tbody>
+              <tr><td>Commission</td><td>WINGS Commission no. (차량 1대)</td></tr>
+              <tr><td>Model / Type / Axle</td><td>차종 / 모델 표기 / 구동축</td></tr>
+              <tr><td>Cab · PTO</td><td>WINGS 기준 값. <b>SAM과 다르면 <span class="mchip ne">≠</span></b> 가 붙고, 마우스를 올리면 양쪽 값이 보입니다</td></tr>
+              <tr><td>Production</td><td>생산(요청 납기) 일자</td></tr>
+              <tr><td>Changeability</td><td>사양 변경 가능 마지막 일자</td></tr>
+              <tr><td>Changeability D-Day</td><td>오늘 기준 남은 일수. <b>D-14 이하는 주황</b>, 지난 건 회색(지남)</td></tr>
+              <tr><td>Only in SAM / Only in WINGS</td><td>한쪽에만 있는 코드 <b>개수</b>. 0이면 <span class="mchip ok">✓</span></td></tr>
+              <tr><td>Mandatory</td><td>한쪽에만 있는 필수코드 개수</td></tr>
+              <tr><td>Status</td><td>Match / Mismatch / No SAM (+ SAM update요청 배지)</td></tr>
+            </tbody>
+          </table>
+          <p class="man-note">
+            <b>개수 열의 셈법</b> — 옵션코드 차이뿐 아니라 <b>도색·타이어 차이도 함께</b> 셉니다.
+            “타이어만 다른 차”가 Mismatch인데 목록에는 ✓로 보이는 일을 막기 위한 것입니다.
+          </p>
+          <p><b>정렬</b>은 열 제목 클릭(다시 누르면 역순), <b>행 클릭</b>은 차량 상세 창을 엽니다.</p>
+
+          <h3>4.6 Export</h3>
+          <p>
+            <b>⬇ Export</b>는 <b>지금 화면에 보이는 목록 그대로</b>(필터·정렬 반영) Excel로 저장합니다.
+            파일 맨 위에 적용된 필터와 내보낸 시각이 함께 기록되므로, 회의 자료로 그대로 쓸 수 있습니다.
+          </p>
+        </section>
+
+        <!-- ===== 05 ===== -->
+        <section class="man-sec" id="m-05">
+          <h2>05 · 차량 상세 창</h2>
+          <p>목록에서 행을 클릭하면 오른쪽에서 상세 창이 열립니다.</p>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>차량 상세 창(Difference Codes 탭)</i></div>
+            <figcaption>그림 5-1. 차이 코드 탭</figcaption>
+          </figure>
+          <ul class="man-ul">
+            <li><b>맨 위 정보</b> — 차종·카테고리·축·캡·MY·PTO·생산일·Changeability·SAM Baumuster·상태 등.
+                제목 아래 회색 글씨가 <b>실제로 비교된 SAM 파일명</b>입니다.</li>
+            <li><b>🔍 Difference Codes</b> — 차이만 모아 봅니다.
+              <ul>
+                <li>🚪 Cab / ⚙️ PTO / 🎨 Paint / 🛞 Tyre — 양쪽이 다를 때만 나타납니다</li>
+                <li><b>Codes Only in SAM</b> / <b>Codes Only in WINGS</b> — 한쪽에만 있는 옵션코드와 설명</li>
+                <li><b>Mandatory</b> — 빠진 필수코드. 문제가 없으면 “양쪽 모두 반영됨” 목록을 보여 줍니다</li>
+                <li><b>Factory Control</b> — 공장관리코드 차이(<b>참고용</b>. 상태 판정에는 쓰지 않음 → 10.5)</li>
+              </ul>
+            </li>
+            <li><b>📄 Full Code List</b> — SAM·WINGS <b>전체 코드</b>를 좌우로 나란히 정렬. 한쪽에 없는 칸은 비어 보입니다.</li>
+            <li><b>⬇ 이 차량 Excel</b> — 이 차량 한 대의 정보와 전체 코드 대조표를 Excel로 저장합니다.</li>
+          </ul>
+        </section>
+
+        <!-- ===== 06 ===== -->
+        <section class="man-sec" id="m-06">
+          <h2>06 · 생산월 이력관리</h2>
+          <p>
+            같은 MY·같은 모델의 차량을 <b>생산월 순으로 세워 두고</b>, 달마다 어떤 코드가
+            <b class="cadd">＋추가</b>·<b class="cdel">−삭제</b>됐는지 보여 줍니다.
+            “언제부터 이 코드가 빠졌지?”를 추적할 때 씁니다.
+          </p>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>생산월 이력관리 화면</i></div>
+            <figcaption>그림 6-1. 왼쪽 모델 목록 + 오른쪽 월별 변경 표</figcaption>
+          </figure>
+          <h3>조작</h3>
+          <table class="man-tb">
+            <thead><tr><th>항목</th><th>설명</th></tr></thead>
+            <tbody>
+              <tr><td>MY 선택</td><td>이력은 <b>같은 MY 안에서만</b> 이어집니다</td></tr>
+              <tr><td>WINGS 코드 / SAM 코드 / <b>WINGS + SAM 대조</b></td><td>어느 쪽 코드를 볼지. 대조를 고르면 두 줄이 위아래로 함께 나옵니다</td></tr>
+              <tr><td>이전 생산월 대비 / 첫 생산월 대비</td><td>각 달을 <b>무엇과 비교</b>할지</td></tr>
+              <tr><td>모델 검색</td><td>모델명·Commission 번호로 좁히기</td></tr>
+              <tr><td>⬇ Export</td><td>지금 보이는 이력을 Excel로 저장</td></tr>
+            </tbody>
+          </table>
+          <h3>표 읽는 법</h3>
+          <ul class="man-ul">
+            <li>열 = <b>생산월</b>, 줄 = Commission → 갈래(<b>코드 / 🎨도색 / 🛞타이어</b>) × 소스(WINGS·SAM)</li>
+            <li>그 모델의 <b>첫 생산월</b>은 <b>기본</b>(기준)으로 표시되고 변경 내역이 없습니다</li>
+            <li>생산이 없던 달은 <b>—</b> 로 비어 있습니다</li>
+            <li>한 달에 여러 대가 있으면 그 달의 코드는 <b>합집합</b>으로 봅니다. 대표 1건만 칩으로 보이고 나머지는 “외 n대”</li>
+            <li><b>⚠ n</b> 배지 = <b>같은 달 안에서도 차량마다 사양이 갈린</b> 코드 수. 마우스를 올리면 코드 목록이 보입니다</li>
+            <li>Commission 번호를 클릭하면 그 차량의 상세 창이 열립니다</li>
+          </ul>
+          <h3>일치 / 불일치 띠</h3>
+          <p>
+            <b>WINGS + SAM 대조</b>일 때만 월 머리글 아래에 <span class="mchip ok">일치</span> /
+            <span class="mchip bad">불일치</span> 띠가 깔립니다. 이 배지는 <b>바로 아래 두 줄(WINGS·SAM)의
+            변경 내역이 서로 같은가</b>를 말합니다. 화면에 보이는 것과 배지가 늘 맞아떨어지게 하려는 것입니다.
+          </p>
+          <div class="man-callout warn">
+            <b>혼동 주의</b> — “변경 내역이 같다”와 “그 달의 코드가 같다”는 다른 이야기입니다.
+            기준이 되는 달이 이미 갈려 있으면 <b>변화만 같을</b> 수 있습니다.
+            그래서 <b>그 달 전체 코드의 차이</b>는 배지에 마우스를 올렸을 때 <b>툴팁 둘째 줄</b>에 따로 적어 둡니다.
+          </div>
+        </section>
+
+        <!-- ===== 07 ===== -->
+        <section class="man-sec" id="m-07">
+          <h2>07 · 모델 매칭</h2>
+          <p>“이 차는 <b>어느 SAM 문서</b>와 비교된 건가?”를 확인하고, 매칭 규칙을 고치는 화면입니다.</p>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>모델 매칭 — 매칭 결과</i></div>
+            <figcaption>그림 7-1. 모델 → 비교된 SAM 파일</figcaption>
+          </figure>
+          <h3>매칭 결과</h3>
+          <ul class="man-ul">
+            <li>모델별로 <b>비교에 쓰인 SAM 파일</b>, 대수, 상태를 보여 줍니다</li>
+            <li>캡·PTO는 파일명이 아니라 <b>실제 코드</b>로 판정하며, WINGS와 SAM이 다르면 <span class="mchip ne">≠</span></li>
+            <li><b>매칭된 SAM 없음</b>으로 나오는 모델이 바로 대시보드의 <b>No SAM</b> 원인입니다</li>
+          </ul>
+          <h3>대조표(규칙 편집)</h3>
+          <p>
+            <code>model_mapping.xlsx</code>의 시트를 웹에서 직접 고칩니다. 편집 방법은 코드 관리와 같습니다(→ 08장).
+            <code>인식모델_대조표</code> 시트는 <b>열 때마다 현재 데이터로 다시 만들어지는 확인용 보기</b>라 저장 대상이 아닙니다.
+          </p>
+          <div class="man-callout warn">
+            규칙을 고쳐 저장해도 <b>화면은 바로 바뀌지 않습니다</b>. <b>⟳ 데이터 다시 계산</b>을 눌러야 반영됩니다.
+          </div>
+        </section>
+
+        <!-- ===== 08 ===== -->
+        <section class="man-sec" id="m-08">
+          <h2>08 · 코드 관리</h2>
+          <p>
+            비교에 쓰이는 <b>모든 기준표</b>가 SharePoint <code>04. code</code> 폴더의 Excel로 관리됩니다.
+            이 화면에서 Excel을 열지 않고 브라우저에서 바로 고치고 저장할 수 있습니다.
+          </p>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>코드 관리 — 파일 탭 + 카드 편집</i></div>
+            <figcaption>그림 8-1. 파일 선택 → 시트 탭 → 편집</figcaption>
+          </figure>
+          <h3>순서</h3>
+          <ol class="man-ol">
+            <li>위쪽 <b>파일 버튼</b>에서 편집할 Excel을 고릅니다</li>
+            <li><b>시트 탭</b>으로 편집할 시트를 고릅니다</li>
+            <li><b>🗂 카드 편집</b>(행 하나를 폼으로) 또는 <b>▦ 표 편집</b>(엑셀처럼 격자로) 중 하나로 수정합니다
+              <ul>
+                <li><b>＋ 등록</b> — 새 항목 추가(카드 편집)</li>
+                <li><b>＋ 행 추가</b> — 빈 행 추가(표 편집). <b>열 자체를 바꾸려면 표 편집</b>을 쓰세요</li>
+                <li>행을 클릭하면 편집 창이 열리고, 창 안의 <b>삭제</b>로 행을 지웁니다</li>
+              </ul>
+            </li>
+            <li>고치면 <b>● 저장되지 않은 변경</b> 표시가 켜집니다</li>
+            <li><b>⭱ SharePoint에 저장</b> — 원본 Excel을 덮어씁니다 / <b>↺ 되돌리기</b> — 저장 전 상태로 복구 /
+                <b>⬇ 다운로드</b> — 내 PC로 사본 저장</li>
+            <li><b>⟳ 데이터 다시 계산</b>을 눌러야 비교 결과에 반영됩니다</li>
+          </ol>
+          <div class="man-callout warn">
+            <b>저장하지 않고 다른 메뉴로 이동하면 경고</b>가 뜹니다. 브라우저를 닫을 때도 마찬가지입니다.
+            여러 사람이 같은 파일을 동시에 편집하면 <b>나중에 저장한 쪽이 이깁니다</b>(병합 없음).
+          </div>
+        </section>
+
+        <!-- ===== 09 ===== -->
+        <section class="man-sec" id="m-09">
+          <h2>09 · 데이터 다시 계산</h2>
+          <p>
+            상단 오른쪽 <b>⟳ 데이터 다시 계산</b>은 SharePoint의 <b>최신 WINGS</b>와 <b>SAM 생산월 폴더 전부</b>,
+            그리고 기준표를 읽어 비교를 처음부터 다시 계산합니다.
+          </p>
+          <figure class="shot">
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>빌드 진행 로그 창</i></div>
+            <figcaption>그림 9-1. 빌드 로그 — 단계별 진행 상황</figcaption>
+          </figure>
+          <h3>언제 눌러야 하나</h3>
+          <ul class="man-ul">
+            <li>새 WINGS export를 <code>02. WINGS_data</code>에 올렸을 때</li>
+            <li>SAM 견적서를 추가·교체했을 때</li>
+            <li>코드 관리나 모델 매칭에서 <b>기준표를 고쳐 저장</b>했을 때</li>
+          </ul>
+          <h3>알아둘 점</h3>
+          <ul class="man-ul">
+            <li>계산은 <b>누른 사람의 브라우저</b>에서 돌며 보통 <b>1~3분</b> 걸립니다. 그동안 <b>탭을 닫지 마세요</b></li>
+            <li>결과는 <code>05. output</code>에 저장되어 <b>모든 사용자에게 반영</b>됩니다</li>
+            <li>진행 로그에 단계별 상황과 <b>건너뛴 SAM 파일</b>이 표시됩니다 — 실패가 있으면 여기서 원인을 확인하세요</li>
+            <li>로그인하지 않았거나 Excel 라이브러리가 차단된 환경에서는 실행되지 않습니다</li>
+          </ul>
+        </section>
+
+        <!-- ===== 10 ===== -->
+        <section class="man-sec adm" id="m-10">
+          <div class="adm-badge">관리자용</div>
+          <h2>10 · 판정 로직 상세</h2>
+          <p>
+            화면의 숫자가 왜 그렇게 나오는지를 결정하는 규칙입니다. 기준표를 고치기 전에 반드시 읽어 주세요.
+          </p>
+
+          <h3>10.1 두 소스에서 코드를 뽑는 방법</h3>
+          <table class="man-tb">
+            <thead><tr><th></th><th>WINGS (.xlsx/.csv)</th><th>SAM (.docx)</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><b>옵션코드</b></td>
+                <td>Standard/Additional equipment 열의 텍스트에서 <b>영숫자 3~5자</b> 토큰을 모두 추출</td>
+                <td><b>Equipment overview</b> 표(없으면 Standard equipment 표)에서 추출.
+                    Standard/Special 구역은 문단 전체, Additional 구역은 <b>줄 맨 앞</b> 코드만</td>
+              </tr>
+              <tr><td><b>도색</b></td><td><code>Paint … zone</code> 열의 숫자</td><td><code>Paint</code> 섹션의 <code>MB 1234</code></td></tr>
+              <tr><td><b>타이어</b></td><td>축별 <code>Tyre key</code> (+ <code>Manufacturer key</code>)</td><td><code>Tyres</code> 섹션의 규격 문자열</td></tr>
+              <tr><td><b>모델</b></td><td><code>Type (brief)</code> → <code>Type</code> → <code>Baumuster</code> 순</td><td>본문 <code>Vehicle type</code> 및 <b>파일명</b></td></tr>
+            </tbody>
+          </table>
+          <div class="man-callout warn">
+            <b>SAM 문서에서 흔한 실패</b> — Equipment overview 표가 없거나 모델 번호를 못 찾으면 그 문서는
+            <b>통째로 건너뜁니다</b>(빌드 로그에 “건너뜀”으로 남습니다). 견적서 양식을 임의로 바꾸면 인식이 깨집니다.
+            또 숫자가 없는 코드(예: <code>JKTO</code>)는 <b>코드 사전에 등록된 경우에만</b> 살아남습니다 —
+            일반 영어 단어를 코드로 오인하지 않기 위한 장치입니다.
+          </div>
+
+          <h3>10.2 WINGS 한 줄에 SAM 문서를 붙이는 순서</h3>
+          <ol class="man-ol">
+            <li>모델 번호를 <b>정규화</b>합니다 — 축 정보(<code>8x4</code>) 제거, <code>DNA</code> 제거, 영숫자만 대문자로</li>
+            <li>그 차의 <b>생산월 폴더</b>에서 같은 모델키를 찾습니다</li>
+            <li>없으면 <b>이전 최대 6개월</b> 폴더를 차례로 찾습니다 → 찾으면 <b>SAM update요청</b> 표시</li>
+            <li>후보가 여러 개면 <b>점수</b>가 가장 높은 문서를 고릅니다
+              <div class="man-score">캡 일치 <b>+3</b> · Baumuster 일치 <b>+2</b> · Subcategory 일치 <b>+1</b></div>
+            </li>
+            <li>끝내 못 찾으면 <b>No SAM</b></li>
+          </ol>
+          <p class="man-note">
+            생산월(요청 납기)이 비어 있는 행은 <b>최신 월 폴더부터</b> 훑어 매칭하며, 이 경우
+            <b>SAM update요청 판정은 하지 않습니다</b>.
+          </p>
+
+          <h3>10.3 캡(Cab)과 PTO</h3>
+          <ul class="man-ul">
+            <li><b>캡</b>은 <code>cab.xlsx</code>의 매핑(WINGS 캡 코드 → SAM 캡 variant, 예 <code>F1J → G5F</code>)으로 판정합니다.
+                문서에 캡 코드가 있으면 그것이 1순위이고, 없을 때만 파일명 토큰을 봅니다.</li>
+            <li><b>PTO</b>는 <b>코드 설명에 “PTO”가 포함된 코드</b>가 있는지로 판정합니다(문서 본문·파일명도 보조로 사용).</li>
+            <li><b>PTO는 엄격한 필터입니다</b> — WINGS가 PTO 차량인데 SAM에 PTO 변형이 없으면
+                비PTO 문서로 넘어가지 않고 <b>No SAM</b>이 됩니다. 예전처럼 반대 변형과 비교하면
+                차이가 통째로 묻히기 때문입니다.</li>
+            <li>캡·PTO는 <b>양쪽 값을 모두 남겨</b> 화면에서 <span class="mchip ne">≠</span>로 표시합니다.
+                캡은 양쪽 모두 값이 있을 때만, PTO는 <b>있다/없다가 갈릴 때</b> 불일치로 봅니다.</li>
+          </ul>
+
+          <h3>10.4 상태(Match / Mismatch / No SAM)</h3>
+          <table class="man-tb">
+            <thead><tr><th>상태</th><th>조건</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mchip mut">No SAM</span></td><td>비교할 SAM 문서를 못 찾음. 이 행은 차이·Mandatory 값을 <b>모두 비웁니다</b></td></tr>
+              <tr><td><span class="mchip bad">Mismatch</span></td><td>Only in SAM / Only in WINGS / 도색 / 타이어 중 하나라도 차이가 있음</td></tr>
+              <tr><td><span class="mchip ok">Match</span></td><td>위 어느 것도 없음</td></tr>
+            </tbody>
+          </table>
+          <p class="man-note">
+            <b>SAM update요청</b>은 상태가 아니라 <b>별도 플래그</b>입니다. 이전 달 문서로 대체 비교된 경우
+            Match/Mismatch는 그 대체본 기준으로 그대로 계산하고, 배지만 덧붙입니다.
+          </p>
+          <div class="man-callout tip">
+            <b>도색·타이어는 한쪽이 비어 있으면 비교하지 않습니다.</b> 문서에 정보가 없는 것과
+            “다르다”는 것을 구분하기 위한 규칙입니다.
+          </div>
+
+          <h3>10.5 차이 목록에서 빠지는 코드</h3>
+          <p><b>Only in SAM / Only in WINGS</b>를 만들 때 아래 코드는 <b>제외</b>됩니다. 대신 자기 칸에서 따로 다룹니다.</p>
+          <ul class="man-ul">
+            <li><b>Factory Control(공장관리코드)</b> — <code>factory-control-codes.xlsx</code>의 접두어(기본 <code>I·O·Z·U</code>)와
+                개별코드(기본 <code>DUP0·A0B·E0D·E0Q·J7G</code>). <b>Factory Control Codes</b> 칸에만 모아 보여 주고
+                <b>상태 판정에는 쓰지 않습니다</b>.</li>
+            <li><b>Mandatory(필수코드)</b> — <b>Mandatory Codes</b> 칸에서 따로 셉니다.</li>
+          </ul>
+
+          <h3>10.6 Mandatory(필수코드) 판정</h3>
+          <ul class="man-ul">
+            <li>필수코드는 <b>카테고리(tractor / rigid / tipper / all)</b>별로 적용됩니다.
+                그 차의 카테고리는 <b>Baumuster 앞 6자리</b>로 결정합니다(<code>model-category.xlsx</code>,
+                표에 없으면 접두어 규칙으로 추정).</li>
+            <li><b>그룹이 없는 코드</b>는 <b>한쪽에만 있으면</b> 곧바로 누락으로 셉니다.</li>
+            <li><b>그룹이 있는 코드</b>(예: 같은 기능의 대체 코드 묶음)는 <b>그룹 단위로 봅니다</b> —
+                “SAM에 그룹 중 하나라도 있는가”와 “WINGS에 하나라도 있는가”가 <b>갈릴 때만</b> 누락으로 셉니다.
+                같은 그룹 안에서 서로 다른 코드를 쓰는 것은 문제로 보지 않습니다.</li>
+          </ul>
+
+          <h3>10.7 MY(모델이어)</h3>
+          <p>
+            코드 <code>V8Q~V8Z</code> = 모델이어 끝자리 <code>0~9</code> 입니다(<code>V8W</code> → 6 → <b>2026</b>).
+            <b>SAM 코드가 1순위</b>, 없으면 WINGS 코드로 보완합니다(No SAM 차량도 MY로 묶기 위함).
+          </p>
+
+          <h3>10.8 화면 값이 비어 있을 때 채우는 규칙</h3>
+          <p>
+            <b>차종·축</b>은 문서에 따로 없어 <b>SAM 파일명</b>에서 뽑습니다. 매칭이 없으면 비게 되므로,
+            <b>같은 Baumuster를 가진 다른 행</b>의 값으로 채웁니다(값이 하나로 모일 때만. 갈리면 비워 둡니다).
+            또 WINGS 모델 표기에 축이 섞여 들어오면(<code>4153 K 8x4</code>) 축은 축 칸으로 옮겨
+            같은 모델이 두 줄로 갈라지지 않게 합니다.
+          </p>
+        </section>
+
+        <!-- ===== 11 ===== -->
+        <section class="man-sec adm" id="m-11">
+          <div class="adm-badge">관리자용</div>
+          <h2>11 · 기준표 파일 사양</h2>
+          <p>
+            <code>04. code</code> · <code>03. model_rules</code> 폴더의 파일입니다.
+            <b>열 위치와 시트 이름이 곧 규칙</b>이므로 순서를 바꾸거나 시트 이름을 바꾸면 인식되지 않습니다.
+            <b>첫 줄은 항상 머리글</b>로 간주해 건너뜁니다.
+          </p>
+
+          <h4><code>mandatory-codes.xlsx</code> — 필수코드 <span class="man-sheet">시트: Mandatory</span></h4>
+          <table class="man-tb">
+            <thead><tr><th>열</th><th>내용</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td>카테고리</td><td><code>all</code> / <code>tractor</code> / <code>rigid</code> / <code>tipper</code>. 비우면 <code>all</code></td></tr>
+              <tr><td>B</td><td>그룹</td><td>같은 값끼리 한 묶음. 비우면 단독 코드</td></tr>
+              <tr><td>C</td><td><b>코드</b></td><td>필수. 비면 그 행은 무시</td></tr>
+              <tr><td>D</td><td>설명</td><td>화면 툴팁·상세 창에 표시</td></tr>
+              <tr><td>E</td><td>비고</td><td>참고용(로직에 영향 없음)</td></tr>
+            </tbody>
+          </table>
+
+          <h4><code>factory-control-codes.xlsx</code> — 공장관리코드 <span class="man-sheet">시트: FactoryControl</span></h4>
+          <table class="man-tb">
+            <thead><tr><th>열</th><th>내용</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td>유형</td><td><code>접두어</code>(prefix) 또는 <code>개별코드</code>(code)</td></tr>
+              <tr><td>B</td><td>코드 / 접두어</td><td>접두어는 <b>한 글자</b>만 유효. <code>-</code> 같은 안내 행은 무시</td></tr>
+              <tr><td>C</td><td>설명</td><td>참고용</td></tr>
+            </tbody>
+          </table>
+
+          <h4><code>cab.xlsx</code> — 캡 매핑</h4>
+          <p>A열 = WINGS 캡 코드, <b>C열</b> = SAM 캡 variant. 둘 다 있어야 매핑이 만들어집니다(대문자로 저장).</p>
+
+          <h4><code>model-category.xlsx</code> — 모델 카테고리</h4>
+          <p>A열 = Baumuster <b>앞 6자리</b>, B열 = <code>tractor</code> / <code>rigid</code> / <code>tipper</code>.
+             이 셋이 아닌 값은 무시됩니다.</p>
+
+          <h4><code>mbtruck-spec-data.xlsx</code> — 코드 사전 <span class="man-sheet">시트: code_dict</span></h4>
+          <p>B열 = 코드, C열 = 영문 설명. 화면의 코드 설명과 <b>숫자 없는 코드의 인식</b>에 함께 쓰입니다.</p>
+
+          <h4><code>model_mapping.xlsx</code> — 매칭 규칙 (<code>03. model_rules</code>)</h4>
+          <p>모든 시트가 <b>A열=키, B열=값</b> 구조입니다.</p>
+          <table class="man-tb">
+            <thead><tr><th>시트</th><th>역할</th></tr></thead>
+            <tbody>
+              <tr><td><code>정규화_과거번호</code></td><td>과거 모델번호를 현행 번호로 통일 (예 <code>3253 → 4153</code>)</td></tr>
+              <tr><td><code>이전모델</code> / <code>현재모델</code></td><td>세대 관계 표기</td></tr>
+              <tr><td><code>WINGS표시치환</code></td><td>WINGS 표기를 화면 표기로 치환</td></tr>
+              <tr><td><code>차종키워드</code></td><td>차종 판정 키워드 (값은 쉼표로 여러 개)</td></tr>
+              <tr><td><code>옵션</code></td><td><code>normalize_28xx_to_26xx</code> 등 on/off</td></tr>
+              <tr><td><code>인식모델_대조표</code></td><td><b>확인용 보기</b>. 열 때마다 다시 생성되므로 편집·저장 대상 아님</td></tr>
+            </tbody>
+          </table>
+          <div class="man-callout warn">
+            파일이 없거나 읽기에 실패하면 앱은 <b>내장 기본값으로 조용히 진행</b>합니다(빌드 로그에 경고만 남습니다).
+            “고쳤는데 반영이 안 된다” 싶으면 <b>파일명·시트명·열 위치</b>부터 확인하세요.
+          </div>
+        </section>
+
+        <!-- ===== 12 ===== -->
+        <section class="man-sec adm" id="m-12">
+          <div class="adm-badge">관리자용</div>
+          <h2>12 · 주의사항 · 한계</h2>
+          <h3>운영상 반드시 지킬 것</h3>
+          <ul class="man-ul">
+            <li><b>SAM 폴더 이름은 <code>YYYY-MM</code>으로 시작</b>해야 합니다. 아니면 그 달은 통째로 인식되지 않습니다.</li>
+            <li><b>WINGS 파일은 폴더에 최신 1개만 유효</b>합니다. “최신”은 <b>파일명의 13자리 타임스탬프 또는 <code>YYYY-MM-DD</code></b>가
+                1순위, 없으면 SharePoint 수정일이 2순위입니다. <b>파일명에 날짜를 넣어 두는 편이 안전합니다.</b></li>
+            <li>WINGS 파일에 <code>Commission no.</code> 열이 없으면 빌드가 <b>실패</b>합니다.</li>
+            <li>임시 파일(<code>~$…</code>)과 <code>.docx</code>가 아닌 파일은 무시됩니다.</li>
+            <li>기준표를 고쳤으면 <b>반드시 데이터 다시 계산</b>까지 해야 합니다.</li>
+          </ul>
+          <h3>알려진 한계</h3>
+          <ul class="man-ul">
+            <li><b>결과의 정확도는 SAM 문서 양식에 달려 있습니다.</b> 표 구조·섹션 제목이 바뀌면 코드 추출이 깨집니다.</li>
+            <li>코드 추출은 <b>텍스트 패턴 기반</b>이라, 설명문 안의 대문자 약어가 코드로 잡힐 여지가 있습니다
+                (숫자 없는 토큰은 사전 등록분만 통과시켜 이를 줄였습니다).</li>
+            <li>한 달에 여러 대가 있으면 이력관리는 <b>합집합</b>으로 봅니다. 차량별 차이는 <b>⚠</b> 배지로만 알려 줍니다.</li>
+            <li><b>동시 편집 병합이 없습니다.</b> 같은 Excel을 둘이 고치면 나중에 저장한 쪽으로 덮어집니다.</li>
+            <li>계산이 브라우저에서 돌기 때문에 SAM 문서가 많아질수록 빌드가 느려집니다. 도중에 탭을 닫으면 중단됩니다.</li>
+            <li>로그인 게이트는 <b>화면 보호(UX)</b>입니다. 사이트는 정적 호스팅이라 URL을 아는 사람은
+                배포 사본 데이터에 접근할 수 있습니다. <b>대외비 자료를 배포 사본에 담지 마세요.</b></li>
+            <li>회사망에서 외부 CDN이 차단되면 Excel 처리·로그인 라이브러리가 로드되지 않을 수 있습니다
+                (로컬 사본을 우선 사용하도록 되어 있습니다).</li>
+          </ul>
+        </section>
+
+        <!-- ===== 13 ===== -->
+        <section class="man-sec adm" id="m-13">
+          <div class="adm-badge">관리자용</div>
+          <h2>13 · 문제 해결(FAQ)</h2>
+          <table class="man-tb faq">
+            <thead><tr><th>증상</th><th>원인 / 조치</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>화면에 “출처: 배포 사본(빌드 결과 없음)”</td>
+                <td><code>05. output</code>을 읽지 못한 상태입니다. 로그인 여부와 SharePoint 권한을 확인하고
+                    <b>데이터 다시 계산</b>을 한 번 실행하세요.</td>
+              </tr>
+              <tr>
+                <td>특정 차량이 계속 <b>No SAM</b></td>
+                <td>① 생산월 폴더(및 직전 6개월)에 해당 모델 문서가 있는지 ② 모델 번호 표기가 다르면
+                    <code>model_mapping.xlsx</code>의 정규화 규칙 ③ <b>PTO 차량인데 PTO 문서가 없는 경우</b>(→ 10.3)
+                    ④ 문서가 파싱에 실패해 건너뛰어졌는지(빌드 로그 확인)</td>
+              </tr>
+              <tr>
+                <td>SAM 문서를 올렸는데 반영이 안 됨</td>
+                <td>폴더 이름이 <code>YYYY-MM</code>으로 시작하는지 확인 → <b>데이터 다시 계산</b> 실행</td>
+              </tr>
+              <tr>
+                <td>기준표를 고쳤는데 그대로임</td>
+                <td>저장 후 <b>데이터 다시 계산</b>을 하지 않았거나, 시트명·열 위치가 사양과 다릅니다(→ 11장)</td>
+              </tr>
+              <tr>
+                <td>엉뚱한 SAM 파일과 비교됨</td>
+                <td>모델 매칭 → <b>매칭 결과</b>에서 실제 붙은 파일을 확인하세요. 후보가 여러 개면
+                    캡·Baumuster·Subcategory 점수로 고릅니다(→ 10.2). 문서 본문의 Baumuster/캡 코드를 바로잡는 것이 가장 확실합니다.</td>
+              </tr>
+              <tr>
+                <td>저장 시 오류(403 / 권한)</td>
+                <td>해당 SharePoint 폴더 쓰기 권한이 없습니다. 사이트 관리자에게 요청하세요.</td>
+              </tr>
+              <tr>
+                <td>“엑셀 라이브러리를 불러오지 못했습니다”</td>
+                <td>사내망 차단 가능성. 새로고침 후 재시도하고, 계속되면 네트워크 담당자에게 문의하세요.</td>
+              </tr>
+              <tr>
+                <td>로그인 창이 계속 돌거나 실패</td>
+                <td>브라우저 팝업 차단을 해제하고, 시크릿 창/다른 브라우저로 확인해 보세요. 그래도 안 되면
+                    Entra 앱 등록의 Redirect URI 설정을 확인해야 합니다.</td>
+              </tr>
+              <tr>
+                <td>이력관리에서 없던 변경이 생긴 것처럼 보임</td>
+                <td>그 달에 사양이 다른 차량이 섞여 합집합이 커진 경우입니다. <b>⚠ 배지</b>를 확인하세요(→ 06장).</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- ===== 14 ===== -->
+        <section class="man-sec" id="m-14">
+          <h2>14 · 용어 사전</h2>
+          <table class="man-tb">
+            <thead><tr><th>용어</th><th>뜻</th></tr></thead>
+            <tbody>
+              <tr><td><b>SAM</b></td><td>영업 견적 시스템. 여기서는 <b>Internal quotation .docx</b> 문서를 가리킵니다</td></tr>
+              <tr><td><b>WINGS / AFAB</b></td><td>주문·생산 관리 시스템에서 내려받은 주문 목록(export)</td></tr>
+              <tr><td><b>Commission no.</b></td><td>차량 1대를 가리키는 주문 번호</td></tr>
+              <tr><td><b>Baumuster</b></td><td>공장 모델 코드(숫자). 앞 6자리로 카테고리를 판정합니다</td></tr>
+              <tr><td><b>Changeability</b></td><td>사양을 바꿀 수 있는 마지막 날짜. 이후에는 수정 불가</td></tr>
+              <tr><td><b>Mandatory code</b></td><td>해당 카테고리 차량에 반드시 들어가야 하는 코드</td></tr>
+              <tr><td><b>Factory Control code</b></td><td>공장 관리용 코드. 차이가 나도 <b>불일치로 보지 않습니다</b></td></tr>
+              <tr><td><b>PTO</b></td><td>동력 인출 장치. 있고 없고가 사양을 크게 가르므로 매칭에서 엄격히 구분합니다</td></tr>
+              <tr><td><b>Cab variant</b></td><td>SAM 문서·파일명에 쓰이는 캡 표기(예 <code>G5F</code>)</td></tr>
+              <tr><td><b>MY</b></td><td>모델이어. 코드 <code>V8Q~V8Z</code>로 판정</td></tr>
+              <tr><td><b>SAM update요청</b></td><td>생산월 폴더에 문서가 없어 이전 달 문서로 대신 비교했다는 표시</td></tr>
+            </tbody>
+          </table>
+          <div class="man-callout tip">
+            이 문서에서 답을 찾지 못한 내용은 <b>제품팀(Product Management)</b>으로 문의해 주세요.
+          </div>
+        </section>
+
+        <div class="man-foot">SAM × AFAB Dashboard · 사용자 매뉴얼</div>
+      </article>
+    </section>
   </main>
 
   <!-- Detail drawer (대시보드 행 상세) -->
@@ -336,7 +1058,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260815a';
+      a.src = 'auth.js?v=20260817e';
       document.body.appendChild(a);
     }
     function tryCdn(i) {
