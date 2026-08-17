@@ -117,8 +117,11 @@ const I18N = {
     'hist.src.wings': 'WINGS 코드',
     'hist.src.sam': 'SAM 코드',
     'hist.src.both': 'WINGS + SAM 대조',
-    'hist.xTitle': '이 달 WINGS↔SAM 차이 — WINGS 에만: {w} / SAM 에만: {s}',
-    'hist.xNone': '이 달 WINGS 와 SAM 의 코드가 같습니다.',
+    'hist.xTitle': '그 달 전체 코드 — WINGS 에만: {w} / SAM 에만: {s}',
+    'hist.xNone': '그 달 전체 코드는 WINGS 와 SAM 이 같습니다.',
+    'hist.xDelta': '변경 내역 — WINGS 에만: {w} / SAM 에만: {s}',
+    'hist.xDeltaSame': '변경 내역이 WINGS 와 SAM 이 같습니다.',
+    'hist.xBase': '두 소스 모두 이 달이 첫 생산월(기준)입니다.',
     'hist.xOk': '일치',
     'hist.xBad': '불일치',
     'hist.basis.title': '각 달의 코드를 무엇과 비교할지',
@@ -308,8 +311,11 @@ const I18N = {
     'hist.src.wings': 'WINGS codes',
     'hist.src.sam': 'SAM codes',
     'hist.src.both': 'WINGS + SAM cross-check',
-    'hist.xTitle': 'WINGS↔SAM this month — only in WINGS: {w} / only in SAM: {s}',
+    'hist.xTitle': 'All codes this month — only in WINGS: {w} / only in SAM: {s}',
     'hist.xNone': 'WINGS and SAM carry the same codes this month.',
+    'hist.xDelta': 'Changes — only in WINGS: {w} / only in SAM: {s}',
+    'hist.xDeltaSame': 'WINGS and SAM changed the same way this month.',
+    'hist.xBase': 'This is the first production month for both sources (baseline).',
     'hist.xOk': 'match',
     'hist.xBad': 'mismatch',
     'hist.basis.title': 'What each month is compared against',
@@ -1659,18 +1665,36 @@ function histMonthLabel(m) {
   return { top: y, main: LANG === 'ko' ? num + '월' : m };
 }
 
+// 그 달의 WINGS↔SAM 대조 — 배지는 바로 아래 두 줄(WINGS·SAM)의 변경 내역이 같은지를 말한다.
+// 화면에 보이는 것과 배지가 늘 맞아떨어지게 하려는 것. 다만 '변경 내역이 같다'와 '그 달 코드가
+// 같다'는 다른 이야기라(기준이 되는 달이 이미 갈려 있으면 변화만 같을 수 있다) 그 달 전체 코드의
+// 차이(Only_in_*, 대시보드 미스매치와 같은 기준)는 툴팁 둘째 줄에 함께 적어 둔다.
+function histXOf(cell) {
+  const sig = (d) => d.added.map((c) => '＋' + c).concat(d.removed.map((c) => '−' + c));
+  let same, first;
+  if (cell.base) {
+    same = true;
+    first = t('hist.xBase');
+  } else {
+    const a = sig(cell.wings), b = sig(cell.sam);
+    const onlyW = a.filter((x) => !b.includes(x));
+    const onlyS = b.filter((x) => !a.includes(x));
+    same = !onlyW.length && !onlyS.length;
+    first = same ? t('hist.xDeltaSame')
+      : t('hist.xDelta', { w: onlyW.join(', ') || '—', s: onlyS.join(', ') || '—' });
+  }
+  const second = (cell.onlyW.length || cell.onlyS.length)
+    ? t('hist.xTitle', { w: cell.onlyW.join(', ') || '—', s: cell.onlyS.join(', ') || '—' })
+    : t('hist.xNone');
+  return { same, tip: first + '\n' + second };
+}
+
 // 그 달 아래 붙는 WINGS↔SAM 일치/불일치 띠 — 월 머리글 바로 다음 줄.
 function histXHeadHtml(cell) {
   if (!cell) return `<th class="hist-xcell off"></th>`;
-  if (cell.onlyW.length || cell.onlyS.length) {
-    const tip = t('hist.xTitle', {
-      w: cell.onlyW.join(', ') || '—', s: cell.onlyS.join(', ') || '—',
-    });
-    return `<th class="hist-xcell"><span class="hist-x bad" title="${esc(tip)}">` +
-      `${esc(t('hist.xBad'))}</span></th>`;
-  }
-  return `<th class="hist-xcell"><span class="hist-x ok" title="${esc(t('hist.xNone'))}">` +
-    `${esc(t('hist.xOk'))}</span></th>`;
+  const x = histXOf(cell);
+  return `<th class="hist-xcell"><span class="hist-x ${x.same ? 'ok' : 'bad'}" ` +
+    `title="${esc(x.tip)}">${esc(t(x.same ? 'hist.xOk' : 'hist.xBad'))}</span></th>`;
 }
 
 // commission 줄 — 셀 폭을 좁게 유지하려고 대표 1건만 칩으로 보여주고,
@@ -1871,11 +1895,10 @@ function histExportXlsx() {
         if (cell[src].varied.length) lines.push(histVariedText(cell[src].varied));
       }
       // 크로스체크(그 달 WINGS↔SAM 차이)도 함께 내보낸다.
-      if (both && (cell.onlyW.length || cell.onlyS.length)) {
-        lines.push(t('hist.xBad') + ' — ' + t('hist.xTitle', {
-          w: cell.onlyW.join(', ') || '—', s: cell.onlyS.join(', ') || '—',
-        }));
-      } else if (both) lines.push(t('hist.xOk'));
+      if (both) {
+        const x = histXOf(cell);
+        lines.push(t(x.same ? 'hist.xOk' : 'hist.xBad') + ' — ' + x.tip.split('\n').join(' / '));
+      }
       return { v: lines.join('\n'), s: 3 };
     })));
   }
