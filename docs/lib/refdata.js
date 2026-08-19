@@ -141,7 +141,13 @@
       else codes.add(val);
     }
     if (!prefixes.size && !codes.size) return fallback;
-    return { prefixes: prefixes, codes: codes, excepts: excepts };
+    // '예외' 행이 하나도 없는(옛 양식) 워크북이면 기본 예외를 그대로 쓴다.
+    // 한 줄이라도 적어 두면 워크북 쪽이 전부 이긴다.
+    return {
+      prefixes: prefixes,
+      codes: codes,
+      excepts: excepts.size ? excepts : new Set(FC_DEFAULTS.excepts),
+    };
   }
 
   // ---- model_mapping.xlsx : 모든 매칭 규칙 (rules.py 와 동일 시트명) ----
