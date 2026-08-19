@@ -138,6 +138,7 @@
             <div class="mode-switch" id="matchPane">
               <button type="button" data-pane="result" class="active" data-i18n="matching.paneResult">매칭 결과</button>
               <button type="button" data-pane="sheet" data-i18n="matching.paneSheet">대조표</button>
+              <button type="button" data-pane="diag" data-i18n="matching.paneDiag">진단</button>
             </div>
             <a id="matchFolderLink" class="icon-btn" target="_blank" rel="noopener" data-i18n="btn.openFolder">📂 SharePoint 폴더 열기</a>
           </div>
@@ -166,6 +167,21 @@
           </div>
           <div class="ms-scroll">
             <table class="ms-grid" id="matchSumGrid"><thead></thead><tbody></tbody></table>
+          </div>
+        </section>
+
+        <!-- 진단: 붙지 않은 SAM 문서와 생산월별 주문 수. 매칭 결과에는 주문에 붙은 문서만
+             나오므로, 넣었는데 안 쓰인 문서는 여기서만 보인다. -->
+        <section class="match-sum hidden" id="matchDiag">
+          <div class="controls ms-filters">
+            <span class="pane-hint" data-i18n="matching.diagSub">넣었는데 어떤 주문에도 안 붙은 SAM 문서와, 생산월별 WINGS 주문 수입니다.</span>
+            <span id="matchDiagCount" class="count"></span>
+          </div>
+          <div class="controls ms-filters">
+            <input type="search" id="mdSearch" data-i18n-ph="match.searchPh" placeholder="모델 / SAM 파일 검색&hellip;" />
+          </div>
+          <div class="ms-scroll">
+            <table class="ms-grid" id="matchDiagGrid"><thead></thead><tbody></tbody></table>
           </div>
         </section>
 
@@ -663,7 +679,15 @@
           <div class="man-callout warn">
             규칙을 고쳐 저장해도 <b>화면은 바로 바뀌지 않습니다</b>. <b>⟳ 데이터 다시 계산</b>을 눌러야 반영됩니다.
           </div>
-          <h3>미매칭_진단 — 왜 안 붙었나</h3>
+          <h3>진단 탭 — 왜 안 붙었나</h3>
+          <p>
+            <b>매칭 결과</b> 표에는 <b>주문에 붙은</b> SAM 문서만 나옵니다. 넣었는데 아무 주문도 쓰지
+            않은 문서는 거기 흔적이 없어 영영 보이지 않습니다 — 그런 문서는 위 <b>진단</b> 탭에서 봅니다.
+            문서가 무슨 모델키로 읽혔는지, PTO 로 봤는지, 그 생산월 주문이 몇 건인지가 한 줄에 있습니다.
+            아래 워크북 시트와 같은 내용이라 엑셀을 열지 않아도 됩니다.
+          </p>
+
+          <h3>미매칭_진단 — 워크북에서 보기</h3>
           <p>
             <b>⟳ 데이터 다시 계산</b>은 끝나면서 이 워크북을 SharePoint 에 다시 씁니다. 규칙 시트는 그대로 두고
             <code>인식모델_대조표</code>와 <code>미매칭_진단</code>만 이번 결과로 갈아 끼웁니다.
@@ -1093,7 +1117,7 @@
   <script src="lib/wingsparse.js?v=20260724b"></script>
   <script src="lib/refdata.js?v=20260819c"></script>
   <script src="lib/compare.js?v=20260819c"></script>
-  <script src="lib/pipeline.js?v=20260819e"></script>
+  <script src="lib/pipeline.js?v=20260819f"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
@@ -1107,7 +1131,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260819e';
+      a.src = 'auth.js?v=20260819f';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

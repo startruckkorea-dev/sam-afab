@@ -337,6 +337,16 @@
         sam_months: Object.keys(samMaps).map(Number).sort((a, b) => a - b),
       },
       rows: rows,
+      // 진단을 결과에 같이 실어 둔다 — 안 붙은 SAM 문서는 rows 에 흔적이 없어서,
+      // 여기 없으면 빌드한 사람의 브라우저를 벗어나는 순간 사라진다.
+      diagnostics: {
+        sam_months: diag.samMonths.map((m) => ({
+          name: m.name, yyyymm: m.yyyymm, files: m.files, parsed: m.parsed, keys: m.keys })),
+        sam_skipped: diag.samSkipped,
+        sam_unused: diag.samUnused,
+        orders_by_month: diag.ordersByMonth,
+        orders_no_date: diag.ordersNoDate,
+      },
     };
 
     const groups = {};

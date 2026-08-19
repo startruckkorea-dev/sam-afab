@@ -155,6 +155,21 @@ const I18N = {
     // 모델 매칭
     'matching.title': '모델 매칭',
     'matching.sub': 'SAM ↔ WINGS 모델 인식 — 규칙은 model_mapping.xlsx',
+    'matching.paneDiag': '진단',
+    'matching.diagSub': '넣었는데 어떤 주문에도 안 붙은 SAM 문서와, 생산월별 WINGS 주문 수입니다.',
+    'match.diagKind': '구분',
+    'match.diagKeys': '읽힌 모델키',
+    'match.diagWhere': '생산월 폴더',
+    'match.diagOrders': '그 달 주문',
+    'match.diagWhy': '원인 · 다음 할 일',
+    'match.diagUnused': '안 붙은 SAM 문서',
+    'match.diagSkipped': '건너뛴 SAM 파일',
+    'match.diagMonth': '생산월 폴더',
+    'match.diagNoOrders': '그 생산월 WINGS 주문이 0건 — 주문이 들어오면 자동으로 붙습니다(파일·규칙 문제 아님).',
+    'match.diagNotPicked': '그 달 주문 {n}건 중 이 문서를 고른 것이 없음 — 모델키 또는 PTO·캡이 주문과 갈렸는지 확인하세요.',
+    'match.diagMonthWhy': '{parsed}/{files} 파일을 읽었고 모델키 {keys}개를 인식했습니다.',
+    'match.diagCount': '{n} / {total} 건',
+    'match.diagOld': '이 데이터에는 진단 정보가 없습니다 — ⟳ 데이터 다시 계산을 한 번 실행하세요.',
     'matching.paneResult': '매칭 결과',
     'matching.paneSheet': '대조표',
     'matching.loading': 'model_mapping.xlsx 를 불러오는 중…',
@@ -360,6 +375,21 @@ const I18N = {
     'hist.exportTitleRow': 'Code history — {my} · {src} · {basis}',
     'matching.title': 'Model Matching',
     'matching.sub': 'SAM ↔ WINGS model recognition — rules live in model_mapping.xlsx',
+    'matching.paneDiag': 'Diagnostics',
+    'matching.diagSub': 'SAM documents no order used, and the WINGS order count per production month.',
+    'match.diagKind': 'Kind',
+    'match.diagKeys': 'Model keys read',
+    'match.diagWhere': 'Month folder',
+    'match.diagOrders': 'Orders that month',
+    'match.diagWhy': 'Cause · what to do',
+    'match.diagUnused': 'Unused SAM document',
+    'match.diagSkipped': 'Skipped SAM file',
+    'match.diagMonth': 'Month folder',
+    'match.diagNoOrders': 'No WINGS order for that production month — it will attach on its own once orders arrive.',
+    'match.diagNotPicked': 'None of that month’s {n} orders picked this document — check the model key, PTO or cab against the orders.',
+    'match.diagMonthWhy': 'Read {parsed} of {files} files and recognized {keys} model keys.',
+    'match.diagCount': '{n} of {total}',
+    'match.diagOld': 'This data carries no diagnostics — run ⟳ Recompute Data once.',
     'matching.paneResult': 'Matching result',
     'matching.paneSheet': 'Recognition table',
     'matching.loading': 'Loading model_mapping.xlsx…',
@@ -639,6 +669,7 @@ function applyData(d, c) {
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
   if (VIEW_INIT.matching) {
     renderMatchSummary();
+    renderMatchDiag();
     // 대조표는 이 데이터로 만드는 보기라, 다시 계산했으면 열려 있는 시트도 새로 그린다.
     refreshRecognitionSheet(matchEditor.S);
     matchEditor.refresh();
@@ -2738,17 +2769,21 @@ function initMatching() {
       if (b) showMatchPane(b.dataset.pane);
     });
   }
+  const mdS = $('#mdSearch');
+  if (mdS) mdS.addEventListener('input', renderMatchDiag);
   showMatchPane(localStorage.getItem('matchPane') || 'result');
   renderMatchSummary();
 }
 
-// 매칭 결과 / 대조표는 한 번에 하나만 — 보이는 쪽이 화면 높이를 다 쓴다.
+// 매칭 결과 / 대조표 / 진단은 한 번에 하나만 — 보이는 쪽이 화면 높이를 다 쓴다.
 function showMatchPane(name) {
-  const which = name === 'sheet' ? 'sheet' : 'result';
+  const which = ['sheet', 'diag'].indexOf(name) !== -1 ? name : 'result';
   localStorage.setItem('matchPane', which);
-  const sum = $('#matchSum'), ed = $('#matchEditor');
+  const sum = $('#matchSum'), ed = $('#matchEditor'), dg = $('#matchDiag');
   if (sum) sum.classList.toggle('hidden', which !== 'result');
   if (ed) ed.classList.toggle('hidden', which !== 'sheet');
+  if (dg) dg.classList.toggle('hidden', which !== 'diag');
+  if (which === 'diag') renderMatchDiag();
   const pane = $('#matchPane');
   if (pane) {
     pane.querySelectorAll('button[data-pane]').forEach((b) =>
@@ -2905,6 +2940,51 @@ function renderMatchSummary() {
     if (MS_OPEN.has(g.key)) MS_OPEN.delete(g.key); else MS_OPEN.add(g.key);
     renderMatchSummary();
   }));
+}
+
+// ---- 진단 패널 ----
+// 매칭 결과에는 '주문에 붙은' SAM 문서만 나온다. 넣었는데 안 쓰인 문서는 rows 에 흔적이
+// 없어서 그 화면에서는 영원히 안 보인다 — 그래서 따로 보여 준다.
+function renderMatchDiag() {
+  const table = $('#matchDiagGrid');
+  if (!table) return;
+  const g = (DATA && DATA.diagnostics) || null;
+  const cnt = $('#matchDiagCount');
+  const q = (($('#mdSearch') || {}).value || '').trim().toLowerCase();
+  if (!g) {
+    table.querySelector('thead').innerHTML = '';
+    table.querySelector('tbody').innerHTML =
+      `<tr><td class="none">${esc(t('match.diagOld'))}</td></tr>`;
+    if (cnt) cnt.textContent = '';
+    return;
+  }
+  const rows = [];
+  for (const u of (g.sam_unused || [])) {
+    const keys = (u.keys || []).join(', ');
+    rows.push({ kind: t('match.diagUnused'), a: keys, b: u.pto ? 'PTO' : '', c: u.month,
+      file: u.file, n: u.orders,
+      why: u.orders === 0 ? t('match.diagNoOrders') : t('match.diagNotPicked', { n: u.orders }) });
+  }
+  for (const sk of (g.sam_skipped || [])) {
+    rows.push({ kind: t('match.diagSkipped'), a: '', b: '', c: sk.month, file: sk.file,
+      n: '', why: sk.reason });
+  }
+  for (const m of (g.sam_months || [])) {
+    const orders = (g.orders_by_month || {})[m.yyyymm] || 0;
+    rows.push({ kind: t('match.diagMonth'), a: '', b: '', c: m.name, file: '',
+      n: orders, why: t('match.diagMonthWhy', { parsed: m.parsed, files: m.files, keys: m.keys.length }) });
+  }
+  const shown = rows.filter((r) => !q
+    || [r.kind, r.a, r.c, r.file, r.why].join(' ').toLowerCase().includes(q));
+  if (cnt) cnt.textContent = t('match.diagCount', { n: shown.length, total: rows.length });
+  table.querySelector('thead').innerHTML = '<tr>'
+    + [t('match.diagKind'), t('match.diagKeys'), 'PTO', t('match.diagWhere'), t('match.samFile'),
+      t('match.diagOrders'), t('match.diagWhy')].map((h) => `<th>${esc(h)}</th>`).join('') + '</tr>';
+  table.querySelector('tbody').innerHTML = shown.length
+    ? shown.map((r) => `<tr><td>${esc(r.kind)}</td><td>${esc(r.a)}</td><td>${esc(r.b)}</td>`
+      + `<td>${esc(r.c)}</td><td class="ms-file"><span title="${esc(r.file)}">${esc(r.file)}</span></td>`
+      + `<td class="num">${esc(String(r.n))}</td><td>${esc(r.why)}</td></tr>`).join('')
+    : `<tr><td class="none">${esc(t('match.noHit'))}</td></tr>`;
 }
 
 // 상태 뱃지(Match / Mismatch / No SAM 대수) — 모델 줄과 문서 줄이 같이 쓴다.
