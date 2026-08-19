@@ -1116,7 +1116,7 @@
   <script src="lib/samparse.js?v=20260819c"></script>
   <script src="lib/wingsparse.js?v=20260724b"></script>
   <script src="lib/refdata.js?v=20260819c"></script>
-  <script src="lib/compare.js?v=20260819c"></script>
+  <script src="lib/compare.js?v=20260819g"></script>
   <script src="lib/pipeline.js?v=20260819f"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
@@ -1131,7 +1131,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260819f';
+      a.src = 'auth.js?v=20260819g';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

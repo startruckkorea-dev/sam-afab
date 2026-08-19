@@ -213,7 +213,9 @@
       // WINGS 쪽 캡·PTO — 주문에 실제로 걸린 코드에서 찾는다.
       const expectedCabs = cabsIn(wingsCodes);
       const wingsPtoCodes = ptoCodesIn(wingsCodes);
-      let isPto = wingsPtoCodes.size > 0 || !!r['WINGS_has_pto'];
+      // WINGS_has_pto 는 주문 사양 텍스트에서 'PTO' 낱말을 찾는 스캔이다 — SAM 쪽에서
+      // 걷어낸 그 글자 추측이 여기 남아 있었다. 양쪽 다 코드 표로만 정한다.
+      let isPto = wingsPtoCodes.size > 0;
 
       function entryForKey(map, key, pto) {
         const cand = map.get(key);
@@ -241,15 +243,12 @@
           if (cabOk(pick(e, localPto, wingsBm, wingsSub, expectedCabs), expectedCabs)) { entry = e; ok = true; break; }
         }
         if (!ok && fbEntry !== null) entry = fbEntry;
-        // PTO 보정: WINGS 코드에 PTO 변형에만 있는 코드가 있으면 PTO 로 본다.
-        if (!localPto && entry && entry['true'] && entry['false']) {
-          const ptoData = pick(entry, true, wingsBm, wingsSub);
-          const nptoData = pick(entry, false, wingsBm, wingsSub);
-          if (ptoData && nptoData) {
-            const ptoUnique = setDiff(ptoData.codes, nptoData.codes);
-            if (setInter(wingsCodes, ptoUnique).size) localPto = true;
-          }
-        }
+        // 예전에는 여기서 'PTO 보정'을 했다 — PTO본에만 있고 비PTO본에는 없는 코드를
+        // 주문이 하나라도 가지면 그 주문을 PTO 로 뒤집었다. 두 견적서는 PTO 장치 말고도
+        // 여러 코드가 다르기 때문에, PTO 가 전혀 없는 주문까지 PTO 로 넘어가 비PTO SAM 을
+        // 두고도 PTO SAM 과 비교됐다(그 달 비PTO 문서는 통째로 안 쓰인 채 남았다).
+        // 이제 PTO 는 양쪽 다 pto-codes.xlsx 로만 정한다 — 주문에 PTO 코드가 있으면 이미
+        // 위에서 PTO 이므로, 뒤집을 일이 없다.
         const data = pick(entry, localPto, wingsBm, wingsSub, expectedCabs);
         return { data: data, pto: localPto };
       }
@@ -336,7 +335,9 @@
       const samCabs = samCodes.size ? cabsIn(samCodes) : new Set();
       if (!samCabs.size && fileCab) samCabs.add(fileCab);
       const samPtoCodes = ptoCodesIn(samCodes);
-      const samPto = samPtoCodes.size > 0 || filePto;
+      // 매칭된 SAM 의 PTO 여부도 코드로 정한다. 파일명은 라벨일 뿐이라, 'PTO' 가 이름에
+      // 들어갔다는 이유로 목록의 PTO 칸이 켜지면 화면과 판정이 서로 다른 말을 하게 된다.
+      const samPto = samPtoCodes.size > 0;
       // 목록에 한 값만 보여야 하므로 WINGS 기준을 쓰고, WINGS 에 신호가 없으면 SAM 값을 쓴다.
       const cabCode = sortedArr(expectedCabs)[0] || sortedArr(samCabs)[0] || '';
       const ptoFlag = (isPto || samPto) ? 'PTO' : '';

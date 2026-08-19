@@ -282,7 +282,9 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         # Cab + PTO come from the codes the order actually carries, not the filename.
         expected_cabs = _cabs_in(wings_codes)
         wings_pto_codes = _pto_codes_in(wings_codes, _allcode_custom)
-        is_pto = bool(wings_pto_codes) or bool(r.get('WINGS_has_pto', False))
+        # WINGS_has_pto is a 'PTO' scan over the order's raw spec text — the same
+        # text guessing the SAM side dropped. The code table decides, on both sides.
+        is_pto = bool(wings_pto_codes)
 
         # Find the SAM entry whose model matches, scanning months by production-date
         # proximity. Normally the nearest month with a candidate wins, BUT a cab-correct
@@ -330,14 +332,13 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
             if sam_entry:
                 break
 
-        # Refine PTO: if WINGS has a code unique to the PTO SAM variant.
-        if not is_pto and isinstance(sam_entry, dict) and True in sam_entry and False in sam_entry:
-            _pto_data = _pick(sam_entry, True, wings_bm, wings_sub)
-            _npto_data = _pick(sam_entry, False, wings_bm, wings_sub)
-            if _pto_data and _npto_data:
-                pto_unique = _pto_data['codes'] - _npto_data['codes']
-                if wings_codes & pto_unique:
-                    is_pto = True
+        # There used to be a 'refine PTO' step here: if the order carried any code the
+        # PTO quotation had and the non-PTO one lacked, the order was flipped to PTO.
+        # The two quotations differ in more than the PTO gear, so orders with no PTO at
+        # all were flipped and compared against the PTO document while the month's
+        # non-PTO document sat unused. PTO is decided by pto-codes.xlsx on both sides
+        # now — an order carrying a PTO code is already PTO above, so there is nothing
+        # left to refine, only false positives to create.
 
         # Best auto-matched candidate for this row.
         sam_data = _pick(sam_entry, is_pto, wings_bm, wings_sub, expected_cabs)
@@ -418,7 +419,9 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         if not sam_cabs and _file_cab:
             sam_cabs = {_file_cab}
         sam_pto_codes = _pto_codes_in(sam_codes, _allcode_custom)
-        sam_pto = bool(sam_pto_codes) or _file_pto
+        # Codes decide this too — the filename is a label, and letting it light up the
+        # PTO column made the screen disagree with the matching.
+        sam_pto = bool(sam_pto_codes)
         # The list shows one value per column: WINGS first, SAM when WINGS is silent.
         _cab_code = (sorted(expected_cabs) or sorted(sam_cabs) or [''])[0]
         _pto_flag = 'PTO' if (is_pto or sam_pto) else ''
