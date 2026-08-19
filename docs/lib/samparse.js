@@ -79,12 +79,11 @@
    * SAM .docx 한 개 파싱.
    * @param {ArrayBuffer|Uint8Array} buf  .docx 바이트
    * @param {string} name                파일명
-   * @param {object} ctx  { codeDesc: {code:desc}, knownCodes: Set }
+   * @param {object} ctx  { knownCodes: Set, ptoCodes: {codes:Set, excepts:Set} }
    * @returns {object|null} 파싱 결과(코드가 없으면 null)
    */
   async function parseSamDocx(buf, name, ctx) {
     ctx = ctx || {};
-    const codeDesc = ctx.codeDesc || {};
     const knownCodes = ctx.knownCodes || new Set();
 
     let modelRaw = null;
@@ -185,22 +184,16 @@
 
     if (!((modelNow || modelBaumuster) && codes.size)) return null;
 
-    // 코드 설명이 PTO 옵션을 가리키는가 — compare.js 의 isPtoDesc 와 같은 규칙.
-    // 대문자 PTO('EnginePTO') · 낱말 Pto('Pto parameterised') · 풀어 쓴 'Power take-off'.
-    // 'adaptor' 의 소문자 pto 는 걸리지 않는다.
-    const isPtoDesc = (desc) => {
-      const d = String(desc || '');
-      return d.indexOf('PTO') !== -1
-        || /(?<![A-Za-z])pto(?![A-Za-z])/i.test(d)
-        || /power[ -]*take[ -]*off/i.test(d);
-    };
     // --- PTO 판정 ---
+    // 문서가 실제로 갖고 있는 코드만 본다. 기준은 pto-codes.xlsx (ctx.ptoCodes) 한 곳 —
+    // 본문에 'PTO' 라는 낱말이 스쳐 나오거나 파일명에 PTO 가 붙었다는 이유로 넘기지 않는다.
+    // 그런 폴백은 PTO 가 달리지 않은 견적서까지 PTO 로 만들어, 그 달의 비PTO 후보를
+    // 통째로 비워 버렸다. WINGS 주문도 같은 표로 판정하므로 양쪽이 대칭이다.
+    const ptoTable = ctx.ptoCodes || { codes: new Set(), excepts: new Set() };
     let isPto = false;
     for (const c of codes) {
-      if (isPtoDesc(codeDesc[c])) { isPto = true; break; }
+      if (ptoTable.codes.has(c) && !ptoTable.excepts.has(c)) { isPto = true; break; }
     }
-    if (!isPto && fullText && /\bPTO\b/i.test(fullText)) isPto = true;
-    if (!isPto && /\bPTO\b/i.test(name)) isPto = true;
 
     return {
       codes: codes, paint: paint, tyre: tyre, file: name,
@@ -216,43 +209,17 @@
    * @param {object} rules  { reverse_aliases: {num: [alias,...]} }
    * @returns {Map} key -> { true/false(PTO) -> [data, ...] }
    */
-  const RE_NAME_PTO = /(?<![A-Za-z])PTO(?![A-Za-z])/i;
-
   function buildSamMapping(parsed, rules) {
     const mapping = new Map();
-    const keysOf = (d) => {
+    for (const d of parsed) {
+      if (!d) continue;
       const keys = new Set();
       const a = normalizeModel(d.model_now); if (a) keys.add(a);
       const b = normalizeModel(d.model_baumuster); if (b) keys.add(b);
-      return keys;
-    };
-
-    // PTO 변형을 파일명으로 갈라 둔 모델키를 찾는다.
-    // is_pto 는 '문서에 PTO 관련 코드가 하나라도 있나' 라서, PTO 변형이 아닌 견적서도
-    // 표준장비에 PTO 코드가 하나 끼면 PTO 로 넘어간다 — 그러면 같은 달의 비PTO 후보가
-    // 통째로 비어 그 달 주문이 지난달 문서로 밀린다. 작성자가 파일명으로 '...PTO' 를
-    // 갈라 둔 모델키에서는 그 파일명을 변형 구분의 기준으로 삼는다.
-    const namedPair = new Set();
-    const seen = new Map();                    // key -> { named: bool, plain: bool }
-    for (const d of parsed) {
-      if (!d) continue;
-      const named = RE_NAME_PTO.test(String(d.file || ''));
-      for (const k of keysOf(d)) {
-        if (!seen.has(k)) seen.set(k, { named: false, plain: false });
-        const e = seen.get(k);
-        if (named) e.named = true; else e.plain = true;
-        if (e.named && e.plain) namedPair.add(k);
-      }
-    }
-
-    for (const d of parsed) {
-      if (!d) continue;
-      const named = RE_NAME_PTO.test(String(d.file || ''));
-      for (const k of keysOf(d)) {
+      for (const k of keys) {
         if (!mapping.has(k)) mapping.set(k, {});
         const byPto = mapping.get(k);
-        const pto = namedPair.has(k) ? named : d.is_pto;
-        const flag = pto ? 'true' : 'false';
+        const flag = d.is_pto ? 'true' : 'false';
         if (!byPto[flag]) byPto[flag] = [];
         byPto[flag].push(d);
       }

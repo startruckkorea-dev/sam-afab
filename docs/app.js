@@ -259,6 +259,9 @@ const I18N = {
     'build.step.ref': '참조 워크북(코드·매칭 규칙) 읽는 중…',
     'build.step.upload': '결과를 SharePoint 에 저장하는 중…',
     'build.step.mapping': '모델 매핑 워크북(model_mapping.xlsx) 갱신 중…',
+    'build.pto.created': 'PTO 코드 목록이 없어 {file} 을 만들었습니다 — PTO코드 {n}개 · 제외 {ex}개. '
+      + '코드 관리에서 검토하세요.',
+    'build.pto.fail': 'PTO 코드 워크북 생성 실패(내장 기본값으로 진행): {err}',
     'build.mapping.done': '{file} 갱신 — 인식모델 {recog}행 · 미매칭_진단 {diag}행. SharePoint 에 저장했습니다.',
     'build.mapping.fail': '모델 매핑 워크북 갱신 실패(비교 결과는 저장됨): {err}',
     'build.done': '빌드 완료 — {rows}행 (일치 {match} / 불일치 {mismatch}). SharePoint 에 저장했습니다.',
@@ -460,6 +463,9 @@ const I18N = {
     'build.step.ref': 'Reading reference workbooks (codes, matching rules)…',
     'build.step.upload': 'Saving the result to SharePoint…',
     'build.step.mapping': 'Refreshing the model mapping workbook (model_mapping.xlsx)…',
+    'build.pto.created': 'No PTO code list found — created {file} with {n} PTO codes and {ex} exclusions. '
+      + 'Review it in the Code Manager.',
+    'build.pto.fail': 'Could not create the PTO code workbook (using built-in defaults): {err}',
     'build.mapping.done': 'Updated {file} — {recog} recognized models, {diag} diagnostic rows. Saved to SharePoint.',
     'build.mapping.fail': 'Could not refresh the model mapping workbook (comparison was still saved): {err}',
     'build.done': 'Build complete — {rows} rows ({match} match / {mismatch} mismatch). Saved to SharePoint.',
@@ -2606,6 +2612,31 @@ function ruleSeedAoa(key, headers) {
   return aoa;
 }
 
+// ---- pto-codes.xlsx 가 없으면 기본값으로 만들어 둔다 ----
+// PTO 판정 기준은 이 워크북 하나다. 파일이 없으면 앱은 내장 기본값으로 조용히 돌지만,
+// 그러면 코드 관리 화면에 뜨지 않아 사람이 검토할 수가 없다. 그래서 한 번은 만들어 준다.
+// 이미 있으면 손대지 않는다 — 사람이 분류한 내용을 덮어쓰면 안 되기 때문.
+const PTO_CODES_FILE = 'pto-codes.xlsx';
+async function ensurePtoCodesWorkbook() {
+  const items = await Graph.list('code');
+  if (items.some((it) => !it.isFolder && it.name.toLowerCase() === PTO_CODES_FILE)) return null;
+  const d = (window.RefData && RefData.PTO_DEFAULTS) || { codes: [], excepts: [] };
+  const desc = (CODES && CODES.options) || {};
+  const aoa = [['유형(Type)', '코드(Code)', '설명(Description)', '비고(Note)']];
+  for (const c of d.codes) aoa.push(['PTO코드(pto)', c, desc[c] || '', 'PTO 판정에 사용']);
+  for (const c of d.excepts) {
+    aoa.push(['제외(except)', c, desc[c] || '', 'PTO 관련이지만 판정에서 제외 — 준비·제어 코드']);
+  }
+  aoa.push([]);
+  aoa.push(['※ WINGS 주문·SAM 견적서 양쪽 모두 여기 "PTO코드" 를 하나라도 가지면 PTO 로 봅니다. '
+    + 'PTO 차량과 비PTO 차량은 서로 비교하지 않으므로, 이 목록이 곧 매칭 기준입니다. '
+    + '준비/제어 코드처럼 PTO 가 없는 차에도 붙는 코드는 "제외(except)" 로 두세요.']);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'PTO');
+  await Graph.upload('code', PTO_CODES_FILE, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+  return { name: PTO_CODES_FILE, codes: d.codes.length, excepts: d.excepts.length };
+}
+
 // ---- 빌드 결과로 model_mapping.xlsx 를 다시 만들어 SharePoint 에 올린다 ----
 // 사람이 쓰는 규칙 시트는 그대로 두고, 자동 시트(대조표·진단)만 새 데이터로 갈아 끼운다.
 async function saveModelMappingWorkbook(diag) {
@@ -2982,6 +3013,14 @@ async function runBuild() {
 
     // 모델 매핑 워크북도 이번 결과로 갱신 — 인식 결과(대조표)와 미매칭 진단이
     // 항상 지금 데이터와 같은 것을 가리키게 한다. 실패해도 빌드는 성공으로 둔다.
+    try {
+      const p = await ensurePtoCodesWorkbook();
+      if (p) log.line(t('build.pto.created', { file: p.name, n: p.codes, ex: p.excepts }), 'ok');
+    } catch (e) {
+      console.error(e);
+      log.line(t('build.pto.fail', { err: e.message }), 'err');
+    }
+
     log.line(t('build.step.mapping'));
     try {
       const r = await saveModelMappingWorkbook(diag);

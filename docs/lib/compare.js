@@ -45,25 +45,20 @@
   // PTO: 코드 설명에 PTO 가 들어간 코드
   // 둘 다 compare() 시작에서 ref 로 채운다(후보 선택 헬퍼가 모듈 스코프라 여기 둔다).
   let CAB_MAP = {};
-  let CODE_DESC = {};
   function cabsIn(codes) {
     const out = new Set();
     for (const c of (codes || [])) if (CAB_MAP[c]) out.add(CAB_MAP[c]);
     return out;
   }
-  // 코드 설명이 PTO 옵션을 가리키는가.
-  //   'PTO MB…' · 'EnginePTO…'  → 대문자 PTO
-  //   'Pto parameterised…'      → 낱말 PTO(대소문자 무시)  — 'adaptor' 는 걸리지 않는다
-  //   'Power take-off…'         → 풀어 쓴 표기 (Z5U 처럼 PTO 라는 글자가 없다)
-  function isPtoDesc(desc) {
-    const d = s(desc);
-    return d.indexOf('PTO') !== -1
-      || /(?<![A-Za-z])pto(?![A-Za-z])/i.test(d)
-      || /power[ -]*take[ -]*off/i.test(d);
-  }
+  // PTO 판정은 pto-codes.xlsx 목록 하나로만 한다(코드 관리에서 편집).
+  // 설명 문구를 훑던 예전 방식은 준비(N6P)·제어(U2K) 코드까지 PTO 로 넘겨 버렸고,
+  // 어떤 코드가 판정을 갈랐는지 사람이 볼 수도 없었다.
+  let PTO_CODES = { codes: new Set(), excepts: new Set() };
   function ptoCodesIn(codes) {
     const out = new Set();
-    for (const c of (codes || [])) if (isPtoDesc(CODE_DESC[c])) out.add(c);
+    for (const c of (codes || [])) {
+      if (PTO_CODES.codes.has(c) && !PTO_CODES.excepts.has(c)) out.add(c);
+    }
     return out;
   }
   // SAM 후보의 캡: 문서의 실제 코드가 1순위, 없으면 파일명 토큰.
@@ -167,7 +162,7 @@
     const cabMap = ref.cabMap || {};
     const codeDesc = ref.codeDesc || {};
     CAB_MAP = cabMap;
-    CODE_DESC = codeDesc;
+    PTO_CODES = ref.ptoCodes || RefData.loadPtoCodes(null);
     const today = ref.today ? new Date(ref.today) : new Date();
     const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
 

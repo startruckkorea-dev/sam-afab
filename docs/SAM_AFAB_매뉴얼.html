@@ -609,6 +609,14 @@ else:                                          → "Match"</code></pre>
   </tbody>
 </table>
 
+<h3>7.1b <code>pto-codes.xlsx</code> — PTO 코드 <span class="pill py">pto_codes.py</span></h3>
+<p><code>PTO</code> 시트: A=유형(<code>PTO코드</code>/<code>제외</code>), B=코드, C=설명, D=비고.
+PTO 여부를 정하는 유일한 기준으로, WINGS 주문과 SAM 견적서 양쪽에 같은 표를 적용합니다.
+PTO 차량과 비PTO 차량은 서로 비교하지 않으므로 이 목록이 곧 매칭 기준입니다.
+준비(<code>N6P</code>)·제어(<code>U2K</code>) 코드는 PTO 없는 차에도 붙으므로 기본값에서 <code>제외</code>입니다.
+두 번째 시트 <code>설명에_PTO포함(Ref)</code>는 검토용 원본 목록(편집해도 판정에 영향 없음).
+워크북이 없으면 <code>pto_codes.PTO_DEFAULT_CODES</code> 로 폴백하고, 브라우저 빌드가 한 번 만들어 둡니다.</p>
+
 <h3>7.2 <code>mandatory-codes.xlsx</code> — 필수코드 <span class="pill py">mandatory_codes.py</span></h3>
 <p><code>Mandatory</code> 시트 열: A=카테고리, B=그룹명, C=코드, D=코드명, E=비고.
 B(그룹)가 비면 개별 필수, 값이 있으면 그 그룹은 "하나만 있으면 충족".</p>

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from option_codes import OPTION_CODE_MAP
 from mandatory_codes import load_mandatory
+from pto_codes import load_pto_codes
 from rules import RULES
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
@@ -22,17 +23,18 @@ W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 KNOWN_CODES = set(OPTION_CODE_MAP) | set(load_mandatory()['set'])
 
 
-def is_pto_desc(desc: str) -> bool:
-    """True if a code description names a PTO option.
+PTO_TABLE = load_pto_codes()
 
-    'PTO MB...' / 'EnginePTO...' (capitals), 'Pto parameterised...' (as a word, so
-    the lowercase 'pto' inside 'adaptor' does not count), and the spelled-out
-    'Power take-off...' (Z5U carries no PTO letters at all).
+
+def is_pto_code(code: str) -> bool:
+    """True if this code marks a PTO vehicle, per code/pto-codes.xlsx.
+
+    Judging by the code description ('does the text say PTO?') swept in provision
+    and control codes — N6P is only a provision, U2K only an oil-level control —
+    and left no way to see which code decided it. The workbook is now the only
+    source, and both sides (WINGS order, SAM quotation) are judged by it.
     """
-    d = desc or ''
-    return ('PTO' in d
-            or re.search(r'(?<![A-Za-z])pto(?![A-Za-z])', d, re.IGNORECASE) is not None
-            or re.search(r'power[ -]*take[ -]*off', d, re.IGNORECASE) is not None)
+    return code in PTO_TABLE['codes'] and code not in PTO_TABLE['excepts']
 
 
 def normalize_model(model: str) -> str:
@@ -222,13 +224,10 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
             body_sub = m.group(1)
 
     if (model_now or model_baumuster) and codes:
-        is_pto = any(is_pto_desc(OPTION_CODE_MAP.get(c, '')) for c in codes)
-        if not is_pto:
-            _doc_text = full_text if name.lower().endswith('.docx') else ''
-            if _doc_text and re.search(r'\bPTO\b', _doc_text, re.IGNORECASE):
-                is_pto = True
-        if not is_pto and re.search(r'\bPTO\b', name, re.IGNORECASE):
-            is_pto = True
+        # Only the codes the document actually carries decide this — not a stray
+        # 'PTO' in the prose and not the filename. Those fallbacks turned quotations
+        # without a PTO into PTO ones, emptying that month's non-PTO candidates.
+        is_pto = any(is_pto_code(c) for c in codes)
 
         data = {'codes': codes, 'paint': paint, 'tyre': tyre, 'file': name,
                 'model_now': model_now, 'model_baumuster': model_baumuster,
@@ -246,30 +245,6 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                    f"({'PTO' if is_pto else 'non-PTO'}, {len(codes)} codes)")
 
 
-_RE_NAME_PTO = re.compile(r'(?<![A-Za-z])PTO(?![A-Za-z])', re.IGNORECASE)
-
-
-def _split_pto_variants_by_name(mapping: dict) -> None:
-    """Re-bucket a model key by filename when the author paired PTO / non-PTO files.
-
-    is_pto means 'the document carries any PTO-ish code', so a quotation that is NOT
-    the PTO variant still flips to PTO when one such code sits in its standard
-    equipment. The month's non-PTO bucket then empties and that month's orders fall
-    back to an older document. Where the author split the variants by filename
-    ('... S5F PTO 2026-10' next to '... S5F 2026-10'), that name is the better signal.
-    """
-    for key, by_pto in mapping.items():
-        docs = [d for lst in by_pto.values() for d in (lst if isinstance(lst, list) else [lst])]
-        named = [d for d in docs if _RE_NAME_PTO.search(str(d.get('file', '')))]
-        if not named or len(named) == len(docs):
-            continue                       # 짝이 아니면 코드 기반 판정을 그대로 둔다
-        regrouped = {}
-        for d in docs:
-            flag = bool(_RE_NAME_PTO.search(str(d.get('file', ''))))
-            regrouped.setdefault(flag, []).append(d)
-        mapping[key] = regrouped
-
-
 def load_sam_from_folder(folder: Path, log_fn=None) -> dict:
     """Load all SAM .docx/.csv/.txt files from a folder; return per-model mapping."""
     mapping = {}
@@ -280,8 +255,6 @@ def load_sam_from_folder(folder: Path, log_fn=None) -> dict:
     for fpath in sam_files:
         with open(fpath, 'rb') as fobj:
             parse_single_sam_file(fobj, fpath.name, mapping, log_fn=log_fn)
-
-    _split_pto_variants_by_name(mapping)
 
     # Auto-generate aliases so WINGS (newer numbering) can find SAM (older numbering).
     _reverse_prefixes = RULES.get('reverse_aliases', {})

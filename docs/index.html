@@ -821,6 +821,10 @@
                 <b>상태 판정에는 쓰지 않습니다</b>.</li>
             <li><b>Mandatory(필수코드)</b> — <b>Mandatory Codes</b> 칸에서 따로 셉니다.</li>
           </ul>
+          <p class="muted">
+            PTO 여부는 <code>pto-codes.xlsx</code>로 판정합니다(→ 08장). 코드 설명에 “PTO”라는
+            글자가 있는지 훑던 예전 방식은 준비·제어 코드까지 PTO 로 넘겨 버렸습니다.
+          </p>
 
           <h3>10.6 Mandatory(필수코드) 판정</h3>
           <ul class="man-ul">
@@ -879,6 +883,30 @@
               <tr><td>C</td><td>설명</td><td>참고용</td></tr>
             </tbody>
           </table>
+
+          <h4><code>pto-codes.xlsx</code> — PTO 코드 <span class="man-sheet">시트: PTO</span></h4>
+          <p>
+            <b>PTO 차량인지 아닌지를 정하는 유일한 기준</b>입니다. WINGS 주문과 SAM 견적서 양쪽 모두
+            여기 <code>PTO코드</code>로 적힌 코드를 <b>하나라도</b> 가지면 PTO 로 봅니다.
+            PTO 차량과 비PTO 차량은 <b>서로 비교하지 않으므로</b>, 이 목록이 곧 매칭 기준입니다.
+          </p>
+          <table class="man-tb">
+            <thead><tr><th>열</th><th>내용</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td>유형</td><td><code>PTO코드</code>(판정에 사용) 또는 <code>제외</code>(판정에서 뺌)</td></tr>
+              <tr><td>B</td><td><b>코드</b></td><td>필수. <code>-</code> 같은 안내 행은 무시</td></tr>
+              <tr><td>C</td><td>설명</td><td>참고용</td></tr>
+              <tr><td>D</td><td>비고</td><td>왜 이렇게 분류했는지 적어 두는 칸</td></tr>
+            </tbody>
+          </table>
+          <div class="man-callout warn">
+            준비(provision)·제어 코드는 <b>PTO 가 달리지 않은 차에도 붙습니다</b>. 이런 코드를
+            <code>PTO코드</code>로 두면 그 견적서가 통째로 PTO 로 분류돼, 같은 달의 비PTO 주문이
+            짝을 못 찾고 지난달 문서로 밀립니다. 기본값은 <code>N6P</code>(PTO 준비)와
+            <code>U2K</code>(오일레벨 제어)를 <code>제외</code>로 둡니다.
+            두 번째 시트 <code>설명에_PTO포함(Ref)</code>에 설명에 PTO 가 들어간 코드가 전부 있으니
+            <b>미분류</b>로 뜨는 새 코드가 있으면 검토해 주세요.
+          </div>
 
           <h4><code>cab.xlsx</code> — 캡 매핑</h4>
           <p>A열 = WINGS 캡 코드, <b>C열</b> = SAM 캡 variant. 둘 다 있어야 매핑이 만들어집니다(대문자로 저장).</p>
@@ -1056,11 +1084,11 @@
 
   <!-- 비교 파이프라인 (브라우저에서 직접 빌드). 순서: 유틸 → 파서 → 비교 → 오케스트레이터 -->
   <script src="lib/unzip.js?v=20260724b"></script>
-  <script src="lib/samparse.js?v=20260819b"></script>
+  <script src="lib/samparse.js?v=20260819c"></script>
   <script src="lib/wingsparse.js?v=20260724b"></script>
-  <script src="lib/refdata.js?v=20260819a"></script>
-  <script src="lib/compare.js?v=20260819a"></script>
-  <script src="lib/pipeline.js?v=20260819b"></script>
+  <script src="lib/refdata.js?v=20260819c"></script>
+  <script src="lib/compare.js?v=20260819c"></script>
+  <script src="lib/pipeline.js?v=20260819c"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
@@ -1074,7 +1102,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260819b';
+      a.src = 'auth.js?v=20260819c';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

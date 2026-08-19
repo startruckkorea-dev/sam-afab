@@ -35,6 +35,7 @@
     modelCategory: 'model-category.xlsx',
     cab: 'cab.xlsx',
     factoryControl: 'factory-control-codes.xlsx',
+    ptoCodes: 'pto-codes.xlsx',
     rules: 'model_mapping.xlsx',
   };
 
@@ -122,6 +123,8 @@
     const cabMap = await tryLoad('cab', RefData.loadCabMap, {});
     const factoryControl = await tryLoad('factoryControl', RefData.loadFactoryControl,
       RefData.loadFactoryControl(null));
+    const ptoCodes = await tryLoad('ptoCodes', RefData.loadPtoCodes,
+      RefData.loadPtoCodes(null));
     const codeDict = await tryLoad('codeDict',
       (buf) => RefData.loadCodeDict(buf, 'code_dict'), null);
 
@@ -140,7 +143,8 @@
 
     log(`[ref] option codes ${Object.keys(optionCodes).length} · mandatory ${mandatory.set.size}`
       + ` · category ${Object.keys(modelCategory).length} · cab ${Object.keys(cabMap).length}`
-      + ` · factory control ${factoryControl.prefixes.size}접두어/${factoryControl.codes.size}코드`);
+      + ` · factory control ${factoryControl.prefixes.size}접두어/${factoryControl.codes.size}코드`
+      + ` · PTO 코드 ${ptoCodes.codes.size}개(제외 ${ptoCodes.excepts.size})`);
 
     return {
       rules: rules,
@@ -149,6 +153,7 @@
       modelCategory: modelCategory,
       cabMap: cabMap,
       factoryControl: factoryControl,
+      ptoCodes: ptoCodes,
       codeDesc: optionCodes,                       // 파서/비교는 option_codes 기준
       codeDict: (codeDict && Object.keys(codeDict).length) ? codeDict : optionCodes,
     };
@@ -206,7 +211,7 @@
     const knownCodes = new Set(Object.keys(ref.codeDesc));
     for (const c of Object.keys(ref.codeDict || {})) knownCodes.add(c);
     for (const c of ref.mandatory.set) knownCodes.add(c);
-    const ctx = { codeDesc: ref.codeDesc, knownCodes: knownCodes };
+    const ctx = { codeDesc: ref.codeDesc, knownCodes: knownCodes, ptoCodes: ref.ptoCodes };
 
     const maps = {};
     for (const month of targets) {
@@ -264,6 +269,7 @@
       modelCategory: ref.modelCategory,
       cabMap: ref.cabMap,
       factoryControl: ref.factoryControl,
+      ptoCodes: ref.ptoCodes,
       codeDesc: ref.codeDesc,
       today: opts.now,
     });

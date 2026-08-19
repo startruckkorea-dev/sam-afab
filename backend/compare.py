@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 
 from option_codes import OPTION_CODE_MAP
-from sam_parser import normalize_model, is_pto_desc
+from sam_parser import normalize_model, is_pto_code
 from rules import RULES, apply_map
 from mandatory_codes import load_mandatory
 from model_category import load_model_category, category_for_baumuster
@@ -158,10 +158,8 @@ def _cabs_in(codes) -> set:
 
 
 def _pto_codes_in(codes, allcode_custom=None) -> set:
-    """Codes whose description names a PTO option — the signal on either side."""
-    extra = allcode_custom or {}
-    return {c for c in (codes or ())
-            if is_pto_desc(OPTION_CODE_MAP.get(c, '')) or is_pto_desc(extra.get(c, ''))}
+    """The PTO codes present — per code/pto-codes.xlsx, the same table SAM uses."""
+    return {c for c in (codes or ()) if is_pto_code(c)}
 
 
 def _candidates(entry, prefer_pto: bool):

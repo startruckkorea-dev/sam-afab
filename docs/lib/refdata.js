@@ -150,6 +150,40 @@
     };
   }
 
+  // ---- pto-codes.xlsx [PTO] : A=유형 B=코드 C=설명 ----
+  // PTO 여부는 '코드 설명에 PTO 라는 글자가 있나' 가 아니라 이 표로 정한다. 설명 문구에
+  // 기대면 준비(provision)·제어 코드까지 PTO 로 넘어가고, 그 차가 왜 PTO 로 잡혔는지
+  // 사람이 볼 수도 없다. WINGS 주문과 SAM 견적서 양쪽에 같은 표를 쓴다.
+  // 유형이 '제외(except)' 면 PTO 관련이어도 판정에 쓰지 않는다.
+  // backend/pto_codes.py 와 같은 값 — 한쪽만 고치지 말 것.
+  const PTO_DEFAULTS = {
+    codes: ['N0A', 'N0B', 'N0C', 'N0D', 'N0E', 'N0F', 'N0G', 'N0H',
+      'N1A', 'N1B', 'N1C', 'N1D', 'N1E', 'N1F', 'N1G', 'N1H', 'N1I', 'N1J', 'N1K', 'N1L', 'N1M',
+      'N2E', 'Z5M', 'Z5S', 'Z5U'],
+    excepts: ['N6P', 'U2K'],
+  };
+  function loadPtoCodes(buf) {
+    const fallback = {
+      codes: new Set(PTO_DEFAULTS.codes),
+      excepts: new Set(PTO_DEFAULTS.excepts),
+    };
+    if (!buf) return fallback;
+    let wb;
+    try { wb = readWb(buf); } catch (e) { return fallback; }
+    const aoa = sheetAoa(wb, wb.SheetNames.indexOf('PTO') !== -1 ? 'PTO' : null);
+    const codes = new Set(), excepts = new Set();
+    for (let i = 1; i < aoa.length; i++) {
+      const row = aoa[i] || [];
+      const type = s(row[0]);
+      const val = s(row[1]).toUpperCase();
+      if (!val || val === '-' || val === '—') continue;          // 안내 문구 행
+      if (/except|제외/i.test(type)) excepts.add(val);
+      else codes.add(val);
+    }
+    if (!codes.size) return fallback;
+    return { codes: codes, excepts: excepts };
+  }
+
   // ---- model_mapping.xlsx : 모든 매칭 규칙 (rules.py 와 동일 시트명) ----
   const RULE_DEFAULTS = {
     normalize_historic: { '3253': '4153', '4140': '4440', '2643': '3343',
@@ -225,11 +259,13 @@
     loadCabMap: loadCabMap,
     loadCodeDict: loadCodeDict,
     loadFactoryControl: loadFactoryControl,
+    loadPtoCodes: loadPtoCodes,
     loadRules: loadRules,
     categoryForBaumuster: categoryForBaumuster,
     classifyPrefix: classifyPrefix,
     RULE_DEFAULTS: RULE_DEFAULTS,
     FC_DEFAULTS: FC_DEFAULTS,
+    PTO_DEFAULTS: PTO_DEFAULTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RefData = api;
