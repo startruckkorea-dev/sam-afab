@@ -1040,11 +1040,11 @@
 
   <!-- 비교 파이프라인 (브라우저에서 직접 빌드). 순서: 유틸 → 파서 → 비교 → 오케스트레이터 -->
   <script src="lib/unzip.js?v=20260724b"></script>
-  <script src="lib/samparse.js?v=20260724b"></script>
+  <script src="lib/samparse.js?v=20260817f"></script>
   <script src="lib/wingsparse.js?v=20260724b"></script>
-  <script src="lib/refdata.js?v=20260815c"></script>
-  <script src="lib/compare.js?v=20260816a"></script>
-  <script src="lib/pipeline.js?v=20260815a"></script>
+  <script src="lib/refdata.js?v=20260817f"></script>
+  <script src="lib/compare.js?v=20260817f"></script>
+  <script src="lib/pipeline.js?v=20260817f"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
@@ -1058,7 +1058,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260817e';
+      a.src = 'auth.js?v=20260817f';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

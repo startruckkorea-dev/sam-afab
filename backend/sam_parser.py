@@ -22,6 +22,19 @@ W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 KNOWN_CODES = set(OPTION_CODE_MAP) | set(load_mandatory()['set'])
 
 
+def is_pto_desc(desc: str) -> bool:
+    """True if a code description names a PTO option.
+
+    'PTO MB...' / 'EnginePTO...' (capitals), 'Pto parameterised...' (as a word, so
+    the lowercase 'pto' inside 'adaptor' does not count), and the spelled-out
+    'Power take-off...' (Z5U carries no PTO letters at all).
+    """
+    d = desc or ''
+    return ('PTO' in d
+            or re.search(r'(?<![A-Za-z])pto(?![A-Za-z])', d, re.IGNORECASE) is not None
+            or re.search(r'power[ -]*take[ -]*off', d, re.IGNORECASE) is not None)
+
+
 def normalize_model(model: str) -> str:
     """Normalize a model string to a bare match key: strip axle (8x4), DNA, and
     any non-alphanumerics; uppercase. e.g. '2851 LS' / '2851LS 6x2' -> '2851LS'.
@@ -209,7 +222,7 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
             body_sub = m.group(1)
 
     if (model_now or model_baumuster) and codes:
-        is_pto = any('PTO' in OPTION_CODE_MAP.get(c, '').upper() for c in codes)
+        is_pto = any(is_pto_desc(OPTION_CODE_MAP.get(c, '')) for c in codes)
         if not is_pto:
             _doc_text = full_text if name.lower().endswith('.docx') else ''
             if _doc_text and re.search(r'\bPTO\b', _doc_text, re.IGNORECASE):

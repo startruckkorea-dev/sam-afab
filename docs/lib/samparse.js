@@ -185,10 +185,19 @@
 
     if (!((modelNow || modelBaumuster) && codes.size)) return null;
 
+    // 코드 설명이 PTO 옵션을 가리키는가 — compare.js 의 isPtoDesc 와 같은 규칙.
+    // 대문자 PTO('EnginePTO') · 낱말 Pto('Pto parameterised') · 풀어 쓴 'Power take-off'.
+    // 'adaptor' 의 소문자 pto 는 걸리지 않는다.
+    const isPtoDesc = (desc) => {
+      const d = String(desc || '');
+      return d.indexOf('PTO') !== -1
+        || /(?<![A-Za-z])pto(?![A-Za-z])/i.test(d)
+        || /power[ -]*take[ -]*off/i.test(d);
+    };
     // --- PTO 판정 ---
     let isPto = false;
     for (const c of codes) {
-      if (String(codeDesc[c] || '').toUpperCase().indexOf('PTO') !== -1) { isPto = true; break; }
+      if (isPtoDesc(codeDesc[c])) { isPto = true; break; }
     }
     if (!isPto && fullText && /\bPTO\b/i.test(fullText)) isPto = true;
     if (!isPto && /\bPTO\b/i.test(name)) isPto = true;

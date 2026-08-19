@@ -222,7 +222,9 @@
     <tr><td class="nowrap">옵션 코드</td><td>3~4자 영숫자 코드(예: <code>D2Y</code>, <code>V8W</code>). 장비/사양 식별자.</td></tr>
     <tr><td class="nowrap">Baumuster</td><td>공장 모델코드. 본문 6자리(예: <code>964230</code>)는 차종 분류에, 4자리+영문(예: <code>2663 LS</code>)은 모델 표시에 쓰임.</td></tr>
     <tr><td class="nowrap">PTO</td><td>Power Take-Off(동력인출장치). PTO 유무에 따라 같은 모델도 별도 SAM 파일로 존재.</td></tr>
-    <tr><td class="nowrap">Factory Control</td><td>비교에서 제외하는 예외 코드군(접두 I/O/Z/U 등). "공장 관리 코드".</td></tr>
+    <tr><td class="nowrap">Factory Control</td><td>비교에서 제외하는 예외 코드군(접두 I/O/Z/U 등). "공장 관리 코드".
+    접두어에 걸리지만 실제로는 일반 옵션인 코드는 <code>factory-control-codes.xlsx</code> 의
+    <b>예외(except)</b> 행으로 빼 둡니다(예: PTO 옵션 <code>Z5M</code>·<code>Z5U</code>).</td></tr>
     <tr><td class="nowrap">Mandatory</td><td>반드시 반영돼야 하는 필수 코드. 한쪽에만 있으면 "누락"으로 표시.</td></tr>
     <tr><td class="nowrap">CTT</td><td>Customer Tailored Truck — 도장(Paint)·타이어(Tyre) 등 개별 사양 영역.</td></tr>
     <tr><td class="nowrap">Changeability</td><td>주문 변경 가능 마감일. D-Day가 임박한 차량을 우선 검토.</td></tr>
@@ -441,7 +443,7 @@
 </div>
 
 <h3>5.5 SAM측 PTO 판정 &amp; 별칭</h3>
-<p>PTO 여부는 (1) 코드 설명에 PTO 포함, (2) 본문에 <code>\bPTO\b</code>, (3) 파일명에 <code>PTO</code> —
+<p>PTO 여부는 (1) 코드 설명이 PTO 옵션을 가리킴, (2) 본문에 <code>\bPTO\b</code>, (3) 파일명에 <code>PTO</code> —
 셋 중 하나면 <code>True</code>. 폴더 로드 후에는 <code>reverse_aliases</code> 규칙으로
 구형 번호 엔트리에 신형 번호 별칭 키를 자동 추가해 WINGS(신형 번호)가 SAM(구형 번호)을 찾게 합니다.</p>
 </section>
@@ -488,8 +490,11 @@
 매칭이 틀리면 SAM 문서나 <code>cab.xlsx</code> 쪽 데이터를 고치세요.</p>
 
 <h3 id="c-pto">6.2 ② PTO 판정 &amp; 정교화</h3>
-<p>1차 PTO 판정: WINGS 코드 중 <b>설명에 PTO가 들어간 코드</b>가 있거나
-<code>WINGS_has_pto</code>가 참이면 PTO.</p>
+<p>1차 PTO 판정: WINGS 코드 중 <b>설명이 PTO 옵션을 가리키는 코드</b>가 있거나
+<code>WINGS_has_pto</code>가 참이면 PTO. 설명 판정 규칙(<code>is_pto_desc</code>)은 세 가지입니다 —
+대문자 <code>PTO</code>(<i>EnginePTO…</i>), 낱말 <code>Pto</code>(<i>Pto parameterised…</i>),
+풀어 쓴 <code>Power take-off</code>(<i>Z5U</i> 처럼 PTO 라는 글자가 아예 없는 경우).
+<i>adaptor</i> 안의 소문자 <code>pto</code> 는 걸리지 않습니다.</p>
 <p><b>정교화:</b> 처음엔 non-PTO로 봤는데, 매칭된 SAM 엔트리에 PTO·non-PTO 두 변형이 모두 있고
 WINGS 코드가 <b>PTO 변형에만 있는 고유 코드</b>를 포함하면 → PTO로 승격합니다.</p>
 <pre><code>pto_unique = PTO변형코드 - nonPTO변형코드
@@ -542,11 +547,12 @@ SAM 파일을 못 찾은 행은 <code>Only_in_WINGS</code>를 비워둡니다(�
 
 <h3 id="c-status">6.6 ⑥ 부가 정보 &amp; 상태 결정</h3>
 <p>차종·축은 문서에 따로 없어 <b>SAM 파일명</b>에서 정규식으로 뽑습니다.
-<b>캡·PTO는 양쪽의 실제 코드</b>로 판정하고(캡=cab.xlsx 변형명, PTO=설명에 PTO가 든 코드),
-SAM 코드에 신호가 없을 때만 파일명을 폴백으로 씁니다. 두 값은
-<code>_cab_wings</code>/<code>_cab_sam</code>, <code>_pto_wings</code>/<code>_pto_sam</code> 로 모두 남겨
-화면(<b>대시보드 목록·생산월 이력관리·모델 매칭</b>)에서 불일치를 <code>≠</code>로 표시합니다.
-목록 칸에는 WINGS 값을, WINGS에 신호가 없으면 SAM 값을 보여줍니다.</p>
+<b>캡·PTO는 양쪽의 실제 코드</b>로 판정하고(캡=cab.xlsx 변형명, PTO=<code>is_pto_desc</code>),
+SAM 코드에 신호가 없을 때만 파일명을 폴백으로 씁니다. 캡은 두 값을
+<code>_cab_wings</code>/<code>_cab_sam</code> 로 남겨 화면(<b>대시보드 목록·생산월 이력관리·모델 매칭</b>)에서
+불일치를 <code>≠</code>로 표시합니다. 목록 칸에는 WINGS 값을, WINGS에 신호가 없으면 SAM 값을 보여줍니다.
+<b>PTO는 따로 대조하지 않습니다</b> — PTO 코드(N1G·Z5M·Z5U…) 차이는 일반 코드 비교에 그대로 나오기 때문입니다.
+상세 창에서 따로 떼어 비교하는 영역은 코드 형식이 다른 <b>Paint·Tyre 뿐</b>입니다.</p>
 <pre><code>if not sam_file:                              → "No SAM"
 elif Only_in_SAM/WINGS 있음 or Paint/Tyre 불일치 → "Mismatch"
 else:                                          → "Match"</code></pre>
@@ -560,7 +566,7 @@ else:                                          → "Match"</code></pre>
 <code>Only_in_SAM</code>, <code>Only_in_WINGS</code>, <code>Factory Control Codes</code>,
 <code>Mandatory Codes</code>, <code>Changeability Date</code>, <code>Until Dealine</code>,
 <code>_all_wings_codes</code>/<code>_all_sam_codes</code>(전체목록),
-<code>_cab_wings</code>/<code>_cab_sam</code>, <code>_pto_wings</code>/<code>_pto_sam</code>(양쪽 캡·PTO),
+<code>_cab_wings</code>/<code>_cab_sam</code>(양쪽 캡),
 <code>_paint_*</code>/<code>_tyre_*</code>, <code>Compared SAM file name</code>, <code>SAM Status</code>.
 (<code>_</code> 접두 컬럼은 상세창 전용 원본 데이터.)</p>
 </div>

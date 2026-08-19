@@ -113,28 +113,35 @@
 
   // ---- factory-control-codes.xlsx [FactoryControl] : A=유형 B=코드/접두어 C=설명 ----
   // 유형이 '접두어(prefix)' 면 그 머리글자로 시작하는 모든 코드가 Factory Control,
-  // '개별코드(code)' 면 그 코드 하나만. 워크북이 없으면 아래 기본값을 쓴다.
-  const FC_DEFAULTS = { prefixes: ['I', 'O', 'Z', 'U'], codes: ['DUP0', 'A0B', 'E0D', 'E0Q', 'J7G'] };
+  // '개별코드(code)' 면 그 코드 하나만, '예외(except)' 면 접두어에 걸려도 일반 코드로 본다
+  // (예: Z5M·Z5U 는 Z 로 시작하지만 PTO 옵션이다). 워크북이 없으면 아래 기본값을 쓴다.
+  const FC_DEFAULTS = {
+    prefixes: ['I', 'O', 'Z', 'U'],
+    codes: ['DUP0', 'A0B', 'E0D', 'E0Q', 'J7G'],
+    excepts: ['Z5M', 'Z5U'],
+  };
   function loadFactoryControl(buf) {
     const fallback = {
       prefixes: new Set(FC_DEFAULTS.prefixes),
       codes: new Set(FC_DEFAULTS.codes),
+      excepts: new Set(FC_DEFAULTS.excepts),
     };
     if (!buf) return fallback;
     let wb;
     try { wb = readWb(buf); } catch (e) { return fallback; }
     const aoa = sheetAoa(wb, wb.SheetNames.indexOf('FactoryControl') !== -1 ? 'FactoryControl' : null);
-    const prefixes = new Set(), codes = new Set();
+    const prefixes = new Set(), codes = new Set(), excepts = new Set();
     for (let i = 1; i < aoa.length; i++) {
       const row = aoa[i] || [];
       const type = s(row[0]);
       const val = s(row[1]).toUpperCase();
       if (!val || val === '-' || val === '—') continue;          // 안내 문구 행
-      if (/prefix|접두어/i.test(type)) { if (val.length === 1) prefixes.add(val); }
+      if (/except|예외/i.test(type)) excepts.add(val);
+      else if (/prefix|접두어/i.test(type)) { if (val.length === 1) prefixes.add(val); }
       else codes.add(val);
     }
     if (!prefixes.size && !codes.size) return fallback;
-    return { prefixes: prefixes, codes: codes };
+    return { prefixes: prefixes, codes: codes, excepts: excepts };
   }
 
   // ---- model_mapping.xlsx : 모든 매칭 규칙 (rules.py 와 동일 시트명) ----

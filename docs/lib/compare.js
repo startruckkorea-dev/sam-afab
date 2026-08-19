@@ -11,6 +11,8 @@
 
   // factory-control-codes.xlsx 를 못 읽었을 때 쓰는 개별코드 기본값(워크북의 초기 5행).
   const EXTRA_EXCEPT = new Set(['DUP0', 'A0B', 'E0D', 'E0Q', 'J7G']);
+  // 접두어 규칙에서 빼는 코드의 기본값(워크북의 '예외' 행이 없을 때).
+  const FC_EXCEPTS = new Set(['Z5M', 'Z5U']);
 
   function s(v) { return (v === null || v === undefined) ? '' : String(v); }
   function strip(v) { return s(v).trim(); }
@@ -49,11 +51,19 @@
     for (const c of (codes || [])) if (CAB_MAP[c]) out.add(CAB_MAP[c]);
     return out;
   }
+  // 코드 설명이 PTO 옵션을 가리키는가.
+  //   'PTO MB…' · 'EnginePTO…'  → 대문자 PTO
+  //   'Pto parameterised…'      → 낱말 PTO(대소문자 무시)  — 'adaptor' 는 걸리지 않는다
+  //   'Power take-off…'         → 풀어 쓴 표기 (Z5U 처럼 PTO 라는 글자가 없다)
+  function isPtoDesc(desc) {
+    const d = s(desc);
+    return d.indexOf('PTO') !== -1
+      || /(?<![A-Za-z])pto(?![A-Za-z])/i.test(d)
+      || /power[ -]*take[ -]*off/i.test(d);
+  }
   function ptoCodesIn(codes) {
     const out = new Set();
-    for (const c of (codes || [])) {
-      if (s(CODE_DESC[c]).toUpperCase().indexOf('PTO') !== -1) out.add(c);
-    }
+    for (const c of (codes || [])) if (isPtoDesc(CODE_DESC[c])) out.add(c);
     return out;
   }
   // SAM 후보의 캡: 문서의 실제 코드가 1순위, 없으면 파일명 토큰.
@@ -138,8 +148,11 @@
     const fc = ref.factoryControl || {};
     const fcPrefixes = (fc.prefixes && fc.prefixes.size) ? fc.prefixes : new Set(['I', 'O', 'Z', 'U']);
     const fcCodes = fc.codes || EXTRA_EXCEPT;
+    // '예외' 로 적어 둔 코드는 접두어에 걸려도 일반 코드로 본다(예: Z5M·Z5U 는 PTO 옵션).
+    const fcExcepts = fc.excepts || FC_EXCEPTS;
     function isFc(c) {
-      return !!c && (fcCodes.has(c) || fcPrefixes.has(c[0]));
+      if (!c || fcExcepts.has(c)) return false;
+      return fcCodes.has(c) || fcPrefixes.has(c[0]);
     }
 
     const sortedYyyymm = Object.keys(samMapsByMonth).map(Number).sort((a, b) => a - b);
@@ -354,12 +367,10 @@
         'Mandatory Codes': noSam ? '' : mandRow.join(','),
         '_all_wings_codes': sortedArr(wingsCodes).join(','),
         '_all_sam_codes': sortedArr(samCodes).join(','),
-        // 캡·PTO 도 Paint/Tyre 처럼 양쪽 값을 그대로 남긴다 — 화면에서 불일치를 표시한다.
-        // PTO 는 코드가 아니라 문구(WINGS 텍스트·SAM 파일명)로만 잡힐 수 있어 그때는 'PTO'.
+        // 캡은 Paint/Tyre 처럼 양쪽 값을 남긴다 — 화면에서 불일치를 표시한다.
+        // PTO 는 따로 남기지 않는다: PTO 코드(N1G·Z5M…) 차이는 일반 코드 비교에 그대로 나온다.
         '_cab_wings': sortedArr(expectedCabs).join(','),
         '_cab_sam': sortedArr(samCabs).join(','),
-        '_pto_wings': isPto ? (sortedArr(wingsPtoCodes).join(',') || 'PTO') : '',
-        '_pto_sam': samPto ? (sortedArr(samPtoCodes).join(',') || 'PTO') : '',
         '_paint_wings': sortedArr(wingsPaint).join(','),
         '_paint_sam': sortedArr(samPaint).join(','),
         '_tyre_wings': sortedArr(wingsTyre).join(','),

@@ -34,10 +34,14 @@ OUT = ROOT / 'code' / 'factory-control-codes.xlsx'
 # Mirror of compare.py: I/O/Z/U prefixes + these explicit extras.
 FC_PREFIXES = ['I', 'O', 'Z', 'U']
 FC_EXTRA_CODES = ['DUP0', 'A0B', 'E0D', 'E0Q', 'J7G']
+# Prefix rule exceptions: ordinary options that merely start with I/O/Z/U, so they
+# must stay in the normal code comparison (e.g. the PTO options Z5M / Z5U).
+FC_EXCEPT_CODES = ['Z5M', 'Z5U']
 
 NAVY = '1F4E79'
 PREFIX_FILL = 'DDEBF7'   # blue-ish
 CODE_FILL = 'FCE4D6'     # orange-ish
+EXCEPT_FILL = 'E2EFDA'   # green-ish — 접두어 규칙에서 빼는 코드
 
 HEADER_FONT = Font(color='FFFFFF', bold=True, size=11)
 BOLD = Font(bold=True)
@@ -93,6 +97,19 @@ def build():
                 cell.fill = PatternFill('solid', fgColor=CODE_FILL)
         r += 1
 
+    for code in FC_EXCEPT_CODES:
+        ws.cell(row=r, column=1, value='예외(except)')
+        ws.cell(row=r, column=2, value=code).font = BOLD
+        ws.cell(row=r, column=3, value=OPTION_CODE_MAP.get(code, ''))
+        ws.cell(row=r, column=4, value='접두어 규칙에서 제외 — 일반 코드로 비교')
+        for col in range(1, 5):
+            cell = ws.cell(row=r, column=col)
+            cell.alignment = WRAP_TOP
+            cell.border = BORDER
+            if col == 1:
+                cell.fill = PatternFill('solid', fgColor=EXCEPT_FILL)
+        r += 1
+
     ws.column_dimensions['A'].width = 16
     ws.column_dimensions['B'].width = 20
     ws.column_dimensions['C'].width = 56
@@ -103,7 +120,9 @@ def build():
     # Note under the table.
     ws.cell(row=r + 1, column=1,
             value='※ 접두어 규칙(I/O/Z/U)에 걸리는 코드는 아래 "접두어_해당코드" 시트에서 확인. '
-                  '개별코드 행을 추가/삭제하면 예외 목록이 바뀝니다.').font = Font(italic=True, color='777777')
+                  '개별코드 행을 추가/삭제하면 Factory Control 목록이 바뀝니다. '
+                  '접두어에 걸리지만 실제로는 일반 옵션인 코드는 "예외(except)" 행으로 적으면 '
+                  '일반 코드 비교에 그대로 나옵니다(예: PTO 옵션 Z5M·Z5U).').font = Font(italic=True, color='777777')
 
     # --- Sheet 2: all codes matched by the I/O/Z/U prefix rule (reference) -----
     ref = wb.create_sheet('접두어_해당코드(Ref)')

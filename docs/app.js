@@ -11,7 +11,7 @@ const COLS = [
   { key: 'Type', label: 'Axle' },
   { key: 'Cab', label: 'Cab', pair: 'cab' },
   { key: 'MY', label: 'MY' },
-  { key: 'PTO', label: 'PTO', pair: 'pto' },
+  { key: 'PTO', label: 'PTO' },
   { key: 'Production date', label: 'Production' },
   { key: 'Changeability Date', label: 'Changeability' },
   { key: 'Until Dealine', label: 'Changeability D-Day', dday: true },
@@ -1123,17 +1123,16 @@ function splitCodes(csv) { return (csv || '').split(',').map((c) => c.trim()).fi
 // 페인트·타이어는 Only_in_* CSV 에 들어가지 않고 별도 그룹으로 비교된다(상세 창의 🎨/🛞 섹션).
 // 목록·정렬·Export 의 '차이 개수'에는 그 그룹 차이도 함께 센다 — 타이어만 다른 차량이
 // Mismatch 인데 목록에는 ✓ 로 보이던 문제를 없애기 위함.
-// 캡·PTO 는 compare 가 WINGS/SAM 양쪽 값을 남긴다(_cab_wings/_cab_sam, _pto_wings/_pto_sam).
-// 목록엔 한 값만 들어가므로, 양쪽이 다르면 셀에 ≠ 를 붙이고 툴팁에 두 값을 보여준다.
-// 캡은 양쪽 다 신호가 있을 때만, PTO 는 '있다/없다'가 갈릴 때 불일치로 본다.
+// 캡은 compare 가 WINGS/SAM 양쪽 값을 남긴다(_cab_wings / _cab_sam). 목록엔 한 값만
+// 들어가므로, 양쪽이 다르면 셀에 ≠ 를 붙이고 툴팁에 두 값을 보여준다.
+// PTO 는 따로 대조하지 않는다 — PTO 코드 차이는 일반 코드 비교에 그대로 나온다.
 function pairSides(r, kind) {
   return { wings: splitCodes(r['_' + kind + '_wings']), sam: splitCodes(r['_' + kind + '_sam']) };
 }
 function pairMismatch(r, kind) {
   if (!r || !r['Compared SAM file name']) return false;   // 비교 대상 자체가 없으면 불일치 아님
   const { wings, sam } = pairSides(r, kind);
-  if (kind === 'pto') return (wings.length > 0) !== (sam.length > 0);
-  if (!wings.length || !sam.length) return false;
+  if (!wings.length || !sam.length) return false;         // 한쪽에 신호가 없으면 비교 안 함
   return wings.join(',') !== sam.join(',');
 }
 function pairTitle(r, kind) {
@@ -1264,8 +1263,8 @@ function openDrawer(r) {
     .map((k) => {
       let val;
       if (DDAY_KEYS.has(k)) val = ddayHtml(r[k]);
-      else if ((k === 'Cab' || k === 'PTO') && pairMismatch(r, k.toLowerCase())) {
-        val = `<span class="pair-diff" title="${esc(pairTitle(r, k.toLowerCase()))}">` +
+      else if (k === 'Cab' && pairMismatch(r, 'cab')) {
+        val = `<span class="pair-diff" title="${esc(pairTitle(r, 'cab'))}">` +
           `${esc(r[k])}<span class="ne">≠</span></span>`;
       } else if (k === 'SAM Status') {
         const s = String(r[k]);
@@ -1291,8 +1290,6 @@ function openDrawer(r) {
       <button class="tab" data-tab="full">📄 Full Code List</button>
     </div>
     <div class="tab-pane" data-pane="diff">
-      ${alignedGroupHtml('🚪 Cab', r['_cab_sam'], r['_cab_wings'], 'cab', true)}
-      ${alignedGroupHtml('⚙️ PTO', r['_pto_sam'], r['_pto_wings'], 'pto', true)}
       ${alignedGroupHtml('🎨 Paint', r['_paint_sam'], r['_paint_wings'], 'paint', true)}
       ${alignedGroupHtml('🛞 Tyre', r['_tyre_sam'], r['_tyre_wings'], 'tyre', true)}
       <div class="code-cols">
@@ -1890,9 +1887,8 @@ function histModelTableHtml(r) {
   const head = HIST_COLS.map((k) => `<th>${esc(colLabel(k))}</th>`).join('');
   const body = HIST_COLS.map((k) => {
     const v = String(r[k] ?? '').trim();
-    const kind = k === 'Cab' ? 'cab' : (k === 'PTO' ? 'pto' : '');
-    if (kind && pairMismatch(r, kind)) {
-      return `<td class="pair-diff" title="${esc(pairTitle(r, kind))}">${esc(v)}<span class="ne">≠</span></td>`;
+    if (k === 'Cab' && pairMismatch(r, 'cab')) {
+      return `<td class="pair-diff" title="${esc(pairTitle(r, 'cab'))}">${esc(v)}<span class="ne">≠</span></td>`;
     }
     return `<td>${esc(v)}</td>`;
   }).join('');
@@ -2705,9 +2701,8 @@ function renderMatchSummary() {
     const r = g.sample;
     const cells = HIST_COLS.map((k) => {
       const v = String(r[k] ?? '').trim();
-      const kind = k === 'Cab' ? 'cab' : (k === 'PTO' ? 'pto' : '');
-      if (kind && pairMismatch(r, kind)) {
-        return `<td class="pair-diff" title="${esc(pairTitle(r, kind))}">${msHl(v)}<span class="ne">≠</span></td>`;
+      if (k === 'Cab' && pairMismatch(r, 'cab')) {
+        return `<td class="pair-diff" title="${esc(pairTitle(r, 'cab'))}">${msHl(v)}<span class="ne">≠</span></td>`;
       }
       return `<td>${msHl(v)}</td>`;
     }).join('');

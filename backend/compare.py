@@ -14,12 +14,16 @@ from pathlib import Path
 import pandas as pd
 
 from option_codes import OPTION_CODE_MAP
-from sam_parser import normalize_model
+from sam_parser import normalize_model, is_pto_desc
 from rules import RULES, apply_map
 from mandatory_codes import load_mandatory
 from model_category import load_model_category, category_for_baumuster
 
 # Default Factory-Control (exception) code set: prefixes I/O/Z/U + a few extras.
+# Codes that look like Factory Control by prefix but are ordinary options, so they
+# belong in the normal comparison (code/factory-control-codes.xlsx '예외' rows).
+FC_EXCEPTS = {'Z5M', 'Z5U'}
+
 DEFAULT_EXCEPT_CODES = (
     {c for c in OPTION_CODE_MAP if c and c[0] in {'I', 'O', 'Z', 'U'}}
     | {'DUP0', 'A0B', 'E0D', 'E0Q', 'J7G'}
@@ -106,11 +110,10 @@ def _cabs_in(codes) -> set:
 
 
 def _pto_codes_in(codes, allcode_custom=None) -> set:
-    """Codes whose description mentions PTO — the PTO signal on either side."""
+    """Codes whose description names a PTO option — the signal on either side."""
     extra = allcode_custom or {}
     return {c for c in (codes or ())
-            if 'PTO' in OPTION_CODE_MAP.get(c, '').upper()
-            or 'PTO' in extra.get(c, '').upper()}
+            if is_pto_desc(OPTION_CODE_MAP.get(c, '')) or is_pto_desc(extra.get(c, ''))}
 
 
 def _candidates(entry, prefer_pto: bool):
@@ -208,7 +211,9 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         return [sam_maps_by_month[ym] for ym in reversed(sorted_yyyymm)]
 
     def _is_fc(c):
-        return c in _exc_set or (c and c[0] in ('I', 'O', 'Z', 'U'))
+        if not c or c in FC_EXCEPTS:      # 접두어에 걸려도 일반 코드로 보는 예외(PTO 옵션 등)
+            return False
+        return c in _exc_set or c[0] in ('I', 'O', 'Z', 'U')
 
     rows = []
     for _, r in df_wings.iterrows():
@@ -414,12 +419,10 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
             'Mandatory Codes': ','.join(mand_codes_row),
             '_all_wings_codes': ','.join(sorted(wings_codes)),
             '_all_sam_codes': ','.join(sorted(sam_codes)),
-            # Cab / PTO — both sides kept so the UI can mark a difference. PTO can
-            # be signalled by text only (WINGS column, SAM filename): then it is 'PTO'.
+            # Cab — both sides kept so the UI can mark a difference. PTO is not kept:
+            # a PTO code difference (N1G, Z5M ...) shows up in the general comparison.
             '_cab_wings': ','.join(sorted(expected_cabs)),
             '_cab_sam': ','.join(sorted(sam_cabs)),
-            '_pto_wings': (','.join(sorted(wings_pto_codes)) or 'PTO') if is_pto else '',
-            '_pto_sam': (','.join(sorted(sam_pto_codes)) or 'PTO') if sam_pto else '',
             # Paint / Tyre (CTT) — compared and displayed on their own, above the
             # general codes, in the detail chart.
             '_paint_wings': ','.join(sorted(wings_paint)),

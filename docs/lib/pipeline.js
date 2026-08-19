@@ -24,7 +24,7 @@
     'Mandatory Codes', 'Order status financial', 'Order status logistical',
     'FIN', 'Subcategory (ID)', 'Compared SAM file name', 'SAM Status', 'SAM Update',
     '_all_wings_codes', '_all_sam_codes',
-    '_cab_wings', '_cab_sam', '_pto_wings', '_pto_sam',
+    '_cab_wings', '_cab_sam',
     '_paint_wings', '_paint_sam', '_tyre_wings', '_tyre_sam',
   ];
 
