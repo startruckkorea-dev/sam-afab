@@ -233,7 +233,8 @@
       const mapping = SamParse.buildSamMapping(parsed, ref.rules);
       if (mapping.size) maps[month.yyyymm] = mapping;
       monthStats.push({ name: month.name, yyyymm: month.yyyymm, files: files.length,
-        parsed: parsed.length, keys: Array.from(mapping.keys()).sort() });
+        parsed: parsed.length, keys: Array.from(mapping.keys()).sort(),
+        fileNames: parsed.map((d) => d.file) });
       log(`[sam] ${month.name}: ${parsed.length}/${files.length} 파일, 모델키 ${mapping.size}개`);
     }
     if (!Object.keys(maps).length) throw new Error('SAM 파일을 하나도 읽지 못했습니다.');
@@ -267,6 +268,21 @@
       today: opts.now,
     });
     log(`[build] 결과 ${rowsRaw.length} 행`);
+
+    // 읽기는 했는데 어떤 주문에도 붙지 않은 SAM 문서 — '파일은 넣었는데 반영이 안 된다'의
+    // 나머지 절반이다(모델·생산월 주문이 없거나, PTO·캡 판정이 갈렸거나).
+    const used = new Set();
+    for (const r of rowsRaw) {
+      const f = String(r['Compared SAM file name'] || '').split(/[\\/]/).pop();
+      if (f) used.add(f);
+    }
+    diag.samUnused = [];
+    for (const m of diag.samMonths) {
+      for (const f of (m.fileNames || [])) {
+        if (!used.has(f)) diag.samUnused.push({ month: m.name, file: f });
+      }
+    }
+    if (diag.samUnused.length) log(`[build] 어떤 주문에도 안 붙은 SAM 문서 ${diag.samUnused.length}개`);
 
     const cols = DISPLAY_COLS.filter((c) => rowsRaw.some((r) => c in r));
     const rows = rowsRaw.map(function (r) {

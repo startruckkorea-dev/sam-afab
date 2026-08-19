@@ -2571,7 +2571,14 @@ function diagnosticsAoa(diag) {
     out.push(['SAM 파일 건너뜀', '', '', '', '', '', sk.month + ' / ' + sk.file, sk.reason]);
   }
 
-  // 3) 월별로 몇 개를 읽었는지 — 파일을 넣었는데 수가 안 늘면 여기서 드러난다.
+  // 3) 잘 읽혔지만 어떤 주문에도 안 붙은 SAM 문서 — 파일을 넣었는데 화면에 안 보이는 경우.
+  for (const un of ((diag && diag.samUnused) || [])) {
+    out.push(['안 붙은 SAM 문서', '', '', '', '', '', un.month + ' / ' + un.file,
+      '읽기는 했으나 이 문서를 쓴 주문이 없음 — 그 모델·생산월 주문이 없거나, '
+      + 'PTO·캡 판정이 갈려 다른 문서가 선택됨(같은 달에 PTO 짝이 있으면 파일명으로 가름)']);
+  }
+
+  // 4) 월별로 몇 개를 읽었는지 — 파일을 넣었는데 수가 안 늘면 여기서 드러난다.
   for (const m of months) {
     out.push(['생산월 폴더', '', '', '', m.name, m.parsed + ' / ' + m.files, '',
       '인식된 모델키 ' + m.keys.length + '개: ' + m.keys.join(', ')]);

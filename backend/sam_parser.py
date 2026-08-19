@@ -246,6 +246,30 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                    f"({'PTO' if is_pto else 'non-PTO'}, {len(codes)} codes)")
 
 
+_RE_NAME_PTO = re.compile(r'(?<![A-Za-z])PTO(?![A-Za-z])', re.IGNORECASE)
+
+
+def _split_pto_variants_by_name(mapping: dict) -> None:
+    """Re-bucket a model key by filename when the author paired PTO / non-PTO files.
+
+    is_pto means 'the document carries any PTO-ish code', so a quotation that is NOT
+    the PTO variant still flips to PTO when one such code sits in its standard
+    equipment. The month's non-PTO bucket then empties and that month's orders fall
+    back to an older document. Where the author split the variants by filename
+    ('... S5F PTO 2026-10' next to '... S5F 2026-10'), that name is the better signal.
+    """
+    for key, by_pto in mapping.items():
+        docs = [d for lst in by_pto.values() for d in (lst if isinstance(lst, list) else [lst])]
+        named = [d for d in docs if _RE_NAME_PTO.search(str(d.get('file', '')))]
+        if not named or len(named) == len(docs):
+            continue                       # 짝이 아니면 코드 기반 판정을 그대로 둔다
+        regrouped = {}
+        for d in docs:
+            flag = bool(_RE_NAME_PTO.search(str(d.get('file', ''))))
+            regrouped.setdefault(flag, []).append(d)
+        mapping[key] = regrouped
+
+
 def load_sam_from_folder(folder: Path, log_fn=None) -> dict:
     """Load all SAM .docx/.csv/.txt files from a folder; return per-model mapping."""
     mapping = {}
@@ -256,6 +280,8 @@ def load_sam_from_folder(folder: Path, log_fn=None) -> dict:
     for fpath in sam_files:
         with open(fpath, 'rb') as fobj:
             parse_single_sam_file(fobj, fpath.name, mapping, log_fn=log_fn)
+
+    _split_pto_variants_by_name(mapping)
 
     # Auto-generate aliases so WINGS (newer numbering) can find SAM (older numbering).
     _reverse_prefixes = RULES.get('reverse_aliases', {})

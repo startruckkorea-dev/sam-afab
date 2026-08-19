@@ -216,17 +216,43 @@
    * @param {object} rules  { reverse_aliases: {num: [alias,...]} }
    * @returns {Map} key -> { true/false(PTO) -> [data, ...] }
    */
+  const RE_NAME_PTO = /(?<![A-Za-z])PTO(?![A-Za-z])/i;
+
   function buildSamMapping(parsed, rules) {
     const mapping = new Map();
-    for (const d of parsed) {
-      if (!d) continue;
+    const keysOf = (d) => {
       const keys = new Set();
       const a = normalizeModel(d.model_now); if (a) keys.add(a);
       const b = normalizeModel(d.model_baumuster); if (b) keys.add(b);
-      for (const k of keys) {
+      return keys;
+    };
+
+    // PTO 변형을 파일명으로 갈라 둔 모델키를 찾는다.
+    // is_pto 는 '문서에 PTO 관련 코드가 하나라도 있나' 라서, PTO 변형이 아닌 견적서도
+    // 표준장비에 PTO 코드가 하나 끼면 PTO 로 넘어간다 — 그러면 같은 달의 비PTO 후보가
+    // 통째로 비어 그 달 주문이 지난달 문서로 밀린다. 작성자가 파일명으로 '...PTO' 를
+    // 갈라 둔 모델키에서는 그 파일명을 변형 구분의 기준으로 삼는다.
+    const namedPair = new Set();
+    const seen = new Map();                    // key -> { named: bool, plain: bool }
+    for (const d of parsed) {
+      if (!d) continue;
+      const named = RE_NAME_PTO.test(String(d.file || ''));
+      for (const k of keysOf(d)) {
+        if (!seen.has(k)) seen.set(k, { named: false, plain: false });
+        const e = seen.get(k);
+        if (named) e.named = true; else e.plain = true;
+        if (e.named && e.plain) namedPair.add(k);
+      }
+    }
+
+    for (const d of parsed) {
+      if (!d) continue;
+      const named = RE_NAME_PTO.test(String(d.file || ''));
+      for (const k of keysOf(d)) {
         if (!mapping.has(k)) mapping.set(k, {});
         const byPto = mapping.get(k);
-        const flag = d.is_pto ? 'true' : 'false';
+        const pto = namedPair.has(k) ? named : d.is_pto;
+        const flag = pto ? 'true' : 'false';
         if (!byPto[flag]) byPto[flag] = [];
         byPto[flag].push(d);
       }
