@@ -175,6 +175,9 @@
   // 수동 교정 시트(수동매핑·매칭_별칭(수동))는 폐기했다 — SAM 문서의 번호·코드로만 매칭한다.
   const LIST_SHEETS = {
     '차종키워드': 'vehicle_keywords',
+    // SAM 문서 번호 → 같은 차를 가리키는 WINGS 번호들. samparse.buildSamMapping 이
+    // 이 표로 모델키를 늘려 준다(예: 3253 → 4153).
+    '모델별칭': 'reverse_aliases',
   };
 
   function loadRules(buf) {

@@ -126,10 +126,12 @@
       (buf) => RefData.loadCodeDict(buf, 'code_dict'), null);
 
     let rules = RefData.RULE_DEFAULTS;
+    let rulesFile = '';
     try {
       const items = await src.list('model_rules');
       const name = findFile(items, REF_FILES.rules);
       rules = RefData.loadRules(name ? await src.download('model_rules', name) : null);
+      rulesFile = name || '';
       log(`[ref] rules: ${name || '기본값(model_mapping.xlsx 없음)'}`);
     } catch (e) {
       log(`[ref] model_mapping.xlsx 실패(${String(e.message).slice(0, 80)}) — 기본 규칙 사용`);
@@ -142,6 +144,7 @@
 
     return {
       rules: rules,
+      rulesFile: rulesFile,
       mandatory: mandatory,
       modelCategory: modelCategory,
       cabMap: cabMap,
@@ -184,7 +187,7 @@
   }
 
   /** 생산월별 SAM 매핑. 존재하는 모든 생산월 폴더를 읽는다. */
-  async function loadSam(src, ref, allMonths, log) {
+  async function loadSam(src, ref, allMonths, log, diag) {
     const months = await collectSamMonths(src);
     if (!months.length) {
       throw new Error('01. SAM_files 에 YYYY-MM 하위폴더가 없습니다. '
@@ -193,6 +196,9 @@
     // 각 행의 생산월 폴더 + 이전 6개월로 'SAM update요청'을 판정하므로, 미래 폴더가
     // 있어도 이전 달이 누락되지 않도록 존재하는 모든 생산월 폴더를 읽는다.
     const targets = months;
+    // 진단용 수집 — 어떤 파일이 왜 빠졌는지는 빌드가 끝난 뒤 model_mapping.xlsx 에 적는다.
+    const skipped = (diag && diag.samSkipped) || [];
+    const monthStats = (diag && diag.samMonths) || [];
     log(`[sam] 생산월 폴더 ${months.length}개 사용: ${targets.map((m) => m.name).join(', ')}`);
 
     // 숫자가 없는 코드(JKTO 등)는 '아는 코드' 일 때만 살아남으므로, option_codes 뿐 아니라
@@ -213,13 +219,21 @@
           const d = await SamParse.parseSamDocx(await src.download('sam/' + month.path, f.name),
             f.name, ctx);
           if (d) parsed.push(d);
-          else log(`  [sam] 건너뜀(모델/코드 인식 실패): ${f.name}`);
+          else {
+            log(`  [sam] 건너뜀(모델/코드 인식 실패): ${f.name}`);
+            skipped.push({ month: month.name, file: f.name,
+              reason: '모델번호 또는 장비코드를 못 찾음 (본문 Vehicle type / Equipment overview 확인)' });
+          }
         } catch (e) {
           log(`  [sam] 파싱 실패: ${f.name} — ${String(e.message).slice(0, 80)}`);
+          skipped.push({ month: month.name, file: f.name,
+            reason: '파싱 실패 — ' + String(e.message).slice(0, 120) });
         }
       }
       const mapping = SamParse.buildSamMapping(parsed, ref.rules);
       if (mapping.size) maps[month.yyyymm] = mapping;
+      monthStats.push({ name: month.name, yyyymm: month.yyyymm, files: files.length,
+        parsed: parsed.length, keys: Array.from(mapping.keys()).sort() });
       log(`[sam] ${month.name}: ${parsed.length}/${files.length} 파일, 모델키 ${mapping.size}개`);
     }
     if (!Object.keys(maps).length) throw new Error('SAM 파일을 하나도 읽지 못했습니다.');
@@ -237,9 +251,11 @@
     const log = opts.log || function () {};
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
 
+    const diag = { samMonths: [], samSkipped: [], rulesFile: '' };
     const ref = await loadRefData(src, log);
+    diag.rulesFile = ref.rulesFile || '';
     const wings = await loadWings(src, log);
-    const samMaps = await loadSam(src, ref, !!opts.allMonths, log);
+    const samMaps = await loadSam(src, ref, !!opts.allMonths, log, diag);
 
     const rowsRaw = Compare.compare(wings.rows, samMaps, {
       rules: ref.rules,
@@ -289,7 +305,7 @@
     };
 
     if (t0) log(`[build] 완료 (${Math.round((performance.now() - t0) / 100) / 10}s)`);
-    return { data: data, codes: codes };
+    return { data: data, codes: codes, diag: diag };
   }
 
   // build_data._clean: JSON 에 안전한 스칼라로.

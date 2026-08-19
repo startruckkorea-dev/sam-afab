@@ -110,6 +110,42 @@
     return m ? [m[1], m[2]] : [str, ''];
   }
 
+  /**
+   * WINGS 모델키 하나로 SAM 쪽에서 찾아볼 키 후보들을 만든다.
+   * 첫 번째는 언제나 원래 키라, 규칙은 '원래 키로 못 찾았을 때만' 개입한다(기존 결과 보존).
+   * model_mapping.xlsx 의 정규화_과거번호 · 이전모델 · 현재모델 · 모델별칭 · 옵션 시트가
+   * 여기서 처음으로 실제 매칭에 쓰인다 — 시트를 고치면 매칭이 바뀐다.
+   */
+  function modelKeyCandidates(modelNorm, rules) {
+    const [num, suf] = splitModel(modelNorm);
+    const out = [modelNorm];
+    if (!/^\d+$/.test(num)) return out;
+    const add = (n) => {
+      const k = String(n || '').toUpperCase().replace(/[^A-Z0-9]/g, '') + suf;
+      if (n && k !== suf && out.indexOf(k) === -1) out.push(k);
+    };
+    // 양방향으로 본다 — 규칙은 'A→B' 한 줄만 적어도 B→A 로도 찾아야 하기 때문.
+    const both = (obj) => {
+      const o = obj || {};
+      add(o[num]);
+      for (const k of Object.keys(o)) if (String(o[k]) === num) add(k);
+    };
+    // 같은 차를 가리키는 표만 쓴다. 이전모델/현재모델 은 '세대 이웃'이라
+    // (2853 과 2863 은 다른 차) 키로 쓰면 엉뚱한 모델과 조용히 비교된다.
+    both(rules.normalize_historic);
+    const rev = rules.reverse_aliases || {};
+    for (const k of Object.keys(rev)) {
+      const list = rev[k] || [];
+      if (k === num) list.forEach(add);
+      else if (list.indexOf(num) !== -1) add(k);
+    }
+    if (rules.normalize_28xx_to_26xx && num.length === 4) {
+      if (num.charAt(1) === '8') add(num.charAt(0) + '6' + num.slice(2));
+      if (num.charAt(1) === '6') add(num.charAt(0) + '8' + num.slice(2));
+    }
+    return out;
+  }
+
   const setDiff = (a, b) => new Set([...a].filter((x) => !b.has(x)));
   const setInter = (a, b) => new Set([...a].filter((x) => b.has(x)));
   const setXor = (a, b) => new Set([...setDiff(a, b), ...setDiff(b, a)]);
@@ -174,6 +210,7 @@
       const wingsPaint = new Set(r['WINGS_paint'] || []);
       const wingsTyre = new Set(r['WINGS_tyre'] || []);
       const modelNorm = normalizeModel(modelRaw);
+      const keyCands = modelKeyCandidates(modelNorm, rules);
 
       const wingsBm = strip(r['Baumuster']);
       const wingsSub = strip(r['Subcategory (ID)']).toLowerCase();
@@ -183,26 +220,26 @@
       const wingsPtoCodes = ptoCodesIn(wingsCodes);
       let isPto = wingsPtoCodes.size > 0 || !!r['WINGS_has_pto'];
 
-      function entryForModel(map, pto) {
-        const cand = map.get(modelNorm);
+      function entryForKey(map, key, pto) {
+        const cand = map.get(key);
         if (candidates(cand, pto).length) return cand;
-        const [numNorm, sufNorm] = splitModel(modelNorm);
+        const [numNorm, sufNorm] = splitModel(key);
         for (const [k, v] of map) {
           const kNorm = normalizeModel(String(k));
           const [numK, sufK] = splitModel(kNorm);
-          if (kNorm === modelNorm || (numK === numNorm && sufK === sufNorm)) {
+          if (kNorm === key || (numK === numNorm && sufK === sufNorm)) {
             if (candidates(v, pto).length) return v;
           }
         }
         return null;
       }
 
-      // 우선순위 월 맵 목록에서 모델을 해석한다. { data, pto } 반환(없으면 data=null).
-      function resolveIn(mapList) {
+      // 우선순위 월 맵 목록에서 모델키 하나를 해석한다. { data, pto } 반환(없으면 data=null).
+      function resolveIn(mapList, key) {
         let localPto = isPto;
         let entry = null, fbEntry = null, ok = false;
         for (const tryMap of mapList) {
-          const e = entryForModel(tryMap, localPto);
+          const e = entryForKey(tryMap, key, localPto);
           if (!candidates(e, localPto).length) continue;
           if (fbEntry === null) fbEntry = e;
           if (!expectedCabs.size) { entry = e; ok = true; break; }
@@ -241,12 +278,15 @@
         prevMaps = [];
       }
 
-      let res = resolveIn(currentMaps);
-      let matchSource = 'current';       // 'current' | 'prev' | 'none'
-      if (!res.data || !res.data.file) {
-        const resPrev = resolveIn(prevMaps);
-        if (resPrev.data && resPrev.data.file) { res = resPrev; matchSource = 'prev'; }
-        else matchSource = 'none';
+      // 모델키가 바깥 루프다 — 정확한 번호를 생산월·이전월까지 다 찾아본 뒤에야
+      // 별칭 번호로 넘어간다. 반대로 하면 가까운 달의 별칭 파일이 제 모델을 이긴다.
+      let res = { data: null, pto: isPto };
+      let matchSource = 'none';          // 'current' | 'prev' | 'none'
+      for (const key of keyCands) {
+        const rc = resolveIn(currentMaps, key);
+        if (rc.data && rc.data.file) { res = rc; matchSource = 'current'; break; }
+        const rp = resolveIn(prevMaps, key);
+        if (rp.data && rp.data.file) { res = rp; matchSource = 'prev'; break; }
       }
       isPto = res.pto;
       let samData = res.data;
@@ -346,6 +386,11 @@
         modelDisplay = strip(modelDisplay.replace(inlineAxle[0], '').replace(/\s{2,}/g, ' '));
         if (!axleType) axleType = inlineAxle[1];
       }
+      // WINGS표시치환 시트 — 같은 차가 WINGS 표기 차이로 두 모델처럼 갈라지는 걸 막는다.
+      const disp = rules.wings_display_replace || {};
+      if (Object.prototype.hasOwnProperty.call(disp, modelDisplay) && disp[modelDisplay]) {
+        modelDisplay = String(disp[modelDisplay]);
+      }
 
       const rowDict = {
         'Commission no.': com,
@@ -430,7 +475,8 @@
     }
   }
 
-  const api = { compare: compare, _toDate: toDate, _fmtDate: fmtDate };
+  const api = { compare: compare, _toDate: toDate, _fmtDate: fmtDate,
+                _modelKeyCandidates: modelKeyCandidates };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Compare = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

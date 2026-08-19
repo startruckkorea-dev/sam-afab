@@ -171,7 +171,7 @@
 
         <div class="code-editor hidden" id="matchEditor">
           <p class="pane-hint" data-i18n-html="matching.note">
-            <code>인식모델_대조표</code>는 열 때마다 지금 데이터로 다시 만들어지는 확인용 보기입니다.
+            <code>인식모델_대조표</code>·<code>미매칭_진단</code>은 다시 계산할 때마다 새로 만들어지는 확인용 보기입니다.
             규칙 시트를 고쳐 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.
           </p>
           <div class="editor-empty" id="matchEmpty" data-i18n="matching.loading">model_mapping.xlsx 를 불러오는 중…</div>
@@ -663,6 +663,19 @@
           <div class="man-callout warn">
             규칙을 고쳐 저장해도 <b>화면은 바로 바뀌지 않습니다</b>. <b>⟳ 데이터 다시 계산</b>을 눌러야 반영됩니다.
           </div>
+          <h3>미매칭_진단 — 왜 안 붙었나</h3>
+          <p>
+            <b>⟳ 데이터 다시 계산</b>은 끝나면서 이 워크북을 SharePoint 에 다시 씁니다. 규칙 시트는 그대로 두고
+            <code>인식모델_대조표</code>와 <code>미매칭_진단</code>만 이번 결과로 갈아 끼웁니다.
+            <b>새 SAM 파일을 넣었는데 반영이 안 된다</b> 싶으면 <code>미매칭_진단</code> 시트를 먼저 보세요.
+          </p>
+          <ul>
+            <li><b>WINGS 미매칭</b> — SAM 을 못 찾은 주문. 원인 칸이 “생산월 폴더 자체가 없음”인지
+              “그 달 SAM 에 이 번호가 없음”인지 알려 줍니다</li>
+            <li><b>SAM 파일 건너뜀</b> — 읽다가 버린 파일과 이유(모델번호·장비표를 못 찾음, 파싱 실패 등)</li>
+            <li><b>생산월 폴더</b> — 폴더별로 몇 개를 읽었는지와 인식된 모델키. 파일을 넣었는데 수가
+              안 늘면 파일 형식(<code>.docx</code>)이나 폴더 이름(<code>YYYY-MM …</code>)을 확인하세요</li>
+          </ul>
         </section>
 
         <!-- ===== 08 ===== -->
@@ -881,12 +894,14 @@
           <table class="man-tb">
             <thead><tr><th>시트</th><th>역할</th></tr></thead>
             <tbody>
-              <tr><td><code>정규화_과거번호</code></td><td>과거 모델번호를 현행 번호로 통일 (예 <code>3253 → 4153</code>)</td></tr>
-              <tr><td><code>이전모델</code> / <code>현재모델</code></td><td>세대 관계 표기</td></tr>
-              <tr><td><code>WINGS표시치환</code></td><td>WINGS 표기를 화면 표기로 치환</td></tr>
+              <tr><td><code>정규화_과거번호</code></td><td><b>매칭에 쓰임</b> — 같은 차의 과거/대체 번호 (예 <code>3253 ↔ 4153</code>). 양방향으로 봅니다</td></tr>
+              <tr><td><code>모델별칭</code></td><td><b>매칭에 쓰임</b> — SAM 번호 → 같은 차를 부르는 WINGS 번호들(쉼표로 여러 개)</td></tr>
+              <tr><td><code>옵션</code></td><td><b>매칭에 쓰임</b> — <code>normalize_28xx_to_26xx</code> 가 true 면 28xx ↔ 26xx(DNA)를 같은 차로 봄</td></tr>
+              <tr><td><code>이전모델</code> / <code>현재모델</code></td><td>세대 관계 표기(참고용). 2853 과 2863 은 <b>다른 차</b>라 매칭 키로는 쓰지 않습니다</td></tr>
+              <tr><td><code>WINGS표시치환</code></td><td>WINGS 표기를 화면 표기로 치환 — 같은 차가 표기 차이로 두 모델처럼 갈라지는 걸 막습니다</td></tr>
               <tr><td><code>차종키워드</code></td><td>차종 판정 키워드 (값은 쉼표로 여러 개)</td></tr>
-              <tr><td><code>옵션</code></td><td><code>normalize_28xx_to_26xx</code> 등 on/off</td></tr>
-              <tr><td><code>인식모델_대조표</code></td><td><b>확인용 보기</b>. 열 때마다 다시 생성되므로 편집·저장 대상 아님</td></tr>
+              <tr><td><code>인식모델_대조표</code></td><td><b>확인용 보기</b>. 다시 계산할 때마다 새로 생성되므로 편집·저장 대상 아님</td></tr>
+              <tr><td><code>미매칭_진단</code></td><td><b>확인용 보기</b>. SAM 을 못 찾은 주문과 그 원인, 건너뛴 SAM 파일, 생산월 폴더별 읽은 파일 수</td></tr>
             </tbody>
           </table>
           <div class="man-callout warn">
@@ -1042,9 +1057,9 @@
   <script src="lib/unzip.js?v=20260724b"></script>
   <script src="lib/samparse.js?v=20260817f"></script>
   <script src="lib/wingsparse.js?v=20260724b"></script>
-  <script src="lib/refdata.js?v=20260817g"></script>
-  <script src="lib/compare.js?v=20260817f"></script>
-  <script src="lib/pipeline.js?v=20260817f"></script>
+  <script src="lib/refdata.js?v=20260819a"></script>
+  <script src="lib/compare.js?v=20260819a"></script>
+  <script src="lib/pipeline.js?v=20260819a"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
@@ -1058,7 +1073,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260817f';
+      a.src = 'auth.js?v=20260819a';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

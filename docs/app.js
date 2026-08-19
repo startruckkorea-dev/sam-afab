@@ -171,7 +171,8 @@ const I18N = {
     'match.noFile': '매칭된 SAM 없음',
     'match.files': '문서 {n}개',
     'matching.note':
-      '<code>인식모델_대조표</code>는 열 때마다 지금 데이터로 다시 만들어지는 확인용 보기입니다. ' +
+      '<code>인식모델_대조표</code>·<code>미매칭_진단</code>은 다시 계산할 때마다 새로 만들어지는 확인용 ' +
+      '보기입니다(무엇이 붙었나 / 왜 못 붙었나). ' +
       '규칙 시트를 고쳐 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.',
     // 코드 관리
     'codes.title': '코드 관리',
@@ -252,10 +253,14 @@ const I18N = {
     'build.running': '⟳ 빌드 중…',
     'build.title': '데이터 다시 계산',
     'build.confirm': 'SharePoint 의 최신 WINGS(02) 와 최신 생산월 SAM(01) 으로 비교를 다시 계산합니다.\n'
-      + '이 브라우저에서 1~3분 정도 걸리고, 결과는 SharePoint(05. output)에 저장돼 모든 사용자에게 반영됩니다.\n\n계속할까요?',
+      + '이 브라우저에서 1~3분 정도 걸리고, 결과는 SharePoint(05. output)에 저장돼 모든 사용자에게 반영됩니다.\n'
+      + '모델 매핑 워크북(03. model_rules)의 인식모델_대조표·미매칭_진단 시트도 함께 갱신됩니다.\n\n계속할까요?',
     'build.needLogin': '데이터 빌드는 회사 Microsoft 365 계정 로그인이 필요합니다.',
     'build.step.ref': '참조 워크북(코드·매칭 규칙) 읽는 중…',
     'build.step.upload': '결과를 SharePoint 에 저장하는 중…',
+    'build.step.mapping': '모델 매핑 워크북(model_mapping.xlsx) 갱신 중…',
+    'build.mapping.done': '{file} 갱신 — 인식모델 {recog}행 · 미매칭_진단 {diag}행. SharePoint 에 저장했습니다.',
+    'build.mapping.fail': '모델 매핑 워크북 갱신 실패(비교 결과는 저장됨): {err}',
     'build.done': '빌드 완료 — {rows}행 (일치 {match} / 불일치 {mismatch}). SharePoint 에 저장했습니다.',
     'build.fail': '빌드 실패:',
     'build.close': '닫기',
@@ -368,9 +373,9 @@ const I18N = {
     'match.noFile': 'No SAM matched',
     'match.files': '{n} documents',
     'matching.note':
-      '<code>인식모델_대조표</code> is a verification view, rebuilt from the current data every ' +
-      'time this page opens. Edit a rule sheet and <b>Save to SharePoint</b>; it applies on the ' +
-      'next <b>Recompute Data</b>.',
+      '<code>인식모델_대조표</code> (what matched) and <code>미매칭_진단</code> (why it did not) are ' +
+      'verification views, rebuilt on every recompute. Edit a rule sheet and <b>Save to SharePoint</b>; ' +
+      'it applies on the next <b>Recompute Data</b>.',
     'codes.title': 'Code Manager',
     'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
     'codes.note':
@@ -449,10 +454,14 @@ const I18N = {
     'build.title': 'Recompute Data',
     'build.confirm': 'This recomputes the comparison from the newest WINGS export (02) and the newest '
       + 'production-month SAM folder (01) on SharePoint.\nIt runs in this browser (1–3 minutes) and the result is '
-      + 'saved to SharePoint (05. output) for everyone.\n\nContinue?',
+      + 'saved to SharePoint (05. output) for everyone.\n'
+      + 'The model mapping workbook (03. model_rules) also gets its recognition and diagnostics sheets refreshed.\n\nContinue?',
     'build.needLogin': 'Building requires signing in with your company Microsoft 365 account.',
     'build.step.ref': 'Reading reference workbooks (codes, matching rules)…',
     'build.step.upload': 'Saving the result to SharePoint…',
+    'build.step.mapping': 'Refreshing the model mapping workbook (model_mapping.xlsx)…',
+    'build.mapping.done': 'Updated {file} — {recog} recognized models, {diag} diagnostic rows. Saved to SharePoint.',
+    'build.mapping.fail': 'Could not refresh the model mapping workbook (comparison was still saved): {err}',
     'build.done': 'Build complete — {rows} rows ({match} match / {mismatch} mismatch). Saved to SharePoint.',
     'build.fail': 'Build failed:',
     'build.close': 'Close',
@@ -2530,14 +2539,110 @@ function refreshRecognitionSheet(S) {
   S.sheets[RECOG_SHEET] = recognitionAoa();
 }
 
+// ---- 미매칭_진단: 왜 안 붙었는지를 워크북에 그대로 적는다 ----
+// 규칙 시트를 고칠 사람이 보는 화면이 워크북이므로, 진단도 같은 파일에 둔다.
+const DIAG_SHEET = '미매칭_진단';
+const DIAG_COLS = ['구분', 'Model(WINGS)', 'Cab', 'PTO', '생산월', '대수', 'SAM 파일 / 폴더', '원인 · 다음 할 일'];
+function diagnosticsAoa(diag) {
+  const out = [DIAG_COLS.slice()];
+  const months = (diag && diag.samMonths) || [];
+  const haveYm = new Set(months.map((m) => m.yyyymm));
+
+  // 1) SAM 을 못 찾은 WINGS 주문 — 모델·캡·PTO·생산월별로 묶는다.
+  const groups = new Map();
+  for (const r of DATA.rows) {
+    if (String(r['SAM Status'] || '') !== 'No SAM') continue;
+    const ym = String(r['Production date'] || '').slice(0, 7);
+    const k = [r['Model(WINGS)'], r['Cab'], r['PTO'], ym].join('|');
+    if (!groups.has(k)) groups.set(k, { r: r, ym: ym, n: 0 });
+    groups.get(k).n += 1;
+  }
+  const ymNum = (ym) => Number(String(ym).replace('-', '')) || 0;
+  for (const g of [...groups.values()].sort((a, b) => b.n - a.n)) {
+    const has = haveYm.has(ymNum(g.ym));
+    out.push(['WINGS 미매칭', g.r['Model(WINGS)'] || '', g.r['Cab'] || '', g.r['PTO'] || '',
+      g.ym, g.n, '',
+      has ? '그 생산월 SAM 에 이 모델 번호가 없음 — 파일 추가, 또는 같은 차의 다른 번호면 모델별칭·정규화_과거번호 에 한 줄 추가'
+          : '생산월 폴더 자체가 없음 — 01. SAM_files 에 ' + (g.ym || '해당 월') + ' 폴더/파일 추가']);
+  }
+
+  // 2) 읽다가 버린 SAM 파일.
+  for (const sk of ((diag && diag.samSkipped) || [])) {
+    out.push(['SAM 파일 건너뜀', '', '', '', '', '', sk.month + ' / ' + sk.file, sk.reason]);
+  }
+
+  // 3) 월별로 몇 개를 읽었는지 — 파일을 넣었는데 수가 안 늘면 여기서 드러난다.
+  for (const m of months) {
+    out.push(['생산월 폴더', '', '', '', m.name, m.parsed + ' / ' + m.files, '',
+      '인식된 모델키 ' + m.keys.length + '개: ' + m.keys.join(', ')]);
+  }
+  return out;
+}
+
+// ---- 규칙 시트 기본값 ----
+// 워크북에 없는 규칙 시트는 기본값으로 만들어 둔다 — 시트가 아예 없으면 고칠 수도 없다.
+const RULE_SHEET_SEEDS = [
+  ['정규화_과거번호', 'normalize_historic', ['과거/대체 번호', '정규 번호']],
+  ['모델별칭', 'reverse_aliases', ['SAM 번호', '같은 차의 WINGS 번호들(쉼표 구분)']],
+  ['이전모델', 'previous_model', ['현재 번호', '이전 세대 번호']],
+  ['현재모델', 'current_model', ['이전 번호', '현재 세대 번호']],
+  ['WINGS표시치환', 'wings_display_replace', ['WINGS 표기', '표시로 치환']],
+  ['차종키워드', 'vehicle_keywords', ['차종(Vehicle)', '매칭 번호들(쉼표 구분)']],
+];
+function ruleSeedAoa(key, headers) {
+  const src = (window.RefData && RefData.RULE_DEFAULTS) ? RefData.RULE_DEFAULTS[key] : null;
+  const aoa = [headers.slice()];
+  for (const k of Object.keys(src || {})) {
+    const v = src[k];
+    aoa.push([k, Array.isArray(v) ? v.join(', ') : String(v)]);
+  }
+  return aoa;
+}
+
+// ---- 빌드 결과로 model_mapping.xlsx 를 다시 만들어 SharePoint 에 올린다 ----
+// 사람이 쓰는 규칙 시트는 그대로 두고, 자동 시트(대조표·진단)만 새 데이터로 갈아 끼운다.
+async function saveModelMappingWorkbook(diag) {
+  const items = await Graph.list('model_rules');
+  const found = items.find((it) => !it.isFolder
+    && it.name.toLowerCase() === MODEL_MAPPING_FILE.toLowerCase());
+  const name = found ? found.name : MODEL_MAPPING_FILE;
+
+  const sheets = {};
+  let order = [];
+  if (found) {
+    const wb = XLSX.read(new Uint8Array(await Graph.download('model_rules', name)), { type: 'array' });
+    const drop = new Set(['수동매핑', '매칭_별칭(수동)']);   // 폐기된 시트는 다시 쓰지 않는다
+    order = wb.SheetNames.filter((n) => !drop.has(n));
+    for (const n of order)
+      sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
+  }
+  for (const [sheet, key, headers] of RULE_SHEET_SEEDS) {
+    if (sheets[sheet] && sheets[sheet].length > 1) continue;
+    sheets[sheet] = ruleSeedAoa(key, headers);
+    if (order.indexOf(sheet) === -1) order.push(sheet);
+  }
+  if (!sheets['옵션']) {
+    sheets['옵션'] = [['옵션', '값'], ['normalize_28xx_to_26xx', 'true']];
+    order.push('옵션');
+  }
+  sheets[RECOG_SHEET] = recognitionAoa();
+  sheets[DIAG_SHEET] = diagnosticsAoa(diag);
+  order = [RECOG_SHEET, DIAG_SHEET].concat(order.filter((n) => n !== RECOG_SHEET && n !== DIAG_SHEET));
+
+  const wb = XLSX.utils.book_new();
+  for (const n of order) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheets[n] || [[]]), n);
+  await Graph.upload('model_rules', name, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+  return { name: name, recog: sheets[RECOG_SHEET].length - 1, diag: sheets[DIAG_SHEET].length - 1 };
+}
+
 // ---- 모델 매칭: model_mapping.xlsx (03. model_rules) 전체 시트 편집 ----
 const matchEditor = makeSheetEditor({
   folderKey: 'model_rules', fixedFile: MODEL_MAPPING_FILE,
   onLoaded: refreshRecognitionSheet,
   // 수동 교정 시트는 폐기했다 — 매칭은 SAM 문서의 번호·코드로만 결정한다.
   dropSheets: ['수동매핑', '매칭_별칭(수동)'],
-  // 대조표는 데이터로 다시 만드는 보기라 편집해도 남지 않는다 — 편집 UI 자체를 숨긴다.
-  readOnlySheets: [RECOG_SHEET],
+  // 대조표·진단은 빌드가 다시 만드는 보기라 편집해도 남지 않는다 — 편집 UI 자체를 숨긴다.
+  readOnlySheets: [RECOG_SHEET, DIAG_SHEET],
   els: { tabs: 'matchTabs', grid: 'matchGrid', addRow: 'matchAddRow', revert: 'matchLoadSp',
          saveSp: 'matchSaveSp', download: 'matchDownload', dirty: 'matchDirty',
          status: 'matchStatus', search: 'matchSearch', main: 'matchMain', empty: 'matchEmpty',
@@ -2858,7 +2963,7 @@ async function runBuild() {
   const log = buildLog();
   log.line(t('build.step.ref'));
   try {
-    const { data, codes } = await Pipeline.build(GRAPH_SOURCE, { log: (m) => log.line(m) });
+    const { data, codes, diag } = await Pipeline.build(GRAPH_SOURCE, { log: (m) => log.line(m) });
 
     log.line(t('build.step.upload'));
     await Graph.ensureFolder('output');
@@ -2866,7 +2971,20 @@ async function runBuild() {
     await Graph.uploadJson('output', 'codes.json', codes);
 
     DATA_SOURCE = 'sharepoint';
-    applyData(data, codes);
+    applyData(data, codes);        // MY 등 파생값을 채운 뒤라야 대조표를 만들 수 있다
+
+    // 모델 매핑 워크북도 이번 결과로 갱신 — 인식 결과(대조표)와 미매칭 진단이
+    // 항상 지금 데이터와 같은 것을 가리키게 한다. 실패해도 빌드는 성공으로 둔다.
+    log.line(t('build.step.mapping'));
+    try {
+      const r = await saveModelMappingWorkbook(diag);
+      log.line(t('build.mapping.done', { file: r.name, recog: r.recog, diag: r.diag }), 'ok');
+      if (matchEditor.S.file && !matchEditor.S.dirty) matchEditor.open(MODEL_MAPPING_FILE);
+    } catch (e) {
+      console.error(e);
+      log.line(t('build.mapping.fail', { err: e.message }), 'err');
+    }
+
     const msg = t('build.done', {
       rows: data.summary.total, match: data.summary.matched, mismatch: data.summary.mismatched });
     log.line(msg, 'ok');

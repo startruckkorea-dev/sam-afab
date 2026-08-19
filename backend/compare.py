@@ -104,6 +104,54 @@ def _split_model(s: str):
     return s, ''
 
 
+def _model_key_candidates(model_norm: str) -> list:
+    """SAM keys worth trying for one WINGS model key, best first.
+
+    The original key always comes first, so the rule sheets only ever add a
+    fallback — a row that already matched keeps matching the same file. This is
+    where model_mapping.xlsx (정규화_과거번호 · 이전모델 · 현재모델 · 모델별칭 · 옵션)
+    first reaches the matching itself: edit a sheet and the matching changes.
+    """
+    num, suf = _split_model(model_norm)
+    out = [model_norm]
+
+    def add(n):
+        if not n:
+            return
+        k = re.sub(r'[^A-Z0-9]', '', str(n).upper()) + suf
+        if k and k != suf and k not in out:
+            out.append(k)
+
+    if not num.isdigit():
+        return out
+
+    def both(table):
+        # A rule written 'A -> B' has to be usable in both directions.
+        table = table or {}
+        add(table.get(num))
+        for k, v in table.items():
+            if str(v) == num:
+                add(k)
+
+    # Only same-truck tables belong here. 이전모델/현재모델 are generation NEIGHBOURS
+    # (2853 vs 2863 are different trucks), so using them as keys would silently compare
+    # a vehicle against the wrong model.
+    both(RULES.get('normalize_historic'))
+    for k, lst in (RULES.get('reverse_aliases') or {}).items():
+        lst = lst or []
+        if k == num:
+            for a in lst:
+                add(a)
+        elif num in lst:
+            add(k)
+    if RULES.get('normalize_28xx_to_26xx') and len(num) == 4:
+        if num[1] == '8':
+            add(num[0] + '6' + num[2:])
+        if num[1] == '6':
+            add(num[0] + '8' + num[2:])
+    return out
+
+
 def _cabs_in(codes) -> set:
     """Cab variants (e.g. {'G5F'}) for the given codes, via cab.xlsx (F1J -> G5F)."""
     return {CAB_MAP[c] for c in (codes or ()) if c in CAB_MAP}
@@ -227,6 +275,7 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         wings_paint = set(r.get('WINGS_paint') or []) if 'WINGS_paint' in r.index else set()
         wings_tyre = set(r.get('WINGS_tyre') or []) if 'WINGS_tyre' in r.index else set()
         model_norm = normalize_model(model_raw)
+        key_cands = _model_key_candidates(model_norm)
 
         # Extra match fields — from WINGS columns (SAM side comes from the word body).
         wings_bm = str(r.get('Baumuster', '') or '').strip()
@@ -243,39 +292,45 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         # proximity: a matching GigaSpace file one month away is a better comparison than
         # a StreamSpace file in the exact month. Fall back to nearest-with-any if no
         # month has a cab match.
-        def _entry_for_model(_map):
-            _cand_entry = _map.get(model_norm, {})
+        def _entry_for_key(_map, key):
+            _cand_entry = _map.get(key, {})
             if _candidates(_cand_entry, is_pto):
                 return _cand_entry
-            num_norm, suf_norm = _split_model(model_norm)
+            num_norm, suf_norm = _split_model(key)
             for k, v in _map.items():
                 k_norm = normalize_model(str(k))
                 num_k, suf_k = _split_model(k_norm)
-                if k_norm == model_norm or (num_k == num_norm and suf_k == suf_norm):
+                if k_norm == key or (num_k == num_norm and suf_k == suf_norm):
                     if _candidates(v, is_pto):
                         return v
             return {}
 
         sam_entry = {}
         sam_map = sam_maps_list[0] if sam_maps_list else {}
-        _fallback_entry, _fallback_map = None, None
-        for _try_map in sam_maps_list:
-            _e = _entry_for_model(_try_map)
-            if not _candidates(_e, is_pto):
-                continue
-            if _fallback_entry is None:          # nearest month with any candidate
-                _fallback_entry, _fallback_map = _e, _try_map
-            if not expected_cabs:                # no cab signal -> nearest month wins
-                sam_entry, sam_map = _e, _try_map
+        # The model key is the OUTER loop: every month is searched for the exact key
+        # before an alias key is considered. The other way round, an alias file in a
+        # nearer month would beat the right model one month further out.
+        for _key in key_cands:
+            _fallback_entry, _fallback_map = None, None
+            for _try_map in sam_maps_list:
+                _e = _entry_for_key(_try_map, _key)
+                if not _candidates(_e, is_pto):
+                    continue
+                if _fallback_entry is None:      # nearest month with any candidate
+                    _fallback_entry, _fallback_map = _e, _try_map
+                if not expected_cabs:            # no cab signal -> nearest month wins
+                    sam_entry, sam_map = _e, _try_map
+                    break
+                # cab signal present: take the first (nearest) month that has a cab match
+                if _cab_ok(_pick(_e, is_pto, wings_bm, wings_sub, expected_cabs), expected_cabs):
+                    sam_entry, sam_map = _e, _try_map
+                    break
+            else:
+                # no month had a cab match -> fall back to nearest month with any candidate
+                if _fallback_entry is not None:
+                    sam_entry, sam_map = _fallback_entry, _fallback_map
+            if sam_entry:
                 break
-            # cab signal present: take the first (nearest) month that has a cab match
-            if _cab_ok(_pick(_e, is_pto, wings_bm, wings_sub, expected_cabs), expected_cabs):
-                sam_entry, sam_map = _e, _try_map
-                break
-        else:
-            # no month had a cab match -> fall back to nearest month with any candidate
-            if _fallback_entry is not None:
-                sam_entry, sam_map = _fallback_entry, _fallback_map
 
         # Refine PTO: if WINGS has a code unique to the PTO SAM variant.
         if not is_pto and isinstance(sam_entry, dict) and True in sam_entry and False in sam_entry:
@@ -398,6 +453,10 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
                                     _model_display.replace(_inline_axle.group(0), '')).strip()
             if not _axle_type:
                 _axle_type = _inline_axle.group(1)
+        # WINGS표시치환 — keeps one truck from splitting into two models over spelling.
+        _display_repl = RULES.get('wings_display_replace') or {}
+        if _display_repl.get(_model_display):
+            _model_display = str(_display_repl[_model_display])
 
         row_dict = {
             'Commission no.': com,

@@ -28,6 +28,9 @@ _XLSX_MAP_SHEETS = {
 }
 _XLSX_LIST_SHEETS = {
     '차종키워드': 'vehicle_keywords',
+    # SAM document number -> WINGS numbers naming the same truck (e.g. 3253 -> 4153).
+    # load_sam_from_folder widens the model keys with this table.
+    '모델별칭': 'reverse_aliases',
 }
 
 # Built-in defaults == the original hardcoded values (fallback only).
@@ -49,7 +52,7 @@ DEFAULTS = {
         '2663 LS': '2863 LS', '2643 A': '3343 A',
     },
     'vehicle_keywords': {
-        'Actros-L': ['2651', '2851', '2653', '2853', '2663', '2863'],
+        'Actros-L': ['2651', '2851', '2653', '2853', '2663', '2863', '2143'],
         'Actros': ['3363'],
         'Arocs': ['2643', '3343', '4153', '4453', '3253', '2135', '4440', '4140'],
     },

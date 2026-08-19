@@ -322,10 +322,13 @@
 </div>
 <div class="step">
   <div class="num">6</div>
-  <div class="body"><h4>워크북 리프레시 (로컬 도구)</h4>
-  <p>카테고리 워크북 갱신은 로컬 Python 도구(<code>build_model_category_xlsx.py</code>)의 몫입니다.
-  모델 인식표(<code>인식모델_대조표</code>)는 로컬 도구(<code>build_model_rules_xlsx.py</code>)와
-  브라우저(모델 매칭 화면을 열 때) <b>양쪽에서</b> 같은 항목으로 다시 만들어집니다.</p></div>
+  <div class="body"><h4>모델 매핑 워크북 갱신</h4>
+  <p>비교가 끝나면 <code>03. model_rules/model_mapping.xlsx</code>도 같은 결과로 다시 써서
+  SharePoint 에 저장합니다. 사람이 고친 규칙 시트는 그대로 두고, 자동 시트인
+  <code>인식모델_대조표</code>(무엇이 무엇과 붙었나)와 <code>미매칭_진단</code>(왜 못 붙었나)만
+  갈아 끼웁니다. 이 단계가 실패해도 비교 결과는 이미 저장된 뒤라 빌드는 성공으로 끝납니다.</p>
+  <p class="muted">카테고리 워크북(<code>model-category.xlsx</code>) 갱신은 여전히 로컬 Python 도구
+  (<code>build_model_category_xlsx.py</code>)의 몫입니다.</p></div>
 </div>
 
 <p class="anno">출력 <code>data.json</code>은 <code>{ generated_at, wings_file, columns, summary, rows[] }</code> 구조.
@@ -584,13 +587,24 @@ else:                                          → "Match"</code></pre>
 <table>
   <thead><tr><th>시트</th><th>규칙 키</th><th>용도</th></tr></thead>
   <tbody>
-    <tr><td><code>정규화_과거번호</code></td><td>normalize_historic</td><td>과거번호 정규화 맵</td></tr>
-    <tr><td><code>이전모델</code> / <code>현재모델</code></td><td>previous/current_model</td><td>세대 번호 매핑</td></tr>
-    <tr><td><code>WINGS표시치환</code></td><td>wings_display_replace</td><td>표시용 문자열 치환</td></tr>
+    <tr><td><code>정규화_과거번호</code></td><td>normalize_historic</td>
+      <td><b>매칭에 쓰임.</b> 같은 차의 과거/대체 번호 (예: 3253 ↔ 4153). 양방향으로 본다.</td></tr>
+    <tr><td><code>모델별칭</code></td><td>reverse_aliases</td>
+      <td><b>매칭에 쓰임.</b> SAM 번호 → 같은 차를 부르는 WINGS 번호들(쉼표 구분).</td></tr>
+    <tr><td><code>옵션</code></td><td>normalize_28xx_to_26xx</td>
+      <td><b>매칭에 쓰임.</b> true 면 28xx ↔ 26xx (DNA 표기)를 같은 차로 본다.</td></tr>
+    <tr><td><code>이전모델</code> / <code>현재모델</code></td><td>previous/current_model</td>
+      <td>세대 이웃 정보(참고용). 2853 과 2863 은 <b>다른 차</b>라 매칭 키로는 쓰지 않는다.</td></tr>
+    <tr><td><code>WINGS표시치환</code></td><td>wings_display_replace</td>
+      <td>표시용 치환. 같은 차가 WINGS 표기 차이로 두 모델처럼 갈라지는 걸 막는다.</td></tr>
     <tr><td><code>차종키워드</code></td><td>vehicle_keywords</td><td>번호→차종(Actros/Arocs…) 추정</td></tr>
     <tr><td><code>인식모델_대조표</code></td><td>(자동생성)</td>
       <td>확인용 보기(편집 안 함). 컬럼은 대시보드와 동일 —
       Model · Type · Axle · Cab · MY · PTO + SAM Baumuster/now · Baumuster · Subcategory · 매칭상태 · SAM 파일</td></tr>
+    <tr><td><code>미매칭_진단</code></td><td>(자동생성)</td>
+      <td>확인용 보기(편집 안 함). ① SAM 을 못 찾은 주문(모델·캡·PTO·생산월·대수와 원인),
+      ② 읽다가 건너뛴 SAM 파일과 이유, ③ 생산월 폴더별 읽은 파일 수·인식된 모델키.
+      "새 SAM 을 넣었는데 반영이 안 된다" 를 여기서 확인한다.</td></tr>
   </tbody>
 </table>
 
