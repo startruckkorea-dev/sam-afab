@@ -2578,10 +2578,26 @@ function diagnosticsAoa(diag) {
   }
 
   // 3) 잘 읽혔지만 어떤 주문에도 안 붙은 SAM 문서 — 파일을 넣었는데 화면에 안 보이는 경우.
+  // 왜 안 붙었는지는 '그 달에 주문이 있었나 / 무슨 모델키로 읽혔나 / PTO 로 봤나' 셋이면 갈린다.
   for (const un of ((diag && diag.samUnused) || [])) {
-    out.push(['안 붙은 SAM 문서', '', '', '', '', '', un.month + ' / ' + un.file,
-      '읽기는 했으나 이 문서를 쓴 주문이 없음 — 그 모델·생산월 주문이 없거나, '
-      + 'PTO·캡 판정이 갈려 다른 문서가 선택됨(같은 달에 PTO 짝이 있으면 파일명으로 가름)']);
+    const keys = (un.keys || []).join(', ');
+    const why = un.orders === 0
+      ? '그 생산월 WINGS 주문이 0건 — 주문이 들어오면 자동으로 붙는다(파일·규칙 문제 아님)'
+      : `그 생산월 주문 ${un.orders}건 중 이 문서를 고른 것이 없음 — 모델키(${keys}) 또는 `
+        + `PTO(${un.pto ? 'PTO' : '비PTO'})·캡이 주문과 갈렸는지 확인`;
+    out.push(['안 붙은 SAM 문서', keys, '', un.pto ? 'PTO' : '', '', un.orders,
+      un.month + ' / ' + un.file, why]);
+  }
+
+  // 3b) 생산월별 주문 수 — 'SAM 은 있는데 주문이 아직 없다' 를 한눈에.
+  const om = (diag && diag.ordersByMonth) || {};
+  for (const ym of Object.keys(om).sort()) {
+    out.push(['WINGS 주문 수', '', '', '', String(ym).slice(0, 4) + '-' + String(ym).slice(4),
+      om[ym], '', '이 생산월로 들어온 WINGS 주문 수']);
+  }
+  if (diag && diag.ordersNoDate) {
+    out.push(['WINGS 주문 수', '', '', '', '(생산일 없음)', diag.ordersNoDate, '',
+      '생산월을 못 정해 최신 생산월 폴더부터 훑는 주문']);
   }
 
   // 4) 월별로 몇 개를 읽었는지 — 파일을 넣었는데 수가 안 늘면 여기서 드러난다.

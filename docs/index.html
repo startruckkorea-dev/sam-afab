@@ -673,7 +673,10 @@
             <li><b>WINGS 미매칭</b> — SAM 을 못 찾은 주문. 원인 칸이 “생산월 폴더 자체가 없음”인지
               “그 달 SAM 에 이 번호가 없음”인지 알려 줍니다</li>
             <li><b>SAM 파일 건너뜀</b> — 읽다가 버린 파일과 이유(모델번호·장비표를 못 찾음, 파싱 실패 등)</li>
-            <li><b>안 붙은 SAM 문서</b> — 잘 읽혔는데 어떤 주문에도 안 쓰인 문서. 해당 모델·생산월 주문이 없거나, PTO·캡 판정이 갈려 다른 문서가 선택된 경우입니다</li>
+            <li><b>안 붙은 SAM 문서</b> — 잘 읽혔는데 어떤 주문에도 안 쓰인 문서.
+              그 문서가 <b>무슨 모델키로 읽혔는지</b>, <b>PTO 로 봤는지</b>, 그 <b>생산월 주문이 몇 건인지</b>를
+              함께 적습니다. 주문이 0건이면 파일·규칙 문제가 아니라 아직 주문이 없는 것입니다</li>
+            <li><b>WINGS 주문 수</b> — 생산월별 주문 건수. SAM 문서는 있는데 그 달 주문이 없는 경우를 가릅니다</li>
             <li><b>생산월 폴더</b> — 폴더별로 몇 개를 읽었는지와 인식된 모델키. 파일을 넣었는데 수가
               안 늘면 파일 형식(<code>.docx</code>)이나 폴더 이름(<code>YYYY-MM …</code>)을 확인하세요</li>
           </ul>
@@ -1090,7 +1093,7 @@
   <script src="lib/wingsparse.js?v=20260724b"></script>
   <script src="lib/refdata.js?v=20260819c"></script>
   <script src="lib/compare.js?v=20260819c"></script>
-  <script src="lib/pipeline.js?v=20260819c"></script>
+  <script src="lib/pipeline.js?v=20260819e"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
@@ -1104,7 +1107,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260819d';
+      a.src = 'auth.js?v=20260819e';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

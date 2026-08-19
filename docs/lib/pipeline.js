@@ -239,7 +239,13 @@
       if (mapping.size) maps[month.yyyymm] = mapping;
       monthStats.push({ name: month.name, yyyymm: month.yyyymm, files: files.length,
         parsed: parsed.length, keys: Array.from(mapping.keys()).sort(),
-        fileNames: parsed.map((d) => d.file) });
+        // 붙지 않은 문서를 설명하려면 '무엇으로 읽혔는지'가 필요하다 — 모델키와 PTO 판정.
+        docs: parsed.map((d) => ({
+          file: d.file,
+          pto: !!d.is_pto,
+          keys: [SamParse.normalizeModel(d.model_now), SamParse.normalizeModel(d.model_baumuster)]
+            .filter((k, i, a) => k && a.indexOf(k) === i),
+        })) });
       log(`[sam] ${month.name}: ${parsed.length}/${files.length} 파일, 모델키 ${mapping.size}개`);
     }
     if (!Object.keys(maps).length) throw new Error('SAM 파일을 하나도 읽지 못했습니다.');
@@ -282,10 +288,27 @@
       const f = String(r['Compared SAM file name'] || '').split(/[\\/]/).pop();
       if (f) used.add(f);
     }
+    // WINGS 주문을 생산월별로 세어 둔다. SAM 문서가 안 붙는 가장 흔한 이유가
+    // '그 생산월 주문이 아직 없다' 인데, 그건 이 수를 봐야만 알 수 있다.
+    // (생산일이 비어 있는 주문은 생산월 폴더를 못 정해 최신월부터 훑는다 — 따로 센다.)
+    const ordersByMonth = {};
+    let ordersNoDate = 0;
+    for (const r of rowsRaw) {
+      const p = String(r['Production date'] || '').slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(p)) {
+        const ym = Number(p.slice(0, 4)) * 100 + Number(p.slice(5, 7));
+        ordersByMonth[ym] = (ordersByMonth[ym] || 0) + 1;
+      } else ordersNoDate += 1;
+    }
+    diag.ordersByMonth = ordersByMonth;
+    diag.ordersNoDate = ordersNoDate;
+
     diag.samUnused = [];
     for (const m of diag.samMonths) {
-      for (const f of (m.fileNames || [])) {
-        if (!used.has(f)) diag.samUnused.push({ month: m.name, file: f });
+      for (const d of (m.docs || [])) {
+        if (used.has(d.file)) continue;
+        diag.samUnused.push({ month: m.name, file: d.file, pto: d.pto, keys: d.keys,
+          orders: ordersByMonth[m.yyyymm] || 0 });
       }
     }
     if (diag.samUnused.length) log(`[build] 어떤 주문에도 안 붙은 SAM 문서 ${diag.samUnused.length}개`);
