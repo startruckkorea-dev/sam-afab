@@ -906,6 +906,8 @@
             <code>U2K</code>(오일레벨 제어)를 <code>제외</code>로 둡니다.
             두 번째 시트 <code>설명에_PTO포함(Ref)</code>에 설명에 PTO 가 들어간 코드가 전부 있으니
             <b>미분류</b>로 뜨는 새 코드가 있으면 검토해 주세요.
+            <br />파일이 없으면 <b>이 화면을 열 때</b>(또는 다시 계산할 때) 기본값으로 한 번 만들어 둡니다.
+            이미 있으면 손대지 않으므로, 분류한 내용이 덮어써질 걱정은 없습니다.
           </div>
 
           <h4><code>cab.xlsx</code> — 캡 매핑</h4>
@@ -1102,7 +1104,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260819c';
+      a.src = 'auth.js?v=20260819d';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

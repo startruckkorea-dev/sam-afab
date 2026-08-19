@@ -2631,10 +2631,30 @@ async function ensurePtoCodesWorkbook() {
   aoa.push(['※ WINGS 주문·SAM 견적서 양쪽 모두 여기 "PTO코드" 를 하나라도 가지면 PTO 로 봅니다. '
     + 'PTO 차량과 비PTO 차량은 서로 비교하지 않으므로, 이 목록이 곧 매칭 기준입니다. '
     + '준비/제어 코드처럼 PTO 가 없는 차에도 붙는 코드는 "제외(except)" 로 두세요.']);
+  // 검토용 원본 — 설명에 PTO 가 들어간 코드 전부. 어느 것을 목록에 넣을지 판단할 근거이고,
+  // 새 코드가 생기면 '미분류' 로 드러난다. 편집해도 판정에는 쓰이지 않는다.
+  const listed = new Set([...d.codes, ...d.excepts]);
+  const mentionsPto = (t2) => {
+    const x = String(t2 || '');
+    return x.indexOf('PTO') !== -1
+      || /(?<![A-Za-z])pto(?![A-Za-z])/i.test(x)
+      || /power[ -]*take[ -]*off/i.test(x);
+  };
+  const ref = [['코드(Code)', '설명(Description)', '현재 분류']];
+  for (const c of Object.keys(desc).sort()) {
+    if (!mentionsPto(desc[c])) continue;
+    ref.push([c, desc[c], d.codes.indexOf(c) !== -1 ? 'PTO코드'
+      : (d.excepts.indexOf(c) !== -1 ? '제외' : '미분류 — 검토 필요')]);
+  }
+  ref.push([]);
+  ref.push(['※ 확인용 목록입니다(편집해도 판정에 쓰이지 않음). PTO 시트에 넣을지 여기서 판단하세요.']);
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'PTO');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ref), '설명에_PTO포함(Ref)');
   await Graph.upload('code', PTO_CODES_FILE, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
-  return { name: PTO_CODES_FILE, codes: d.codes.length, excepts: d.excepts.length };
+  return { name: PTO_CODES_FILE, codes: d.codes.length, excepts: d.excepts.length,
+    review: Math.max(0, ref.length - 3 - listed.size) };
 }
 
 // ---- 빌드 결과로 model_mapping.xlsx 를 다시 만들어 SharePoint 에 올린다 ----
@@ -2917,6 +2937,9 @@ async function loadCodeFileList() {
   if (!window.Graph || !Graph.available()) { box.innerHTML = `<span class="none">${esc(t('op.needLogin'))}</span>`; return; }
   box.innerHTML = `<span class="none">${esc(t('codes.pickFile'))}</span>`;
   try {
+    // PTO 코드 목록이 아직 없으면 여기서 만들어 준다 — 검토하러 온 화면이 바로 이 화면이라,
+    // 다시 계산(1~3분)을 기다렸다 오게 할 이유가 없다. 있으면 손대지 않는다.
+    try { await ensurePtoCodesWorkbook(); } catch (e) { console.error(e); }
     const items = await Graph.list('code');
     // code-overview.xlsx 는 코드 설명용 문서라 비교 로직이 참조하지 않는다 — 목록에서 뺀다.
     CODE_FILES = items.filter((i) => !i.isFolder && /\.xlsx?$/i.test(i.name)
