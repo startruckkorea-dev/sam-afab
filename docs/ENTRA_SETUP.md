@@ -41,8 +41,29 @@ SharePoint 문서 라이브러리를 **직접 읽고 저장**합니다. 서버·
 - 모델 매칭 폴더: `SAM-AFAB_Data/03. model_rules`  → `model_mapping.xlsx`
 - 코드 관리 폴더: `SAM-AFAB_Data/04. code`         → 폴더 내 모든 `.xlsx`
 - 빌드 결과: `SAM-AFAB_Data/05. output` → `data.json` / `codes.json` (없으면 빌드가 폴더를 만듦)
+- **접속 권한 명단**: `SAM-AFAB_Access` → 폴더 내 `.xlsx` (`G`=EMail, `H`=Role)
 
 경로/사이트가 바뀌면 [`graph.js`](graph.js) 상단의 `HOSTNAME` / `SITE_PATH` / `FOLDERS` 를 수정하세요.
+
+---
+
+## 3-1) 접속 권한 명단 (`SAM-AFAB_Access`)
+
+로그인 직후 이 엑셀을 읽어 `Admin` / `Read` 를 정하고, 명단에 없으면 접속을 막습니다.
+
+- 열은 위치가 아니라 **1행 헤더 이름**으로 찾습니다 (`EMail` / `UPN` / `Role`).
+  열을 추가하거나 순서를 바꿔도 동작하며, `UPN` 과 `EMail` 중 어느 쪽이 일치해도 인정합니다.
+- `Role` 값: `Admin` (전체) / `Read` (대시보드 · 생산월 이력관리 · 사용자메뉴얼만).
+- 폴더에 `.xlsx` 가 여러 개면 `Access…` 로 시작하는 파일을 우선 사용합니다.
+
+⚠ **Read 권한자에게 폴더 권한을 주지 않아도 되는 이유** — `FOLDERS.access.shareUrl`
+(SharePoint가 발급한 공유 링크)을 Graph `/shares` 로 해석해 항목 단위로 읽기 때문입니다.
+공유 링크 자체가 접근 권한이라 상위 폴더 ACL이 필요 없습니다. 따라서:
+
+- 이 링크는 **"조직 내 링크가 있는 모든 사용자 — 보기"** 로 만들어져 있어야 합니다.
+  ("기존 액세스 권한이 있는 사용자" 링크는 권한을 새로 주지 않아 효과가 없습니다.)
+- 링크를 다시 발급하면 `graph.js` 의 `shareUrl` 을 **글자 하나 바꾸지 말고** 교체하세요.
+- 공유 링크가 실패하면 폴더 경로로 직접 조회하는 폴백이 동작합니다(폴더 권한이 있는 관리자용).
 
 ---
 

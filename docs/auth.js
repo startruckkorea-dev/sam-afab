@@ -31,10 +31,11 @@
     cache: { cacheLocation: 'localStorage' },
   };
   var LOGIN_REQUEST = { scopes: ['User.Read'] };
-  var APP_SCRIPT = 'app.js?v=20260819g';
+  var APP_SCRIPT = 'app.js?v=20260909a';
 
   var pca = null;
   var activeAccount = null;
+  var activeRole = null;   // 'admin' | 'read'
 
   // ---- Graph 토큰 브로커 (graph.js 가 사용) --------------------------
   // 조용히(acquireTokenSilent) 시도하고, 안 되면 팝업으로 증분 동의.
@@ -57,7 +58,112 @@
       getToken: getToken,
       account: function () { return activeAccount; },
       pca: pca,
+      role: activeRole,
     };
+  }
+
+  function setRole(role) {
+    activeRole = role;
+    if (window.MB_AUTH) window.MB_AUTH.role = role;
+  }
+
+  // ---- 접속 권한 명단 (SharePoint: Shared Documents/SAM-AFAB_Access) ---
+  // 폴더의 xlsx 를 읽어 로그인 계정의 권한(Admin / Read)을 정한다.
+  // 열 위치를 고정하지 않고 헤더 행에서 EMail / UPN / Role 을 이름으로 찾으므로
+  // 엑셀에 열이 추가되거나 순서가 바뀌어도 그대로 동작한다.
+  var ACCESS_FOLDER = 'access';
+
+  function norm(v) {
+    return String(v == null ? '' : v).trim().toLowerCase();
+  }
+
+  function findCol(header, names) {
+    for (var i = 0; i < header.length; i++) {
+      if (names.indexOf(norm(header[i]).replace(/\s+/g, '')) !== -1) return i;
+    }
+    return -1;
+  }
+
+  // 시트 하나(AOA)에서 upn 에 해당하는 권한을 찾는다. 없으면 null.
+  function roleFromRows(rows, upn) {
+    if (!upn || !rows || rows.length < 2) return null;  // 빈 값이 빈 셀과 일치하면 안 된다
+    var head = rows[0] || [];
+    var cEmail = findCol(head, ['email', 'e-mail', '메일', '이메일']);
+    var cUpn = findCol(head, ['upn']);
+    var cRole = findCol(head, ['role', '권한']);
+    if (cRole === -1 || (cEmail === -1 && cUpn === -1)) return null;
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r] || [];
+      // UPN 열과 EMail 열 중 어느 쪽이든 일치하면 그 행으로 본다.
+      // (UPN 열은 현재 비어 있고, 한쪽만 채워도 잠기지 않게 둘 다 본다.)
+      var hitUpn = cUpn !== -1 && norm(row[cUpn]) === upn;
+      var hitMail = cEmail !== -1 && norm(row[cEmail]) === upn;
+      if (!hitUpn && !hitMail) continue;
+      var role = norm(row[cRole]);
+      if (role === 'admin') return 'admin';
+      if (role.indexOf('read') === 0) return 'read';
+    }
+    return null;
+  }
+
+  // driveItem 이 폴더면 그 안의 권한 엑셀을, 파일이면 자신을 워크북으로 쓴다.
+  // (Access* 로 시작하는 파일 우선 — mb-truck-spec 의 accessList.js 와 같은 규칙)
+  async function workbookFromItem(item) {
+    var driveId = item.parentReference && item.parentReference.driveId;
+    if (!driveId) throw new Error('권한 엑셀의 드라이브를 확인하지 못했습니다.');
+    if (!item.folder) return { driveId: driveId, itemId: item.id };
+    var kids = await window.Graph.itemChildren(driveId, item.id);
+    var pick = null;
+    for (var i = 0; i < kids.length; i++) {
+      var n = kids[i].name || '';
+      if (!kids[i].file || n.indexOf('~$') === 0 || !/\.xlsx$/i.test(n)) continue;
+      if (/^access/i.test(n)) { pick = kids[i]; break; }
+      if (!pick) pick = kids[i];
+    }
+    if (!pick) throw new Error('SAM-AFAB_Access 폴더에 권한 엑셀(.xlsx)이 없습니다.');
+    return { driveId: driveId, itemId: pick.id };
+  }
+
+  // 권한 엑셀의 위치를 찾는다.
+  //  1) 공유 링크(/shares) — 링크 자체가 접근 권한이라 Read 권한자가 폴더에
+  //     대한 권한이 없어도 열린다. 이 경로가 기본이다.
+  //  2) 실패하면 폴더 경로로 직접 조회 (폴더 권한이 있는 관리자·개발용 폴백)
+  async function resolveAccessWorkbook() {
+    var cfg = (window.Graph.folders && window.Graph.folders[ACCESS_FOLDER]) || {};
+    var errs = [];
+    if (cfg.shareUrl) {
+      try {
+        return await workbookFromItem(await window.Graph.itemFromShareUrl(cfg.shareUrl));
+      } catch (e) {
+        errs.push('공유 링크: ' + ((e && e.message) || e));
+      }
+    }
+    try {
+      return await workbookFromItem(await window.Graph.itemByPath(ACCESS_FOLDER));
+    } catch (e) {
+      errs.push('폴더 경로: ' + ((e && e.message) || e));
+    }
+    throw new Error(errs.join('  /  '));
+  }
+
+  // 시트를 AOA 로 반환. 워크북 API 라 파일을 통째로 내려받지 않고 SheetJS 도 안 쓴다.
+  async function fetchAccessSheets() {
+    if (!window.Graph || !window.Graph.available()) {
+      throw new Error('SharePoint 연동을 사용할 수 없습니다.');
+    }
+    var wb = await resolveAccessWorkbook();
+    return window.Graph.workbookSheets(wb.driveId, wb.itemId);
+  }
+
+  async function resolveRole(account) {
+    var upn = norm(account && account.username);
+    if (!upn) return null;
+    var sheets = await fetchAccessSheets();
+    for (var i = 0; i < sheets.length; i++) {
+      var role = roleFromRows(sheets[i], upn);
+      if (role) return role;
+    }
+    return null;
   }
 
   // ---- 대시보드 로드 (인증 성공/스킵 후 호출) ------------------------
@@ -67,8 +173,10 @@
     document.body.appendChild(s);
   }
 
-  // ---- 로그인 오버레이 ----------------------------------------------
-  function showLogin(onClick, errMsg) {
+  // ---- 전체화면 오버레이 (로그인 / 권한 없음 / 조회 실패 공용) --------
+  function showOverlay(opts) {
+    var prev = document.getElementById('authOverlay');
+    if (prev) prev.remove();
     var ov = document.createElement('div');
     ov.id = 'authOverlay';
     var card = document.createElement('div');
@@ -80,25 +188,25 @@
     var h1 = document.createElement('h1');
     h1.textContent = 'SAM × AFAB Comparison';
     var p = document.createElement('p');
-    p.textContent = '회사 Microsoft 365 계정으로 로그인하세요.';
+    p.textContent = opts.desc;
     card.appendChild(logo);
     card.appendChild(h1);
     card.appendChild(p);
-    if (errMsg) {
+    if (opts.errMsg) {
       var err = document.createElement('p');
       err.className = 'auth-err';
-      err.textContent = errMsg;
+      err.textContent = opts.errMsg;
       card.appendChild(err);
     }
     var btn = document.createElement('button');
     btn.id = 'authLoginBtn';
     btn.className = 'auth-btn';
-    btn.textContent = 'Microsoft 계정으로 로그인';
-    if (onClick) {
+    btn.textContent = opts.btnText;
+    if (opts.onClick) {
       btn.addEventListener('click', function () {
         btn.disabled = true;
-        btn.textContent = '로그인 창으로 이동 중…';
-        onClick();
+        if (opts.busyText) btn.textContent = opts.busyText;
+        opts.onClick();
       });
     } else {
       btn.disabled = true;
@@ -108,8 +216,40 @@
     document.body.appendChild(ov);
   }
 
+  function showLogin(onClick, errMsg) {
+    showOverlay({
+      desc: '회사 Microsoft 365 계정으로 로그인하세요.',
+      errMsg: errMsg,
+      btnText: 'Microsoft 계정으로 로그인',
+      busyText: '로그인 창으로 이동 중…',
+      onClick: onClick,
+    });
+  }
+
+  // 로그인은 됐지만 권한 명단에 없는 계정.
+  function showDenied(account, onLogout) {
+    var who = (account && account.username) ? account.username + ' 계정은 ' : '';
+    showOverlay({
+      desc: who + 'SAM × AFAB 시스템 접속 권한이 없습니다. 관리자에게 권한 등록을 요청하세요.',
+      btnText: '다른 계정으로 로그인',
+      busyText: '로그아웃 중…',
+      onClick: onLogout,
+    });
+  }
+
+  // 권한 명단 자체를 읽지 못한 경우 — 통과시키지 않고 원인을 보여준다.
+  function showAccessError(errMsg, onRetry) {
+    showOverlay({
+      desc: '접속 권한 명단을 확인하지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도하세요.',
+      errMsg: errMsg,
+      btnText: '다시 시도',
+      busyText: '확인 중…',
+      onClick: onRetry,
+    });
+  }
+
   // ---- 로그인된 사용자 칩(상단 네비 우측) + 로그아웃 ------------------
-  function showUserChip(account, onLogout) {
+  function showUserChip(account, onLogout, role) {
     var slot = document.getElementById('navUser') || document.querySelector('header');
     if (!slot) return;
     var chip = document.createElement('div');
@@ -124,6 +264,16 @@
     out.textContent = '⎋ 로그아웃';
     out.addEventListener('click', onLogout);
     chip.appendChild(user);
+    // 현재 권한을 이름 옆에 항상 표시한다 (엑셀의 Role 값과 같은 표기).
+    if (role === 'admin' || role === 'read') {
+      var badge = document.createElement('span');
+      badge.className = 'auth-badge ' + role;
+      badge.textContent = role === 'admin' ? 'Admin' : 'Read';
+      badge.title = role === 'admin'
+        ? '전체 권한 — 모델 매칭 · 코드 관리 · 데이터 다시 계산 가능'
+        : '조회 전용 — 모델 매칭 · 코드 관리 · 데이터 다시 계산 불가';
+      chip.appendChild(badge);
+    }
     chip.appendChild(out);
     slot.appendChild(chip);
   }
@@ -135,6 +285,7 @@
       if (loginRequired()) {
         showLogin(null, 'Microsoft 로그인 라이브러리를 불러오지 못했습니다 (네트워크/CDN 차단). 관리자에게 문의하세요.');
       } else {
+        setRole('admin');
         loadApp();  // 로컬 등: 로그인 없이 대시보드만 (SharePoint 편집은 비활성)
       }
       return;
@@ -166,9 +317,11 @@
     if (activeAccount) pca.setActiveAccount(activeAccount);
 
     // 보호 대상이 아니면(로컬·개인 github.io) 게이트 없이 로드.
+    // 개발 편의를 위해 권한 조회도 건너뛰고 admin 으로 둔다.
     if (!loginRequired()) {
+      setRole('admin');
       if (activeAccount) {
-        showUserChip(activeAccount, function () { pca.logoutRedirect({ account: activeAccount }); });
+        showUserChip(activeAccount, function () { pca.logoutRedirect({ account: activeAccount }); }, 'admin');
       }
       loadApp();
       return;
@@ -179,7 +332,25 @@
       showLogin(function () { pca.loginRedirect(LOGIN_REQUEST); });
       return;
     }
-    showUserChip(activeAccount, function () { pca.logoutRedirect({ account: activeAccount }); });
+
+    // 접속 권한 명단(SharePoint 엑셀) 확인. 매 로그인마다 조회하므로 캐시가 없고,
+    // 엑셀을 고치면 재로그인 시 바로 반영된다.
+    var role = null;
+    try {
+      role = await resolveRole(activeAccount);
+    } catch (e) {
+      console.error('접속 권한 확인 실패', e);
+      // 명단을 못 읽으면 통과시키지 않는다(fail-closed). 원인은 그대로 보여준다.
+      showAccessError(e && e.message ? e.message : String(e), function () { window.location.reload(); });
+      return;
+    }
+    if (!role) {
+      showDenied(activeAccount, function () { pca.logoutRedirect({ account: activeAccount }); });
+      return;
+    }
+
+    setRole(role);
+    showUserChip(activeAccount, function () { pca.logoutRedirect({ account: activeAccount }); }, role);
     loadApp();
   }
 

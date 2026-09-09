@@ -42,6 +42,14 @@
     output: {
       path: 'SAM-AFAB_Data/05. output',
     },
+    // 접속 권한 명단(Admin / Read). auth.js 가 로그인 직후 읽는다.
+    // shareUrl 은 /shares 해석에 그대로 쓰이므로 SharePoint 가 발급한 링크를
+    // 글자 하나 바꾸지 말고 그대로 둘 것. 이 링크 덕분에 Read 권한자는
+    // 폴더 자체에 대한 읽기 권한이 없어도 명단을 확인할 수 있다.
+    access: {
+      path: 'SAM-AFAB_Access',
+      shareUrl: 'https://startruckkorea.sharepoint.com/:f:/r/sites/SAM-AFAB/Shared%20Documents/SAM-AFAB_Access?d=w88f61b62d7aa455ca2ae538e8aa0520c&csf=1&web=1&e=vVPSAg',
+    },
   };
 
   var _siteIdCache = null;
@@ -206,6 +214,58 @@
     return { ok: true };
   }
 
+  // ---- 항목(driveItem) 단위 접근 ---------------------------------------
+  // 아래 3개는 "폴더 읽기 권한 없이도" 파일 하나를 읽기 위한 경로다.
+  // SharePoint 공유 링크는 링크 자체가 접근 권한이므로, 상위 폴더에 권한이
+  // 없는 사용자도 /shares 로 해석하면 그 항목만 열 수 있다.
+
+  // 공유 링크 → Graph /shares 용 토큰 (base64url, 패딩 제거, 접두사 'u!')
+  function encodeShareUrl(url) {
+    var b64 = btoa(unescape(encodeURIComponent(String(url))));
+    return 'u!' + b64.replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
+  }
+
+  async function itemFromShareUrl(url) {
+    var res = await api('/shares/' + encodeShareUrl(url)
+      + '/driveItem?$select=id,name,file,folder,parentReference');
+    return res.json();
+  }
+
+  // 폴더 경로(또는 그 안의 파일)를 driveItem 으로 해석. 폴더 읽기 권한이 필요하다.
+  async function itemByPath(folderKey, filename) {
+    var sid = await siteId();
+    var p = resolvePath(folderKey) + (filename ? '/' + filename : '');
+    var res = await api('/sites/' + sid + '/drive/root:/' + encPath(p)
+      + ':?$select=id,name,file,folder,parentReference');
+    return res.json();
+  }
+
+  async function itemChildren(driveId, itemId) {
+    var res = await api('/drives/' + driveId + '/items/' + itemId
+      + '/children?$select=name,id,file,folder&$top=999');
+    var j = await res.json();
+    return j.value || [];
+  }
+
+  // 워크북의 각 시트를 값 배열(AOA)로 읽는다. 파일 전체를 내려받지 않으므로
+  // SheetJS 가 없어도 되고, 항목 권한만 있으면 동작한다.
+  async function workbookSheets(driveId, itemId) {
+    var base = '/drives/' + driveId + '/items/' + itemId + '/workbook';
+    var res = await api(base + '/worksheets?$select=name,position');
+    var j = await res.json();
+    var list_ = (j.value || []).slice().sort(function (a, b) {
+      return (a.position || 0) - (b.position || 0);
+    });
+    var out = [];
+    for (var i = 0; i < list_.length; i++) {
+      var r = await api(base + "/worksheets('" + encodeURIComponent(list_[i].name)
+        + "')/usedRange(valuesOnly=true)?$select=values");
+      var rj = await r.json();
+      out.push(rj.values || []);
+    }
+    return out;
+  }
+
   window.Graph = {
     available: available,
     scopes: SCOPES,
@@ -217,5 +277,9 @@
     upload: upload,
     uploadJson: uploadJson,
     ensureFolder: ensureFolder,
+    itemFromShareUrl: itemFromShareUrl,
+    itemByPath: itemByPath,
+    itemChildren: itemChildren,
+    workbookSheets: workbookSheets,
   };
 })();

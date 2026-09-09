@@ -56,6 +56,8 @@ body {
 }
 .nav-link:hover { background: var(--accent-softer); color: var(--text); }
 .nav-link.active { background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgba(37,99,235,.28); }
+/* Read 권한자에게 잠긴 탭 — :hover 뒤에 와야 회색이 유지된다. */
+.nav-link.disabled, .nav-link.disabled:hover { opacity: .4; background: none; color: var(--muted); cursor: not-allowed; }
 
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .nav-user { display: flex; align-items: center; }
@@ -71,6 +73,8 @@ body {
 .icon-btn.ghost:hover { background: var(--accent-softer); color: var(--text); }
 .icon-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 2px 6px rgba(37,99,235,.24); }
 .icon-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.icon-btn:disabled, .icon-btn:disabled:hover { opacity: .45; cursor: not-allowed; }
+.icon-btn.primary:disabled:hover { background: var(--accent); border-color: var(--accent); }
 
 /* ===================== 뷰 컨테이너 ===================== */
 #main { flex: 1; min-height: 0; position: relative; }
@@ -568,6 +572,12 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 .auth-btn:disabled { opacity: .6; cursor: default; }
 .auth-chip { display: flex; align-items: center; gap: 8px; }
 .auth-user { font-size: 13px; color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-badge {
+  font-size: 11px; font-weight: 700; white-space: nowrap; letter-spacing: .02em;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid transparent;
+}
+.auth-badge.admin { background: var(--accent-softer); color: var(--accent); border-color: var(--accent); }
+.auth-badge.read { background: #f1f3f6; color: var(--muted); border-color: var(--border-strong); }
 
 /* ===================== 데이터 빌드 진행 로그 ===================== */
 .build-log {

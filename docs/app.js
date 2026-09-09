@@ -73,6 +73,8 @@ const I18N = {
     'nav.matching': '모델 매칭',
     'nav.codes': '코드 관리',
     'nav.manual': '사용자메뉴얼',
+    'role.noPerm': '이 기능은 Admin 권한이 필요합니다',
+    'role.denied': '접근 권한이 없습니다. 관리자에게 문의하세요.',
     'meta.loading': '불러오는 중…',
     'meta.generated': '생성: {when}  ·  WINGS: {file}',
     'search.ph': 'Commission no. / 모델 / 코드 검색…',
@@ -295,6 +297,8 @@ const I18N = {
     'nav.matching': 'Model Matching',
     'nav.codes': 'Code Manager',
     'nav.manual': 'User Manual',
+    'role.noPerm': 'Admin permission required',
+    'role.denied': "You don't have permission. Contact the administrator.",
     'meta.loading': 'Loading…',
     'meta.generated': 'Generated: {when}  ·  WINGS: {file}',
     'search.ph': 'Search commission no. / model / code…',
@@ -511,6 +515,12 @@ const I18N = {
 
 let LANG = localStorage.getItem('lang') || 'ko';
 
+// ====================== 접속 권한 (auth.js 가 SharePoint 명단에서 확정) ======================
+// 로컬 개발처럼 로그인 게이트가 없는 환경에서는 auth.js 가 'admin' 을 넣어준다.
+const ROLE = (window.MB_AUTH && window.MB_AUTH.role) || 'admin';
+const IS_ADMIN = ROLE === 'admin';
+const LOCKED_VIEWS = ['matching', 'codes'];
+
 function t(key, params) {
   let s = (I18N[LANG] && I18N[LANG][key]) || (I18N.ko[key]) || key;
   if (params) for (const [k, v] of Object.entries(params)) s = s.replaceAll('{' + k + '}', v);
@@ -525,6 +535,23 @@ function applyStaticI18n() {
   document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
   const lb = $('#langBtn');
   if (lb) lb.textContent = LANG === 'ko' ? '🌐 EN' : '🌐 한국어';
+  applyRoleUi();
+}
+
+// Read 권한이면 편집성 기능(모델 매칭 · 코드 관리 · 데이터 다시 계산)을 비활성 표시한다.
+// 탭은 숨기지 않고 회색으로 두어 기능의 존재는 보이게 한다. 실제 차단은
+// switchView() / runBuild() 의 가드가 담당한다.
+function applyRoleUi() {
+  if (IS_ADMIN) return;
+  LOCKED_VIEWS.forEach((v) => {
+    const el = document.querySelector('.nav-link[data-view="' + v + '"]');
+    if (!el) return;
+    el.classList.add('disabled');
+    el.setAttribute('aria-disabled', 'true');
+    el.title = t('role.noPerm');
+  });
+  const bb = $('#buildBtn');
+  if (bb) { bb.disabled = true; bb.title = t('role.noPerm'); }
 }
 
 function toggleLang() {
@@ -554,6 +581,7 @@ const VIEW_INIT = { history: false, matching: false, codes: false, manual: false
 
 function switchView(view) {
   if (!['dashboard', 'history', 'matching', 'codes', 'manual'].includes(view)) return;
+  if (!IS_ADMIN && LOCKED_VIEWS.includes(view)) { alert(t('role.denied')); return; }
   // 저장 안 한 편집이 있으면 이탈 확인 (모델 매칭 / 코드 관리)
   if (view !== CUR_VIEW) {
     const leavingEd = CUR_VIEW === 'codes' ? codeEditor : (CUR_VIEW === 'matching' ? matchEditor : null);
@@ -3108,6 +3136,7 @@ function buildLog() {
 let BUILDING = false;
 async function runBuild() {
   if (BUILDING) return;
+  if (!IS_ADMIN) { alert(t('role.denied')); return; }
   if (!window.Graph || !Graph.available()) { alert(t('build.needLogin')); return; }
   if (!window.Pipeline) { alert(t('build.fail') + ' pipeline.js'); return; }
   if (!window.XLSX) { alert(t('alert.xlsxBlocked')); return; }
