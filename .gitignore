@@ -32,3 +32,9 @@ _debug_*
 
 # 빌드 산출물(테스트 시 루트에 생길 수 있음)
 /codes.json
+
+# Node — 이 저장소는 Node 프로젝트가 아니다. 임시 테스트로 npm install 을
+# 하더라도 커밋되지 않도록 막는다.
+node_modules/
+/package.json
+/package-lock.json
