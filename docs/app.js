@@ -54,11 +54,12 @@ function computeMY(r) {
 const _now = new Date();
 const CUR_MONTH = _now.getFullYear() + '-' + String(_now.getMonth() + 1).padStart(2, '0');
 const CUR_DATE = CUR_MONTH + '-' + String(_now.getDate()).padStart(2, '0');
+// 올해 1월 — 데이터에 그 달 차가 없어도 시작월 후보로는 늘 띄운다.
 const YEAR_START = CUR_MONTH.slice(0, 4) + '-01';
 
 // 대시보드 타일과 표가 다루는 생산월의 하한(YYYY-MM). 기본은 이번 달이라
-// 지난 차량은 보이지 않는다. '올해 1월부터' 토글이나 시작월 드롭다운으로
-// 과거까지 넓히면 그때부터 지난 차량도 함께 비교된다.
+// 지난 차량은 보이지 않는다. 시작월 드롭다운으로 과거까지 넓히면
+// 그때부터 지난 차량도 함께 비교된다.
 let DASH_FROM = CUR_MONTH;
 
 let DATA = { rows: [] };
@@ -95,9 +96,7 @@ const I18N = {
     'chk.upcoming': '시작월 이후만 표시',
     'chk.upcoming.title': '끄면 시작월과 상관없이 모든 생산월을 표시합니다',
     'filter.from.opt': '{m} 부터',
-    'filter.from.title': '시작 생산월 — 대시보드 숫자와 표가 이 달부터 집계됩니다',
-    'filter.yearStart': '올해 1월부터',
-    'filter.yearStart.title': '올해 1월부터 보기 ↔ 이번 달부터 보기 (지난 차량 비교)',
+    'filter.from.title': '시작 생산월 — 대시보드 숫자와 표가 이 달부터 집계됩니다 (과거로 내리면 지난 차량도 비교)',
     'count': '{n} / {total} 건',
     'dash.overall': '전체 현황 ({from} 이후)',
     'dash.soon': '2주 이내 (Changeability D-14)',
@@ -323,9 +322,7 @@ const I18N = {
     'chk.upcoming': 'Only from start month',
     'chk.upcoming.title': 'Uncheck to show every production month',
     'filter.from.opt': 'From {m}',
-    'filter.from.title': 'Start production month — tiles and rows are counted from here',
-    'filter.yearStart': 'From January',
-    'filter.yearStart.title': 'Toggle January this year ↔ this month (compare past vehicles)',
+    'filter.from.title': 'Start production month — tiles and rows are counted from here (go back to compare past vehicles)',
     'count': '{n} / {total} rows',
     'dash.overall': 'Overall ({from} onward)',
     'dash.soon': 'Within 2 weeks (Changeability D-14)',
@@ -1000,16 +997,6 @@ function fillFromMonth() {
   sel.innerHTML = months.map((m) =>
     `<option value="${esc(m)}">${esc(t('filter.from.opt', { m }))}</option>`).join('');
   sel.value = DASH_FROM;
-  syncFromMonthUi();
-}
-
-// '올해 1월부터' 토글의 눌림 상태를 현재 시작월과 맞춘다.
-function syncFromMonthUi() {
-  const btn = $('#yearStartBtn');
-  if (!btn) return;
-  const on = DASH_FROM === YEAR_START;
-  btn.classList.toggle('on', on);
-  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 
 // 시작월 변경 — 타일 숫자·연동 필터·표가 모두 같은 범위를 보도록 다시 계산한다.
@@ -3281,12 +3268,9 @@ function onFilterChange() {
   $(s).addEventListener('input', onFilterChange));
 $('#search').addEventListener('input', onManualFilter);
 
-// 시작 생산월 — 드롭다운으로 직접 고르거나, 토글로 '올해 1월 ↔ 이번 달' 을 오간다.
+// 시작 생산월 — 이 달부터 집계·표시한다. 과거로 내리면 지난 차량도 함께 비교된다.
 const _fromMonth = $('#fromMonth');
 if (_fromMonth) _fromMonth.addEventListener('input', () => setDashFrom(_fromMonth.value));
-const _yearStartBtn = $('#yearStartBtn');
-if (_yearStartBtn) _yearStartBtn.addEventListener('click',
-  () => setDashFrom(DASH_FROM === YEAR_START ? CUR_MONTH : YEAR_START));
 
 applyStaticI18n();
 enhanceFilterSelects();

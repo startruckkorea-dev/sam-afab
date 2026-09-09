@@ -212,15 +212,6 @@ body {
 .csel-opt:hover { background: var(--accent-softer); }
 .csel-opt.sel { background: var(--accent-soft); font-weight: 700; }
 .controls .chk { color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
-/* '올해 1월부터' 시작월 토글 — 눌린 상태를 색으로 보여준다. */
-.toggle-btn {
-  padding: 9px 13px; border: 1px solid var(--border-strong); border-radius: 9px;
-  background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600;
-  cursor: pointer; white-space: nowrap; transition: background .12s, color .12s, border-color .12s;
-}
-.toggle-btn:hover { background: var(--accent-softer); color: var(--text); border-color: var(--accent); }
-.toggle-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: var(--shadow-sm); }
-.toggle-btn.on:hover { background: var(--accent-hover); color: #fff; }
 .count { color: var(--muted); font-size: 12px; margin-left: auto; font-weight: 600; }
 
 .table-wrap { flex: 1; overflow: auto; padding: 0 24px 60px; min-height: 0; }
