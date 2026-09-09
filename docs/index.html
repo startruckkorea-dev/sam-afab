@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAM × AFAB Comparison</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260909a" />
+  <link rel="stylesheet" href="style.css?v=20260909c" />
 </head>
 <body>
   <!-- ===== 상단 네비게이션 바 ===== -->
@@ -70,7 +70,9 @@
           <option value="Mismatch">Mismatch</option>
           <option value="No SAM">No SAM</option>
         </select>
-        <label class="chk" data-i18n-title="chk.upcoming.title" title="Changeability 가 이번 달 이후인 항목만"><input type="checkbox" id="upcomingOnly" checked /> <span data-i18n="chk.upcoming">Display only production from this month</span></label>
+        <label class="chk" data-i18n-title="chk.upcoming.title" title="끄면 시작월과 상관없이 모든 생산월을 표시합니다"><input type="checkbox" id="upcomingOnly" checked /> <span data-i18n="chk.upcoming">시작월 이후만 표시</span></label>
+        <select id="fromMonth" data-i18n-title="filter.from.title" title="시작 생산월 — 대시보드 숫자와 표가 이 달부터 집계됩니다"></select>
+        <button type="button" id="yearStartBtn" class="toggle-btn" aria-pressed="false" data-i18n="filter.yearStart" data-i18n-title="filter.yearStart.title" title="올해 1월부터 보기 ↔ 이번 달부터 보기 (지난 차량 비교)">올해 1월부터</button>
         <span id="count" class="count"></span>
       </section>
 
@@ -504,8 +506,11 @@
           <h3>4.1 요약 타일</h3>
           <p>타일은 두 줄입니다. 숫자는 항상 아래 범위 안에서 셉니다.</p>
           <ul class="man-ul">
-            <li><b>전체 현황 (이번 생산월 이후)</b> — 생산월이 <b>이번 달 이상</b>인 차량 전체</li>
-            <li><b>2주 이내 (Changeability D-14)</b> — 남은 일수가 <b>0~14일</b>인 차량. 가장 급한 대상</li>
+            <li><b>전체 현황 (시작월 이후)</b> — 생산월이 <b>시작월 이상</b>인 차량 전체.
+              시작월은 기본이 이번 달이며, 필터 줄의 <b>시작월 드롭다운</b>이나
+              <b>[올해 1월부터]</b> 토글로 바꿉니다. 과거로 넓히면 <b>지난 차량도 함께 비교</b>됩니다.</li>
+            <li><b>2주 이내 (Changeability D-14)</b> — 남은 일수가 <b>0~14일</b>인 차량. 가장 급한 대상
+              (남은 일수 기준이라 시작월과 무관합니다)</li>
           </ul>
           <table class="man-tb">
             <thead><tr><th>타일</th><th>세는 기준</th></tr></thead>
@@ -1109,7 +1114,7 @@
           onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onerror=function(){window.__XLSX_BLOCKED=true;};document.head.appendChild(s);})()"></script>
 
   <!-- Graph 클라이언트 (auth.js 의 MB_AUTH 토큰 사용) -->
-  <script src="graph.js?v=20260909a"></script>
+  <script src="graph.js?v=20260909c"></script>
 
   <!-- 비교 파이프라인 (브라우저에서 직접 빌드). 순서: 유틸 → 파서 → 비교 → 오케스트레이터 -->
   <script src="lib/unzip.js?v=20260724b"></script>
@@ -1131,7 +1136,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20260909a';
+      a.src = 'auth.js?v=20260909c';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

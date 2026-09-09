@@ -37,17 +37,22 @@ body {
 
 /* ===================== 상단 네비게이션 바 ===================== */
 .topnav {
-  display: flex; align-items: center; gap: 22px;
-  padding: 0 24px; height: 76px; flex: none; z-index: 20;
+  display: flex; align-items: center; gap: 18px;
+  padding: 0 20px; height: 76px; flex: none; z-index: 20;
   background: var(--card); border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
 }
-.brand { display: flex; align-items: center; gap: 16px; text-decoration: none; color: inherit; }
-.mb-logo { height: 40px; width: auto; display: block; }
-.brand-title { font-size: 21px; font-weight: 600; color: var(--text); white-space: nowrap; letter-spacing: -.01em; }
+/* 좁은 화면에서 브랜드·메뉴가 먼저 줄어들고, 오른쪽(로그아웃까지)은 절대 잘리지 않는다. */
+.brand { display: flex; align-items: center; gap: 16px; text-decoration: none; color: inherit;
+  flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.mb-logo { height: 40px; width: auto; display: block; flex: none; }
+.brand-title { font-size: 21px; font-weight: 600; color: var(--text); white-space: nowrap; letter-spacing: -.01em;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .brand-title b { font-weight: 800; }
 
-.nav { display: flex; align-items: center; gap: 4px; }
+.nav { display: flex; align-items: center; gap: 4px;
+  flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.nav::-webkit-scrollbar { display: none; }
 .nav-link {
   border: none; background: none; cursor: pointer;
   font-size: 14px; font-weight: 600; color: var(--muted);
@@ -59,8 +64,9 @@ body {
 /* Read 권한자에게 잠긴 탭 — :hover 뒤에 와야 회색이 유지된다. */
 .nav-link.disabled, .nav-link.disabled:hover { opacity: .4; background: none; color: var(--muted); cursor: not-allowed; }
 
-.nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.nav-user { display: flex; align-items: center; }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+.nav-right > * { flex: none; }
+.nav-user { display: flex; align-items: center; flex: none; }
 
 .icon-btn {
   border: 1px solid var(--border-strong); background: var(--card); color: var(--text);
@@ -206,6 +212,15 @@ body {
 .csel-opt:hover { background: var(--accent-softer); }
 .csel-opt.sel { background: var(--accent-soft); font-weight: 700; }
 .controls .chk { color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+/* '올해 1월부터' 시작월 토글 — 눌린 상태를 색으로 보여준다. */
+.toggle-btn {
+  padding: 9px 13px; border: 1px solid var(--border-strong); border-radius: 9px;
+  background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: background .12s, color .12s, border-color .12s;
+}
+.toggle-btn:hover { background: var(--accent-softer); color: var(--text); border-color: var(--accent); }
+.toggle-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: var(--shadow-sm); }
+.toggle-btn.on:hover { background: var(--accent-hover); color: #fff; }
 .count { color: var(--muted); font-size: 12px; margin-left: auto; font-weight: 600; }
 
 .table-wrap { flex: 1; overflow: auto; padding: 0 24px 60px; min-height: 0; }

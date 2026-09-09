@@ -31,11 +31,12 @@
     cache: { cacheLocation: 'localStorage' },
   };
   var LOGIN_REQUEST = { scopes: ['User.Read'] };
-  var APP_SCRIPT = 'app.js?v=20260909a';
+  var APP_SCRIPT = 'app.js?v=20260909c';
 
   var pca = null;
   var activeAccount = null;
   var activeRole = null;   // 'admin' | 'read'
+  var activeRoleVia = null; // 'share' | 'path' — 권한 명단을 어느 경로로 읽었는지
 
   // ---- Graph 토큰 브로커 (graph.js 가 사용) --------------------------
   // 조용히(acquireTokenSilent) 시도하고, 안 되면 팝업으로 증분 동의.
@@ -64,7 +65,13 @@
 
   function setRole(role) {
     activeRole = role;
-    if (window.MB_AUTH) window.MB_AUTH.role = role;
+    if (window.MB_AUTH) {
+      window.MB_AUTH.role = role;
+      window.MB_AUTH.roleVia = activeRoleVia;
+    }
+    // 배포 후 "폴더 권한 없는 사람도 되는가" 를 콘솔에서 바로 확인할 수 있게 남긴다.
+    // via=share 면 폴더 ACL 이 아니라 공유 링크로 읽은 것이다.
+    if (activeRoleVia) console.info('[SAM-AFAB] 접속 권한 =', role, '· 명단 조회 경로 =', activeRoleVia);
   }
 
   // ---- 접속 권한 명단 (SharePoint: Shared Documents/SAM-AFAB_Access) ---
@@ -106,40 +113,65 @@
     return null;
   }
 
-  // driveItem 이 폴더면 그 안의 권한 엑셀을, 파일이면 자신을 워크북으로 쓴다.
-  // (Access* 로 시작하는 파일 우선 — mb-truck-spec 의 accessList.js 와 같은 규칙)
-  async function workbookFromItem(item) {
-    var driveId = item.parentReference && item.parentReference.driveId;
-    if (!driveId) throw new Error('권한 엑셀의 드라이브를 확인하지 못했습니다.');
-    if (!item.folder) return { driveId: driveId, itemId: item.id };
-    var kids = await window.Graph.itemChildren(driveId, item.id);
+  // 폴더 안에서 쓸 권한 엑셀 하나를 고른다 (Access* 로 시작하는 파일 우선 —
+  // mb-truck-spec 의 accessList.js 와 같은 규칙). 엑셀 임시 파일은 건너뛴다.
+  function pickAccessXlsx(kids) {
     var pick = null;
     for (var i = 0; i < kids.length; i++) {
       var n = kids[i].name || '';
       if (!kids[i].file || n.indexOf('~$') === 0 || !/\.xlsx$/i.test(n)) continue;
-      if (/^access/i.test(n)) { pick = kids[i]; break; }
+      if (/^access/i.test(n)) return kids[i];
       if (!pick) pick = kids[i];
     }
-    if (!pick) throw new Error('SAM-AFAB_Access 폴더에 권한 엑셀(.xlsx)이 없습니다.');
-    return { driveId: driveId, itemId: pick.id };
+    return pick;
   }
 
-  // 권한 엑셀의 위치를 찾는다.
-  //  1) 공유 링크(/shares) — 링크 자체가 접근 권한이라 Read 권한자가 폴더에
-  //     대한 권한이 없어도 열린다. 이 경로가 기본이다.
-  //  2) 실패하면 폴더 경로로 직접 조회 (폴더 권한이 있는 관리자·개발용 폴백)
-  async function resolveAccessWorkbook() {
+  // 공유 링크에서 워크북의 base 경로를 얻는다.
+  //  - 링크가 파일이면 /shares 경로를 그대로 쓴다 → driveId 조회조차 필요 없다.
+  //  - 링크가 폴더면 그 폴더의 children 을 /shares 로 훑는다. 폴더 ACL 이 아니라
+  //    링크가 권한이므로, 폴더 접근 권한이 없는 사람도 여기까지 통과한다.
+  async function baseFromShare(shareUrl) {
+    var sb = window.Graph.shareBase(shareUrl);
+    var item = await window.Graph.itemAt(sb);
+    if (!item.folder) return sb;
+    var pick = pickAccessXlsx(await window.Graph.childrenAt(sb));
+    if (!pick) throw new Error('공유된 폴더에 권한 엑셀(.xlsx)이 없습니다.');
+    var driveId = pick.parentReference && pick.parentReference.driveId;
+    if (!driveId) {
+      throw new Error('폴더 공유 링크로는 파일 주소를 얻지 못했습니다. '
+        + '폴더 대신 권한 엑셀 "파일"의 공유 링크를 shareUrl 에 넣으세요.');
+    }
+    return window.Graph.itemBase(driveId, pick.id);
+  }
+
+  // 폴더 경로로 직접 찾는 폴백. 이쪽은 폴더 읽기 권한이 있어야 한다.
+  async function baseFromPath() {
+    var pb = await window.Graph.pathBase(ACCESS_FOLDER);
+    var item = await window.Graph.itemAt(pb);
+    if (!item.folder) return pb;
+    var pick = pickAccessXlsx(await window.Graph.childrenAt(pb));
+    if (!pick) throw new Error('SAM-AFAB_Access 폴더에 권한 엑셀(.xlsx)이 없습니다.');
+    return await window.Graph.pathBase(ACCESS_FOLDER, pick.name);
+  }
+
+  // 권한 엑셀 위치: 공유 링크 우선(폴더 권한 불필요), 실패하면 폴더 경로.
+  // 어느 경로로 읽었는지 activeRoleVia 에 남겨 두면 배포 후 확인이 쉽다.
+  async function resolveAccessBase() {
     var cfg = (window.Graph.folders && window.Graph.folders[ACCESS_FOLDER]) || {};
     var errs = [];
     if (cfg.shareUrl) {
       try {
-        return await workbookFromItem(await window.Graph.itemFromShareUrl(cfg.shareUrl));
+        var b = await baseFromShare(cfg.shareUrl);
+        activeRoleVia = 'share';
+        return b;
       } catch (e) {
         errs.push('공유 링크: ' + ((e && e.message) || e));
       }
     }
     try {
-      return await workbookFromItem(await window.Graph.itemByPath(ACCESS_FOLDER));
+      var b2 = await baseFromPath();
+      activeRoleVia = 'path';
+      return b2;
     } catch (e) {
       errs.push('폴더 경로: ' + ((e && e.message) || e));
     }
@@ -151,8 +183,7 @@
     if (!window.Graph || !window.Graph.available()) {
       throw new Error('SharePoint 연동을 사용할 수 없습니다.');
     }
-    var wb = await resolveAccessWorkbook();
-    return window.Graph.workbookSheets(wb.driveId, wb.itemId);
+    return window.Graph.workbookSheets(await resolveAccessBase());
   }
 
   async function resolveRole(account) {
@@ -240,7 +271,8 @@
   // 권한 명단 자체를 읽지 못한 경우 — 통과시키지 않고 원인을 보여준다.
   function showAccessError(errMsg, onRetry) {
     showOverlay({
-      desc: '접속 권한 명단을 확인하지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도하세요.',
+      desc: '접속 권한 명단을 확인하지 못했습니다. 잠시 후 다시 시도하고, 계속 같은 화면이면 '
+        + '아래 메시지를 그대로 관리자에게 전달하세요.',
       errMsg: errMsg,
       btnText: '다시 시도',
       busyText: '확인 중…',

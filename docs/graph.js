@@ -225,42 +225,46 @@
     return 'u!' + b64.replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
   }
 
-  async function itemFromShareUrl(url) {
-    var res = await api('/shares/' + encodeShareUrl(url)
-      + '/driveItem?$select=id,name,file,folder,parentReference');
-    return res.json();
-  }
+  // 아래는 모두 "항목 기준 경로(base)" 하나로 다룬다. base 는 driveItem 을 가리키는
+  // Graph 경로 조각이고, 여기에 '?$select=', '/children', '/workbook/...' 을 붙여 쓴다.
+  //   - shareBase()  : /shares/u!…/driveItem      → 공유 링크가 곧 권한. driveId 불필요.
+  //   - itemBase()   : /drives/{d}/items/{i}
+  //   - pathBase()   : /sites/{s}/drive/root:/경로:  → 폴더 읽기 권한이 필요하다.
+  function shareBase(url) { return '/shares/' + encodeShareUrl(url) + '/driveItem'; }
+  function itemBase(driveId, itemId) { return '/drives/' + driveId + '/items/' + itemId; }
 
-  // 폴더 경로(또는 그 안의 파일)를 driveItem 으로 해석. 폴더 읽기 권한이 필요하다.
-  async function itemByPath(folderKey, filename) {
+  async function pathBase(folderKey, filename) {
     var sid = await siteId();
     var p = resolvePath(folderKey) + (filename ? '/' + filename : '');
-    var res = await api('/sites/' + sid + '/drive/root:/' + encPath(p)
-      + ':?$select=id,name,file,folder,parentReference');
+    return '/sites/' + sid + '/drive/root:/' + encPath(p) + ':';
+  }
+
+  async function getJson(path) {
+    var res = await api(path);
     return res.json();
   }
 
-  async function itemChildren(driveId, itemId) {
-    var res = await api('/drives/' + driveId + '/items/' + itemId
-      + '/children?$select=name,id,file,folder&$top=999');
-    var j = await res.json();
+  async function itemAt(base) {
+    return getJson(base + '?$select=id,name,file,folder,parentReference');
+  }
+
+  async function childrenAt(base) {
+    var j = await getJson(base + '/children?$select=id,name,file,folder,parentReference&$top=999');
     return j.value || [];
   }
 
-  // 워크북의 각 시트를 값 배열(AOA)로 읽는다. 파일 전체를 내려받지 않으므로
-  // SheetJS 가 없어도 되고, 항목 권한만 있으면 동작한다.
-  async function workbookSheets(driveId, itemId) {
-    var base = '/drives/' + driveId + '/items/' + itemId + '/workbook';
-    var res = await api(base + '/worksheets?$select=name,position');
-    var j = await res.json();
+  // 워크북의 각 시트를 값 배열(AOA)로 읽는다. 파일을 통째로 내려받지 않으므로
+  // SheetJS 가 없어도 되고, 그 항목에 대한 권한만 있으면 동작한다.
+  async function workbookSheets(base) {
+    var wb = base + '/workbook';
+    var j = await getJson(wb + '/worksheets?$select=name,position');
     var list_ = (j.value || []).slice().sort(function (a, b) {
       return (a.position || 0) - (b.position || 0);
     });
     var out = [];
     for (var i = 0; i < list_.length; i++) {
-      var r = await api(base + "/worksheets('" + encodeURIComponent(list_[i].name)
+      var rj = await getJson(wb + "/worksheets('" + encodeURIComponent(list_[i].name)
         + "')/usedRange(valuesOnly=true)?$select=values");
-      var rj = await r.json();
       out.push(rj.values || []);
     }
     return out;
@@ -277,9 +281,13 @@
     upload: upload,
     uploadJson: uploadJson,
     ensureFolder: ensureFolder,
-    itemFromShareUrl: itemFromShareUrl,
-    itemByPath: itemByPath,
-    itemChildren: itemChildren,
+    encodeShareUrl: encodeShareUrl,
+    shareBase: shareBase,
+    itemBase: itemBase,
+    pathBase: pathBase,
+    getJson: getJson,
+    itemAt: itemAt,
+    childrenAt: childrenAt,
     workbookSheets: workbookSheets,
   };
 })();
