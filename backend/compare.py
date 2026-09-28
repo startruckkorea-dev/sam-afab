@@ -152,6 +152,14 @@ def _model_key_candidates(model_norm: str) -> list:
     return out
 
 
+_AJ_CODE_RE = re.compile(r'AJ[A-Z0-9]{3}')
+
+
+def _canon_codes(codes) -> set:
+    """WINGS Offer-code 'AJD2J' and SAM 'JD2J' are the same option: fold AJ+3 to J+3."""
+    return {c[1:] if _AJ_CODE_RE.fullmatch(c) else c for c in (codes or [])}
+
+
 def _cabs_in(codes) -> set:
     """Cab variants (e.g. {'G5F'}) for the given codes, via cab.xlsx (F1J -> G5F)."""
     return {CAB_MAP[c] for c in (codes or ()) if c in CAB_MAP}
@@ -269,7 +277,7 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         com = r['Commission no.']
         model_raw = r.get('Model') or r.get('Baumuster', '')
         baumuster_num = r.get('Baumuster', '') if 'Model' in r else ''
-        wings_codes = set(r['WINGS_codes'] or [])
+        wings_codes = _canon_codes(r['WINGS_codes'])
         wings_paint = set(r.get('WINGS_paint') or []) if 'WINGS_paint' in r.index else set()
         wings_tyre = set(r.get('WINGS_tyre') or []) if 'WINGS_tyre' in r.index else set()
         model_norm = normalize_model(model_raw)
@@ -343,7 +351,7 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         # Best auto-matched candidate for this row.
         sam_data = _pick(sam_entry, is_pto, wings_bm, wings_sub, expected_cabs)
 
-        sam_codes = sam_data['codes'] if sam_data else set()
+        sam_codes = _canon_codes(sam_data['codes']) if sam_data else set()
         sam_file = sam_data['file'] if sam_data else ''
         sam_paint = set(sam_data.get('paint') or []) if sam_data else set()
         sam_tyre = set(sam_data.get('tyre') or []) if sam_data else set()

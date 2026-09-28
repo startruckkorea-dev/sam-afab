@@ -21,6 +21,22 @@ def _extract_codes(text):
     return set(re.findall(r"\b[A-Z0-9]{3,5}\b", text.upper()))
 
 
+# The 'Offer code  (enumeration)' cell mixes document numbers (A24847C061,
+# AHM04-32, ...) with the extra option codes. Only AJ+3 (AJKLM) or J+3 (JD2J)
+# tokens not glued to other alphanumerics are codes; a cell may hold several.
+_OFFER_CODE_RE = re.compile(r'(?<![A-Za-z0-9])(?:AJ[A-Z0-9]{3}|J[A-Z0-9]{3})(?![A-Za-z0-9])')
+
+
+def _extract_offer_codes(text):
+    if pd.isna(text):
+        return set()
+    return set(_OFFER_CODE_RE.findall(str(text)))
+
+
+def _is_offer_col(name):
+    return 'offer code' in re.sub(r'\s+', ' ', name.lower())
+
+
 def _norm_paint(v):
     """WINGS 'Paint zone N color code' cell -> canonical color code string.
 
@@ -98,6 +114,8 @@ def parse_wings(file) -> pd.DataFrame:
     if model_col is None:
         model_col = df.columns[1] if len(df.columns) > 1 else 'Commission no.'
 
+    offer_col = next((c for c in df.columns if _is_offer_col(c)), None)
+
     # Option code columns.
     wings_opt_col1 = wings_opt_col2 = None
     for col_name in df.columns:
@@ -118,7 +136,9 @@ def parse_wings(file) -> pd.DataFrame:
     if not wings_opt_col1 or not wings_opt_col2:
         for name in df.columns:
             low = name.lower()
-            if 'equipment' in low or 'offer code' in low or 'enumeration' in low:
+            if name == offer_col:
+                continue  # mixed with document numbers; extracted separately below
+            if 'equipment' in low or 'enumeration' in low:
                 if wings_opt_col1 is None:
                     wings_opt_col1 = name
                 elif wings_opt_col2 is None and name != wings_opt_col1:
@@ -142,6 +162,10 @@ def parse_wings(file) -> pd.DataFrame:
         _all_text = df.astype(str).agg(' '.join, axis=1)
         df['WINGS_codes'] = _all_text.apply(_extract_codes)
         df['WINGS_has_pto'] = _all_text.str.contains(r'\bPTO\b', case=False, na=False)
+
+    if offer_col is not None:
+        offer = df[offer_col].apply(_extract_offer_codes)
+        df['WINGS_codes'] = [a | b for a, b in zip(df['WINGS_codes'], offer)]
 
     # Paint / Tyre CTT codes live in their own columns (new WINGS report format):
     #   'Paint zone 1..4 color code'  and  'Tyre key 1..4. axle'.

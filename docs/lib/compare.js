@@ -44,6 +44,14 @@
   // 캡 : cab.xlsx 의 { WINGS 캡 코드 → SAM 캡 variant }  (F1J → G5F)
   // PTO: 코드 설명에 PTO 가 들어간 코드
   // 둘 다 compare() 시작에서 ref 로 채운다(후보 선택 헬퍼가 모듈 스코프라 여기 둔다).
+  // WINGS Offer code 의 AJ+3자리(AJD2J)와 SAM 의 J+3자리(JD2J)는 같은 코드다.
+  // 양쪽을 J+3자리로 맞춘 뒤 비교한다.
+  function canonCodes(codes) {
+    const out = new Set();
+    for (const c of (codes || [])) out.add(/^AJ[A-Z0-9]{3}$/.test(c) ? c.slice(1) : c);
+    return out;
+  }
+
   let CAB_MAP = {};
   function cabsIn(codes) {
     const out = new Set();
@@ -201,7 +209,7 @@
       const com = r['Commission no.'];
       const modelRaw = (r['Model'] !== null && r['Model'] !== undefined && r['Model'] !== '')
         ? r['Model'] : (r['Baumuster'] !== undefined ? r['Baumuster'] : '');
-      const wingsCodes = new Set(r['WINGS_codes'] || []);
+      const wingsCodes = canonCodes(r['WINGS_codes']);
       const wingsPaint = new Set(r['WINGS_paint'] || []);
       const wingsTyre = new Set(r['WINGS_tyre'] || []);
       const modelNorm = normalizeModel(modelRaw);
@@ -285,7 +293,7 @@
       isPto = res.pto;
       let samData = res.data;
 
-      const samCodes = samData ? samData.codes : new Set();
+      const samCodes = samData ? canonCodes(samData.codes) : new Set();
       const samFile = samData ? samData.file : '';
       const samPaint = samData ? (samData.paint || new Set()) : new Set();
       const samTyre = samData ? (samData.tyre || new Set()) : new Set();

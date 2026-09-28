@@ -88,6 +88,7 @@
 
     let modelRaw = null;
     let codes = new Set();
+    const trusted = new Set();     // 코드 DB에 없어도 유지할 코드(AJ+3자리 등)
     const paint = new Set();
     const tyre = new Set();
     let fullText = '';
@@ -117,8 +118,9 @@
           let m;
           while ((m = re.exec(up)) !== null) codes.add(m[1]);
         } else if (section === 'ADDITIONAL EQUIPMENT') {
-          const m = /^([A-Z][A-Z0-9]{2,3})\b/.exec(up);
-          if (m) codes.add(m[1]);
+          // WINGS 'Offer code' 의 AJ+3자리 코드(AJKLM)도 이 줄 맨 앞에 온다.
+          const m = /^(AJ[A-Z0-9]{3}|[A-Z][A-Z0-9]{2,3})\b/.exec(up);
+          if (m) { codes.add(m[1]); if (/^AJ/.test(m[1])) trusted.add(m[1]); }
         }
       }
     }
@@ -159,7 +161,7 @@
 
     // 프로즈 단어 걸러내기: 숫자를 포함하거나 실제 SA 코드일 때만 유지
     codes = new Set([...codes].filter(function (c) {
-      return hasDigit(c) || knownCodes.has(c);
+      return hasDigit(c) || knownCodes.has(c) || trusted.has(c);
     }));
 
     // --- 파일명 모델 (= SAM now) ---

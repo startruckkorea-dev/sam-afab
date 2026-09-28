@@ -26,6 +26,22 @@
     return out;
   }
 
+  // 'Offer code  (enumeration)' 셀에는 문서번호(A24847C061, AHM04-32 …)와 추가 코드가
+  // 섞여 있다. 필요한 건 AJ+3자리(AJKLM) 또는 J+3자리(JD2J) 코드뿐이라, 앞뒤가 영숫자가
+  // 아닌 토큰만 골라낸다 — 한 셀에 여러 개가 올 수 있고, AJZFXP0226 같은 문서번호는 제외.
+  const OFFER_CODE_RE = /(?<![A-Za-z0-9])(?:AJ[A-Z0-9]{3}|J[A-Z0-9]{3})(?![A-Za-z0-9])/g;
+  function extractOfferCodes(text) {
+    const t = s(text);
+    const out = new Set();
+    if (!t) return out;
+    for (const m of t.matchAll(OFFER_CODE_RE)) out.add(m[0]);
+    return out;
+  }
+
+  function isOfferCol(c) {
+    return c.toLowerCase().replace(/\s+/g, ' ').indexOf('offer code') !== -1;
+  }
+
   function normPaint(v) {
     let t = s(v).trim();
     if (!t || t.toLowerCase() === 'nan') return '';
@@ -89,6 +105,7 @@
     if (modelCol === null) modelCol = cols.length > 1 ? cols[1] : 'Commission no.';
 
     // 옵션 코드 열
+    const offerCol = cols.find(isOfferCol) || null;
     let c1 = null, c2 = null;
     for (const c of cols) {
       const l = c.toLowerCase();
@@ -99,7 +116,8 @@
     if (!c1 || !c2) {
       for (const c of cols) {
         const l = c.toLowerCase();
-        if (l.indexOf('equipment') !== -1 || l.indexOf('offer code') !== -1 || l.indexOf('enumeration') !== -1) {
+        if (c === offerCol) continue;                      // 문서번호가 섞여 있어 아래에서 따로 추출
+        if (l.indexOf('equipment') !== -1 || l.indexOf('enumeration') !== -1) {
           if (c1 === null) c1 = c;
           else if (c2 === null && c !== c1) { c2 = c; break; }
         }
@@ -130,10 +148,13 @@
       if (codeCols.length) combined = codeCols.map(function (c) { return s(r[c]); }).join(' ');
       else combined = cols.map(function (c) { return s(r[c]); }).join(' ');
 
+      const codes = extractCodes(combined);
+      if (offerCol) for (const c of extractOfferCodes(r[offerCol])) codes.add(c);
+
       const out = {
         'Commission no.': r['Commission no.'],
         'Model': r[modelCol],
-        'WINGS_codes': extractCodes(combined),
+        'WINGS_codes': codes,
         'WINGS_has_pto': /\bPTO\b/i.test(combined),
         'WINGS_paint': new Set(paintCols.map(function (c) { return normPaint(r[c]); }).filter(Boolean)),
         'WINGS_tyre': new Set(),
@@ -150,7 +171,7 @@
     });
   }
 
-  const api = { parseWings: parseWings, _extractCodes: extractCodes };
+  const api = { parseWings: parseWings, _extractCodes: extractCodes, _extractOfferCodes: extractOfferCodes };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.WingsParse = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
