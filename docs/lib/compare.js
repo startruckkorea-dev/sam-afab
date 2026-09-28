@@ -44,11 +44,18 @@
   // 캡 : cab.xlsx 의 { WINGS 캡 코드 → SAM 캡 variant }  (F1J → G5F)
   // PTO: 코드 설명에 PTO 가 들어간 코드
   // 둘 다 compare() 시작에서 ref 로 채운다(후보 선택 헬퍼가 모듈 스코프라 여기 둔다).
-  // WINGS Offer code 의 AJ+3자리(AJD2J)와 SAM 의 J+3자리(JD2J)는 같은 코드다.
-  // 양쪽을 J+3자리로 맞춘 뒤 비교한다.
+  // 표기만 다르고 같은 옵션인 코드. 차이(Only_in_*) 판정에서만 하나로 맞추고,
+  // 전체 코드 목록(_all_*_codes)에는 원래 코드를 그대로 보여 준다.
+  //  - WINGS Offer code 의 AJ+3자리(AJD2J) = SAM 의 J+3자리(JD2J)
+  //  - SAME_CODES: 개별로 확인된 동일 코드 { 다른 표기 → 기준 코드 }
+  const SAME_CODES = { JY3L: 'Y3L' };
+  function canonCode(c) {
+    if (/^AJ[A-Z0-9]{3}$/.test(c)) c = c.slice(1);
+    return SAME_CODES[c] || c;
+  }
   function canonCodes(codes) {
     const out = new Set();
-    for (const c of (codes || [])) out.add(/^AJ[A-Z0-9]{3}$/.test(c) ? c.slice(1) : c);
+    for (const c of (codes || [])) out.add(canonCode(c));
     return out;
   }
 
@@ -209,7 +216,8 @@
       const com = r['Commission no.'];
       const modelRaw = (r['Model'] !== null && r['Model'] !== undefined && r['Model'] !== '')
         ? r['Model'] : (r['Baumuster'] !== undefined ? r['Baumuster'] : '');
-      const wingsCodes = canonCodes(r['WINGS_codes']);
+      const wingsRaw = new Set(r['WINGS_codes'] || []);
+      const wingsCodes = canonCodes(wingsRaw);
       const wingsPaint = new Set(r['WINGS_paint'] || []);
       const wingsTyre = new Set(r['WINGS_tyre'] || []);
       const modelNorm = normalizeModel(modelRaw);
@@ -293,7 +301,8 @@
       isPto = res.pto;
       let samData = res.data;
 
-      const samCodes = samData ? canonCodes(samData.codes) : new Set();
+      const samRaw = samData ? samData.codes : new Set();
+      const samCodes = canonCodes(samRaw);
       const samFile = samData ? samData.file : '';
       const samPaint = samData ? (samData.paint || new Set()) : new Set();
       const samTyre = samData ? (samData.tyre || new Set()) : new Set();
@@ -414,8 +423,8 @@
         'Only_in_WINGS': (noSam || !samCodes.size) ? '' : onlyW.join(','),
         'Factory Control Codes': noSam ? '' : exceptRow.join(','),
         'Mandatory Codes': noSam ? '' : mandRow.join(','),
-        '_all_wings_codes': sortedArr(wingsCodes).join(','),
-        '_all_sam_codes': sortedArr(samCodes).join(','),
+        '_all_wings_codes': sortedArr(wingsRaw).join(','),
+        '_all_sam_codes': sortedArr(samRaw).join(','),
         // 캡은 Paint/Tyre 처럼 양쪽 값을 남긴다 — 화면에서 불일치를 표시한다.
         // PTO 는 따로 남기지 않는다: PTO 코드(N1G·Z5M…) 차이는 일반 코드 비교에 그대로 나온다.
         '_cab_wings': sortedArr(expectedCabs).join(','),

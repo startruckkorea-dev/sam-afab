@@ -153,11 +153,23 @@ def _model_key_candidates(model_norm: str) -> list:
 
 
 _AJ_CODE_RE = re.compile(r'AJ[A-Z0-9]{3}')
+# Codes confirmed to be the same option under another spelling: {variant: canonical}.
+_SAME_CODES = {'JY3L': 'Y3L'}
+
+
+def _canon_code(c: str) -> str:
+    if _AJ_CODE_RE.fullmatch(c):
+        c = c[1:]
+    return _SAME_CODES.get(c, c)
 
 
 def _canon_codes(codes) -> set:
-    """WINGS Offer-code 'AJD2J' and SAM 'JD2J' are the same option: fold AJ+3 to J+3."""
-    return {c[1:] if _AJ_CODE_RE.fullmatch(c) else c for c in (codes or [])}
+    """Fold spellings of one option to a single code for the Only_in_* diff.
+
+    WINGS Offer-code 'AJD2J' == SAM 'JD2J' (AJ+3 -> J+3), plus the _SAME_CODES
+    pairs. The full code lists (_all_*_codes) keep the raw codes.
+    """
+    return {_canon_code(c) for c in (codes or [])}
 
 
 def _cabs_in(codes) -> set:
@@ -277,7 +289,8 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         com = r['Commission no.']
         model_raw = r.get('Model') or r.get('Baumuster', '')
         baumuster_num = r.get('Baumuster', '') if 'Model' in r else ''
-        wings_codes = _canon_codes(r['WINGS_codes'])
+        wings_raw = set(r['WINGS_codes'] or [])
+        wings_codes = _canon_codes(wings_raw)
         wings_paint = set(r.get('WINGS_paint') or []) if 'WINGS_paint' in r.index else set()
         wings_tyre = set(r.get('WINGS_tyre') or []) if 'WINGS_tyre' in r.index else set()
         model_norm = normalize_model(model_raw)
@@ -351,7 +364,8 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         # Best auto-matched candidate for this row.
         sam_data = _pick(sam_entry, is_pto, wings_bm, wings_sub, expected_cabs)
 
-        sam_codes = _canon_codes(sam_data['codes']) if sam_data else set()
+        sam_raw = set(sam_data['codes']) if sam_data else set()
+        sam_codes = _canon_codes(sam_raw)
         sam_file = sam_data['file'] if sam_data else ''
         sam_paint = set(sam_data.get('paint') or []) if sam_data else set()
         sam_tyre = set(sam_data.get('tyre') or []) if sam_data else set()
@@ -485,8 +499,8 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
             'Only_in_WINGS': ','.join(only_w) if sam_codes else '',
             'Factory Control Codes': ','.join(except_codes_row),
             'Mandatory Codes': ','.join(mand_codes_row),
-            '_all_wings_codes': ','.join(sorted(wings_codes)),
-            '_all_sam_codes': ','.join(sorted(sam_codes)),
+            '_all_wings_codes': ','.join(sorted(wings_raw)),
+            '_all_sam_codes': ','.join(sorted(sam_raw)),
             # Cab — both sides kept so the UI can mark a difference. PTO is not kept:
             # a PTO code difference (N1G, Z5M ...) shows up in the general comparison.
             '_cab_wings': ','.join(sorted(expected_cabs)),
