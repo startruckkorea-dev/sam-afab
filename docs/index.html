@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="style.css?v=20261017a" />
+  <link rel="stylesheet" href="style.css?v=20261018a" />
 </head>
 <body>
   <!-- 아이콘 — <svg><use href="#i-…"/></svg> 로 쓴다. -->
@@ -138,37 +138,46 @@
       <div class="page">
         <div class="page-head">
           <div>
-            <h1 data-i18n="hist.title">생산월 이력관리</h1>
+            <h1 data-i18n="hist.title">생산월 이력</h1>
             <p class="page-sub" data-i18n="hist.sub">같은 MY·같은 모델의 WINGS commission 을 생산월 순으로 세워 두고, 달마다 추가(＋)·삭제(−)된 코드·도색·타이어를 보여줍니다.</p>
           </div>
           <div class="page-actions">
-            <button id="histExport" class="icon-btn" data-i18n="hist.export" data-i18n-title="hist.exportTitle" title="지금 보이는 히스토리를 엑셀로 저장">⬇ Export</button>
+            <button id="histExport" type="button" class="btn" data-i18n-title="hist.exportTitle" title="지금 보이는 히스토리를 엑셀로 저장">
+              <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="export.btn">Export</span>
+            </button>
           </div>
         </div>
 
-        <section class="controls hist-controls">
+        <!-- B. 툴바 — 한 장의 카드 -->
+        <section class="hist-toolbar">
           <select id="histMy"></select>
+          <!-- 보는 데이터 자체를 바꾼다(WINGS / SAM / 대조) — 표시만 바꾸는 게 아니라 남겨 둔다. -->
           <select id="histSrc">
             <option value="wings" data-i18n="hist.src.wings">WINGS 코드</option>
             <option value="sam" data-i18n="hist.src.sam">SAM 코드</option>
             <option value="both" data-i18n="hist.src.both">WINGS + SAM 대조</option>
           </select>
-          <div class="mode-switch" id="histBasis" data-i18n-title="hist.basis.title" title="각 달을 무엇과 비교할지">
-            <button type="button" data-basis="prev" class="active" data-i18n="hist.basis.prev">이전 생산월 대비</button>
-            <button type="button" data-basis="first" data-i18n="hist.basis.first">첫 생산월 대비</button>
+          <div class="seg" id="histBasis" role="group" data-i18n-title="hist.basis.title" title="각 달을 무엇과 비교할지">
+            <button type="button" data-basis="prev" class="active" aria-pressed="true" data-i18n="hist.basis.prev">전월 대비</button>
+            <button type="button" data-basis="first" aria-pressed="false" data-i18n="hist.basis.first">최초월 대비</button>
           </div>
-          <input type="search" id="histSearch" data-i18n-ph="hist.searchPh" placeholder="모델 검색&hellip;" />
+          <label class="search-box hist-search">
+            <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+            <input type="search" id="histSearch" data-i18n-ph="hist.searchPh" data-i18n-aria="hist.searchPh" placeholder="모델 / Commission 검색&hellip;" aria-label="모델 / Commission 검색" />
+          </label>
           <span class="hist-legend">
-            <span class="hcode add">＋ <span data-i18n="hist.added">추가</span></span>
-            <span class="hcode del">− <span data-i18n="hist.removed">삭제</span></span>
+            <span class="hchip add">＋ <span data-i18n="hist.added">추가</span></span>
+            <span class="hchip del">− <span data-i18n="hist.removed">삭제</span></span>
           </span>
           <span id="histCount" class="count"></span>
         </section>
 
         <div class="hist-split">
+          <!-- C. 카테고리별 모델 목록 -->
           <aside class="hist-models">
-            <div class="hm-cap" data-i18n="hist.models">모델</div>
-            <div class="hm-list" id="histModels"></div>
+            <div class="hm-tabs" id="histCats" role="tablist" data-i18n-aria="hist.models" aria-label="모델"></div>
+            <label class="hm-only"><input type="checkbox" id="histOnlyChanged" /> <span data-i18n="hist.onlyChanged">변경 있는 모델만</span></label>
+            <div class="hm-list" id="histModels" role="tabpanel"></div>
           </aside>
           <section class="hist-detail" id="histBody"></section>
         </div>
@@ -1199,7 +1208,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20261017a';
+      a.src = 'auth.js?v=20261018a';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

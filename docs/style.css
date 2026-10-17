@@ -799,136 +799,160 @@ mark { background: var(--mark-bg); color: inherit; padding: 0 1px; border-radius
 body.lang-en .man-lang-note { display: block; margin: 0 0 18px; padding: 10px 14px; border-radius: var(--radius);
   background: var(--warn-bg); color: var(--warn); font-size: 13px; font-weight: 600; max-width: 900px; }
 
-/* ===================== 생산월 비교 (코드 히스토리) ===================== */
+/* ===================== 생산월 이력 ===================== */
 #view-history.active { display: flex; }
 #view-history .page {
   max-width: none; display: flex; flex-direction: column; flex: 1; min-height: 0; padding-bottom: 20px;
 }
-.hist-controls { padding: 0 0 10px; }
-.hist-controls input[type="search"] { flex: 0 1 260px; min-width: 180px; }
-.hist-legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+#view-history .page-head { margin-bottom: 12px; }
+#view-history .page-sub { font-size: 13px; color: var(--text-3); }
+
+/* B. 툴바 — 한 장의 카드 */
+.hist-toolbar { flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 12px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); }
+.hist-toolbar .seg button { padding: 6px 12px; font-size: 12.5px; }
+.hist-search { flex: 0 1 280px; min-width: 200px; }
+.hist-legend { display: flex; align-items: center; gap: 6px; }
+.hchip { font-family: var(--font-mono); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm); }
+.hchip span { font-family: var(--font-sans); }
+.hchip.add { background: var(--ok-bg); color: var(--ok); }
+.hchip.del { background: var(--crit-bg); color: var(--crit); }
 
 /* 왼쪽 모델 목록 + 오른쪽 상세 */
 .hist-split { flex: 1; min-height: 0; display: flex; gap: 12px; }
-.hist-models {
-  flex: none; width: 270px; display: flex; flex-direction: column; min-height: 0;
-  border: 1px solid var(--border); border-radius: 12px;
-  background: var(--card); box-shadow: var(--shadow-sm); overflow: hidden;
-}
-.hm-cap {
-  flex: none; padding: 10px 12px; font-size: 12px; font-weight: 700; color: var(--muted);
-  letter-spacing: .03em; text-transform: uppercase;
-  background: var(--thead-bg); border-bottom: 1px solid var(--border);
-}
-.hm-list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; }
-.hm-item {
-  display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
-  border: 1px solid transparent; background: none; cursor: pointer;
-  padding: 8px 10px; border-radius: 9px; color: var(--text); font: inherit;
-}
-.hm-item:hover { background: var(--accent-softer); }
-.hm-item.sel { background: var(--accent-soft); border-color: var(--accent); }
-.hm-name { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hm-sub { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.hm-item.sel .hm-sub { color: var(--accent); }
-.hm-sub .chg { color: var(--warn); }
-.hm-item.sel .hm-sub .chg { color: var(--warn); }
 
+/* C. 카테고리 탭 + 모델 목록 */
+.hist-models {
+  flex: none; width: 320px; display: flex; flex-direction: column; min-height: 0;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); overflow: hidden;
+}
+.hm-tabs { flex: none; display: flex; gap: 2px; margin: 10px 10px 0; padding: 2px;
+  background: var(--neutral-bg); border-radius: var(--radius-sm); }
+.hm-tab { flex: 1; border: none; background: none; cursor: pointer; padding: 6px 4px; border-radius: 5px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-2); display: inline-flex; align-items: center;
+  justify-content: center; gap: 6px; white-space: nowrap; }
+.hm-tab:hover:not(:disabled) { color: var(--text); }
+.hm-tab.active { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-sm); }
+.hm-tab.active .cnt { background: var(--accent-bg); color: var(--accent); }
+.hm-tab:disabled { opacity: .45; cursor: default; }
+.hm-only { flex: none; display: flex; align-items: center; gap: 7px; padding: 10px 14px 8px; font-size: 12.5px;
+  color: var(--text-2); cursor: pointer; border-bottom: 1px solid var(--border-soft); }
+.hm-only input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.hm-list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.hm-item {
+  position: relative; display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left;
+  border: 1px solid transparent; background: none; cursor: pointer;
+  padding: 9px 10px 9px 13px; border-radius: var(--radius-sm); color: var(--text); font: inherit;
+}
+.hm-item:hover { background: var(--surface-2); }
+.hm-item.sel { background: var(--accent-softer); border-color: var(--accent); }
+.hm-item.sel::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--accent); }
+.hm-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hm-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-badge { flex: none; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: var(--neutral-bg); color: var(--neutral); white-space: nowrap; }
+.hm-badge.chg { background: var(--warn-bg); color: var(--warn); }
+.hm-sub { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* D·E. 오른쪽 — 요약 줄 + 월 표 */
 .hist-detail {
   flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column;
-  border: 1px solid var(--border); border-radius: 12px;
-  background: var(--card); box-shadow: var(--shadow-sm); overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); overflow: hidden;
 }
-.hist-cap {
-  flex: none; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-  padding: 10px 14px; font-size: 15px; font-weight: 800; letter-spacing: -.01em;
-  border-bottom: 1px solid var(--border); background: var(--thead-bg);
-}
-.hist-cap .sub { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
-/* 선택한 모델 — 대시보드 목록과 같은 항목·라벨·모양으로 한 줄. */
-.hist-model { border-collapse: separate; border-spacing: 0; background: var(--card);
-  border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 13px; }
-.hist-model th, .hist-model td { padding: 6px 14px; text-align: center; white-space: nowrap; }
-.hist-model thead th {
-  background: var(--thead-bg); font-weight: 700; color: var(--muted); font-size: 11.5px;
-  text-transform: uppercase; letter-spacing: .02em; border-bottom: 1px solid var(--border-strong);
-}
-.hist-model tbody td { font-weight: 700; }
+.hist-sum { flex: none; display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
+  padding: 12px 18px; border-bottom: 1px solid var(--border); }
+.hs-stat { display: flex; flex-direction: column; line-height: 1.3; }
+.hs-l { font-size: 11px; color: var(--text-3); }
+.hs-v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hs-stat.warn .hs-v { color: var(--warn); }
+.hs-add { color: var(--ok); }
+.hs-del { color: var(--crit); }
+.hs-sep { color: var(--text-muted); font-weight: 400; }
+.hs-note { margin-left: auto; font-size: 12px; color: var(--text-3); }
+
 .hist-scroll { flex: 1; min-height: 0; overflow: auto; }
-/* 줄 머리(Commission / WINGS / SAM) — 가로로 스크롤해도 왼쪽에 붙어 있는다. */
-.hsrc {
-  display: inline-block; font-size: 10.5px; font-weight: 800; line-height: 1.7;
-  text-align: center; border-radius: 5px; padding: 0 6px; letter-spacing: .02em;
-}
-.hsrc.wings { background: var(--chip-win-bg); color: var(--chip-win-fg); }
-.hsrc.sam { background: var(--chip-sam-bg); color: var(--chip-sam-fg); }
-/* 월 머리글 바로 아래 — 그 달의 WINGS↔SAM 일치/불일치 */
-.hist-x {
-  font-size: 11px; font-weight: 800; color: var(--ok-fg); background: var(--ok-bg);
-  border-radius: 5px; padding: 1px 6px; display: inline-block; cursor: help;
-}
-.hist-x.bad { color: var(--miss-fg); background: var(--miss-bg); }
+.hist-foot { flex: none; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 7px 14px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-3); }
 
 .hist-grid { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12px; }
 .hist-grid th, .hist-grid td {
-  border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
-  padding: 6px 7px; vertical-align: top; text-align: left;
+  border-bottom: 1px solid var(--border-soft); border-right: 1px solid var(--border-soft);
+  padding: 8px; vertical-align: top; text-align: left;
 }
-.hist-grid thead th {
-  position: sticky; top: 0; z-index: 3; background: var(--thead-bg);
-  border-bottom: 1px solid var(--border-strong);
-  font-size: 12.5px; font-weight: 700; color: var(--text); text-align: center; white-space: nowrap;
-  padding: 5px 7px;
+/* 머리글 3줄(연도 · 월 · 일치/불일치)이 스크롤해도 위에 붙어 있게 — --h1/--h2 는 JS 가 잰다. */
+.hist-grid thead th, .hist-grid thead td { position: sticky; z-index: 3; background: var(--thead-bg); text-align: center; }
+.hist-yrow > * { top: 0; padding: 6px 8px 2px; font-size: 11.5px; font-weight: 600; color: var(--text-3);
+  border-bottom: none; letter-spacing: .04em; }
+.hist-yrow th { border-left: 1px solid var(--border); }
+.hist-mrow th { top: var(--h1, 26px); padding: 2px 8px 7px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.hist-grid thead .hist-xrow > * { top: var(--h2, 70px); padding: 4px 8px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.hm-num { display: block; font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.hm-tag { display: block; min-height: 16px; font-size: 11px; font-weight: 600; line-height: 16px; }
+.hm-tag.base { color: var(--accent); }
+.hm-tag.chg { color: #B26A00; }
+/* 열 음영 — 기준월은 옅은 파랑, 변경 있는 달은 아주 옅은 웜톤. */
+.hist-grid td.base { background: #F3F6FD; }
+.hist-grid td.chg { background: #FFFDF7; }
+.hist-grid thead th.base { background: #EBF0FC; }
+.hist-grid thead th.chg { background: #FFF8EA; }
+
+/* 줄 머리 — 가로로 스크롤해도 왼쪽에 붙어 있는다. */
+.hist-grid .hist-rowhead {
+  position: sticky; left: 0; z-index: 4; width: 112px; min-width: 112px; max-width: 112px;
+  background: var(--surface); text-align: left; vertical-align: middle; white-space: normal;
+  border-right: 1px solid var(--border);
 }
-.hist-grid thead th .my { font-size: 10.5px; font-weight: 600; color: var(--muted); display: block; }
-/* 일치/불일치 줄이 붙으면 월 머리글과의 경계는 옅게 — 두 줄이 한 머리글로 읽히게. */
-.hist-grid thead tr:first-child:not(:last-child) th { border-bottom-color: var(--border); }
-/* 일치/불일치 줄 — 월 머리글 바로 아래에 함께 붙는다(--h1 은 렌더 후 JS 가 재어 넣는다). */
-.hist-grid thead .hist-xrow th {
-  top: var(--h1, 44px); text-align: center; padding: 3px 7px;
-  background: var(--card); border-bottom: 1px solid var(--border-strong);
-}
-.hist-grid thead .hist-xrow th.hist-rowhead { left: 0; z-index: 4; background: var(--thead-bg); }
-.hist-grid th.hist-rowhead {
-  position: sticky; left: 0; z-index: 4; width: 112px; min-width: 112px;
-  background: var(--thead-bg); text-align: left; vertical-align: middle;
-  font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap;
-  border-right: 1px solid var(--border-strong);
-}
-/* 갈래(코드·도색·타이어) 라벨 + 그 아래 소스 칩 */
-.hist-grid th.hist-rowhead .hkind {
-  display: block; margin-bottom: 3px; font-size: 11px; font-weight: 700; color: var(--text);
-}
-/* 갈래가 바뀌는 첫 줄 위에만 굵은 선을 둬 두 줄씩 한 덩어리로 읽히게. */
-.hist-grid tbody tr.ktop > * { border-top: 1px solid var(--border-strong); }
-.hist-grid tbody tr.kalt > td { background: var(--thead-bg); }
-.hist-grid tbody tr.kalt > td.base { background: var(--accent-softer); }
-.hist-grid thead th.hist-rowhead.corner { z-index: 5; }
+.hist-grid thead .hist-rowhead { z-index: 5; background: var(--thead-bg); }
+.hist-grid .hkind { display: block; font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.hist-grid .hsub { display: block; margin-top: 1px; font-size: 11px; font-weight: 500; color: var(--text-3); letter-spacing: .03em; }
+.hist-grid tbody tr.ktop > * { border-top: 1px solid var(--border); }
 .hist-grid td.hist-cell { width: 108px; min-width: 108px; max-width: 108px; }
-.hist-grid td.hist-cell.base { background: var(--accent-softer); }
 .hist-grid td.hist-cell.gap { background: repeating-linear-gradient(135deg,
   transparent 0 6px, rgba(0,0,0,.025) 6px 12px); }
+.hist-grid .r-units td { vertical-align: middle; }
 
-.hist-comm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px; }
-.hist-comm .cno {
-  font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 700; font-family: inherit;
-  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--chip-mand-bd);
-  border-radius: 999px; padding: 1px 7px; cursor: pointer;
-}
-.hist-comm .cno:hover { background: var(--accent); color: #fff; }
-.hist-comm .cmore { font-size: 10.5px; color: var(--muted); cursor: help; }
-.hist-codes { display: flex; flex-direction: column; gap: 2px; }
+.units-pill { border: 1px solid var(--accent); background: var(--surface); color: var(--accent); cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 600; padding: 1px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.units-pill:hover, .units-pill[aria-expanded="true"] { background: var(--accent); color: #fff; }
+
+.hist-codes { display: flex; flex-direction: column; gap: 3px; }
 .hcode {
-  font-family: var(--font-mono); font-size: 11.5px; font-weight: 700;
-  border-radius: 5px; padding: 1px 5px; width: fit-content;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  border-radius: 5px; padding: 1px 6px; width: fit-content;
 }
-.hcode.add { background: var(--ok-bg); color: var(--ok-fg); }
-.hcode.del { background: var(--miss-bg); color: var(--miss-fg); }
-.hist-base { font-weight: 700; color: var(--accent); font-size: 11.5px; }
-.hist-same { color: var(--muted); font-size: 11.5px; }
+.hcode.add { background: #E3F5EA; color: #1A7F4B; }
+.hcode.del { background: #FDE3E3; color: #B42318; }
+.hist-base { font-weight: 600; color: var(--accent); font-size: 12px; }
+.hist-dash { color: #C3C8CF; font-size: 13px; }
 .hist-none { color: var(--border-strong); }
 .hist-warn { margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--warn); cursor: help; }
-.hist-empty { padding: 28px 16px; color: var(--muted); text-align: center; }
+.hist-empty { padding: 28px 16px; color: var(--text-3); text-align: center; }
+/* 월 머리글 아래 — 그 달의 WINGS↔SAM 일치/불일치 (대조 모드) */
+.hist-x {
+  font-size: 11px; font-weight: 700; color: var(--ok); background: var(--ok-bg);
+  border-radius: 5px; padding: 1px 6px; display: inline-block; cursor: help;
+}
+.hist-x.bad { color: var(--crit); background: var(--crit-bg); }
+
+/* 대수 → 그 달 Commission 목록 */
+.hist-pop { position: fixed; z-index: 80; min-width: 230px; max-width: 320px; max-height: 340px; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.hp-head { flex: none; padding: 9px 12px; font-size: 12px; font-weight: 700; color: var(--text-2); border-bottom: 1px solid var(--border-soft); }
+.hp-list { overflow-y: auto; padding: 4px; }
+.hp-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+  border: none; background: none; cursor: pointer; padding: 7px 8px; border-radius: var(--radius-sm); font: inherit; font-size: 13px; }
+.hp-item .mono { color: var(--accent); font-weight: 500; }
+.hp-item:hover { background: var(--surface-2); }
+.hp-item .status { font-size: 11px; }
+
+@media (max-width: 900px) {
+  .hist-split { flex-direction: column; }
+  .hist-models { width: auto; height: 260px; }
+}
 
 /* ===================== 사용자 매뉴얼 ===================== */
 #view-manual.active { display: flex; min-height: 0; }
