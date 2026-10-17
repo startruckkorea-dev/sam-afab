@@ -69,462 +69,30 @@ let restrictSoon = false;
 let tileMandatory = false;
 let tileSamUpdate = false;
 let activeTile = 't-total';
+// '다음 Changeability 마감' 카드의 '목록 보기' — 이 날짜(YYYY-MM-DD)의 Changeability 만 남긴다.
+let tileDate = null;
 
 const $ = (s) => document.querySelector(s);
 
 // ====================== i18n (한국어 / English) ======================
-const I18N = {
-  ko: {
-    'nav.dashboard': '대시보드',
-    'nav.history': '생산월 이력관리',
-    'nav.matching': '모델 매칭',
-    'nav.codes': '코드 관리',
-    'nav.manual': '사용자메뉴얼',
-    'role.noPerm': '이 기능은 Admin 권한이 필요합니다',
-    'role.denied': '접근 권한이 없습니다. 관리자에게 문의하세요.',
-    'meta.loading': '불러오는 중…',
-    'meta.generated': '생성: {when}  ·  WINGS: {file}',
-    'search.ph': 'Commission no. / 모델 / 코드 검색…',
-    'filter.allStatus': '전체 상태',
-    'filter.allProd': '전체 생산월',
-    'filter.allMY': '전체 MY',
-    'filter.allModel': '전체 Model',
-    'filter.allType': '전체 Type',
-    'filter.allAxle': '전체 Axle',
-    'filter.allCab': '전체 Cab',
-    'filter.prod.title': '생산월(Requested delivery) 선택',
-    'chk.upcoming': '시작월 이후만 표시',
-    'chk.upcoming.title': '끄면 시작월과 상관없이 모든 생산월을 표시합니다',
-    'filter.from.opt': '{m} 부터',
-    'filter.from.title': '시작 생산월 — 대시보드 숫자와 표가 이 달부터 집계됩니다 (과거로 내리면 지난 차량도 비교)',
-    'count': '{n} / {total} 건',
-    'dash.overall': '전체 현황 ({from} 이후)',
-    'dash.soon': '2주 이내 (Changeability D-14)',
-    'tile.total': '전체 Commission',
-    'tile.mismatch': '미스매치',
-    'tile.match': '매칭',
-    'tile.mand': 'Mandatory 누락',
-    'tile.samupd': 'SAM update요청',
-    'tile.nosam': 'No SAM',
-    'dash.models': '모델별 대수',
-    'dash.models.filtered': '모델별 대수 (필터)',
-    'dash.models.kinds': '종',
-    'dash.near': 'Upcoming changeability',
-    'dash.near.count': '해당일 Commission',
-    'unit.ea': '대',
-    'unit.case': '건',
-    'dday.passed': '지남',
-    'cell.ok.title': '이상없음 (차이·누락 없음)',
-    'msg.noData': '표시할 데이터가 없습니다. data.json 을 먼저 빌드하세요.',
-    'msg.noRows': '필터 조건에 맞는 항목이 없습니다.',
-    'msg.loadFail': 'data.json 을 불러올 수 없습니다: {err}',
-    'meta.loadFail': 'data.json 로드 실패: {err}',
-    'code.none': '없음',
-    'code.okDiff': '✅ 이상없음 — 누락·차이 없음',
-    'code.okMand': '✅ 이상없음 — 아래 필수코드가 양쪽 모두 반영됨',
-    'drawer.xls': '⬇ 이 차량 Excel',
-    // 생산월 이력관리
-    'hist.title': '생산월 이력관리',
-    'hist.sub': '같은 MY·같은 모델의 WINGS commission 을 생산월 순으로 세워 두고, 달마다 추가(＋)·삭제(−)된 코드·도색·타이어를 보여줍니다.',
-    'hist.src.wings': 'WINGS 코드',
-    'hist.src.sam': 'SAM 코드',
-    'hist.src.both': 'WINGS + SAM 대조',
-    'hist.xTitle': '그 달 전체 코드 — WINGS 에만: {w} / SAM 에만: {s}',
-    'hist.xNone': '그 달 전체 코드는 WINGS 와 SAM 이 같습니다.',
-    'hist.xDelta': '변경 내역 — WINGS 에만: {w} / SAM 에만: {s}',
-    'hist.xDeltaSame': '변경 내역이 WINGS 와 SAM 이 같습니다.',
-    'hist.xBase': '두 소스 모두 이 달이 첫 생산월(기준)입니다.',
-    'hist.kind.code': '코드',
-    'hist.kind.paint': '도색',
-    'hist.kind.tyre': '타이어',
-    'hist.xOk': '일치',
-    'hist.xBad': '불일치',
-    'hist.basis.title': '각 달의 코드를 무엇과 비교할지',
-    'hist.basis.prev': '이전 생산월 대비',
-    'hist.basis.first': '첫 생산월 대비',
-    'hist.searchPh': '모델 / Commission 검색…',
-    'hist.added': '추가',
-    'hist.removed': '삭제',
-    'hist.export': '⬇ Export',
-    'hist.exportTitle': '지금 보이는 히스토리를 엑셀(.xlsx)로 저장',
-    'hist.model': '모델',
-    'hist.models': '모델 목록',
-    'hist.modelSub': '{n}대 · {m}개월',
-    'hist.chgMonths': '개월 변경',
-    'hist.more': '외 {n}대',
-    'hist.prodMonth': '생산월',
-    'hist.base': '기본',
-    'hist.same': '변경 없음',
-    'hist.count': '모델 {models}종 · {months}개월 · Commission {n}건',
-    'hist.emptyMy': '이 조건에 해당하는 commission 이 없습니다.',
-    'hist.noMy': 'MY 미상',
-    'hist.varied': '⚠ 같은 달 commission 간 코드 차이 {n}개: {codes}',
-    'hist.cellTitle': '{ref} → {cur} 비교',
-    'hist.baseTitle': '{m} — 이 모델의 첫 생산월(기준)',
-    'hist.gapTitle': '이 달에는 생산이 없습니다.',
-    'hist.exportTitleRow': '코드 히스토리 — {my} · {src} · {basis}',
-    // 모델 매칭
-    'matching.title': '모델 매칭',
-    'matching.sub': 'SAM ↔ WINGS 모델 인식 — 규칙은 model_mapping.xlsx',
-    'matching.paneDiag': '진단',
-    'matching.diagSub': '넣었는데 어떤 주문에도 안 붙은 SAM 문서와, 생산월별 WINGS 주문 수입니다.',
-    'match.diagKind': '구분',
-    'match.diagKeys': '읽힌 모델키',
-    'match.diagWhere': '생산월 폴더',
-    'match.diagOrders': '그 달 주문',
-    'match.diagWhy': '원인 · 다음 할 일',
-    'match.diagUnused': '안 붙은 SAM 문서',
-    'match.diagSkipped': '건너뛴 SAM 파일',
-    'match.diagMonth': '생산월 폴더',
-    'match.diagNoOrders': '그 생산월 WINGS 주문이 0건 — 주문이 들어오면 자동으로 붙습니다(파일·규칙 문제 아님).',
-    'match.diagNotPicked': '그 달 주문 {n}건 중 이 문서를 고른 것이 없음 — 모델키 또는 PTO·캡이 주문과 갈렸는지 확인하세요.',
-    'match.diagMonthWhy': '{parsed}/{files} 파일을 읽었고 모델키 {keys}개를 인식했습니다.',
-    'match.diagCount': '{n} / {total} 건',
-    'match.diagOld': '이 데이터에는 진단 정보가 없습니다 — ⟳ 데이터 다시 계산을 한 번 실행하세요.',
-    'matching.paneResult': '매칭 결과',
-    'matching.paneSheet': '대조표',
-    'matching.loading': 'model_mapping.xlsx 를 불러오는 중…',
-    'matching.result': '매칭 결과',
-    'matching.resultSub': '모델 → 비교된 SAM 파일. 캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠.',
-    'match.count': '모델 {n}종',
-    'match.countOf': '모델 {n}종 / 전체 {total}종',
-    'match.allPto': '전체 PTO',
-    'match.searchPh': '모델 / SAM 파일 검색…',
-    'match.noHit': '이 조건에 맞는 모델이 없습니다.',
-    'match.samFile': '비교된 SAM 파일',
-    'match.units': '대수',
-    'match.status': '상태',
-    'match.noFile': '매칭된 SAM 없음',
-    'match.files': '문서 {n}개',
-    'matching.note':
-      '<code>인식모델_대조표</code>·<code>미매칭_진단</code>은 다시 계산할 때마다 새로 만들어지는 확인용 ' +
-      '보기입니다(무엇이 붙었나 / 왜 못 붙었나). ' +
-      '규칙 시트를 고쳐 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.',
-    // 코드 관리
-    'codes.title': '코드 관리',
-    'codes.sub': "SharePoint 04. code 폴더의 Excel 파일을 웹에서 직접 편집·저장",
-    'codes.note':
-      '비교에 쓰이는 모든 기준표(필수코드·공장관리코드·캡·모델 카테고리 등)가 ' +
-      '<code>04. code</code> 폴더의 Excel 파일로 관리됩니다. 아래에서 파일을 고르고 시트 탭을 바꿔 ' +
-      '편집한 뒤 <b>SharePoint에 저장</b>하면 원본 파일에 반영되고, 다음 <b>데이터 다시 계산</b> 때 적용됩니다.',
-    'codes.pickFile': '파일 목록을 불러오는 중…',
-    'codes.empty': '위에서 편집할 Excel 파일을 선택하세요.',
-    'codes.searchPh': '이 시트에서 검색…',
-    'codes.unsaved': '● 저장되지 않은 변경',
-    'codes.loadingFile': '파일 여는 중…',
-    'codes.saving': 'SharePoint에 저장 중…',
-    'codes.saved': '저장 완료 — SharePoint에 반영되었습니다.',
-    'codes.listFail': '파일 목록을 불러오지 못했습니다: {err}',
-    'codes.noXlsx': '이 폴더에 Excel(.xlsx) 파일이 없습니다.',
-    'codes.confirmLeave': '저장하지 않은 변경이 있습니다. 이동하면 사라집니다. 계속할까요?',
-    'codes.delRow': '이 행을 삭제할까요?',
-    // 버튼
-    'btn.openFolder': '📂 SharePoint 폴더 열기',
-    'btn.refresh': '↻ 목록 새로고침',
-    'btn.loadSp': '⭳ SharePoint에서 불러오기',
-    'btn.saveSp': '⭱ SharePoint에 저장',
-    'btn.addRow': '＋ 행 추가',
-    'btn.addRec': '＋ 등록',
-    'btn.reloadFile': '↺ 되돌리기',
-    'btn.download': '⬇ 다운로드',
-    'btn.delete': '삭제',
-    'btn.cancel': '취소',
-    'btn.apply': '저장',
-    'btn.edit': '편집',
-    // 레코드(카드) 편집
-    'mode.record': '🗂 카드 편집',
-    'mode.grid': '▦ 표 편집',
-    'rec.actions': '액션',
-    'rec.count': '{n} / {total} 건',
-    'rec.empty': '표시할 항목이 없습니다.',
-    'rec.emptySheet': '— 빈 시트 —',
-    'rec.new': '새 항목 등록',
-    'rec.edit': '항목 편집',
-    'rec.page': '{page} / {pages} 페이지',
-    'rec.prev': '‹ 이전',
-    'rec.next': '다음 ›',
-    'rec.allOf': '전체 · {col}',
-    'rec.blank': '(비어 있음)',
-    'rec.on': '예',
-    'rec.off': '아니오',
-    'rec.colFallback': '열 {n}',
-    'rec.delConfirm': '이 항목을 삭제할까요?',
-    'rec.hint': '행을 클릭하면 편집 창이 열립니다. 열(컬럼) 자체를 바꾸려면 표 편집으로 전환하세요.',
-    'modal.upload': '⬆ 엑셀 불러오기(로컬)',
-    'modal.upload.title': 'PC의 model_mapping.xlsx 불러오기',
-    'modal.download': '⬇ 엑셀 저장(로컬)',
-    'op.loading': '처리 중…',
-    'op.needLogin': 'SharePoint 연동은 회사 계정 로그인 후 사용할 수 있습니다.',
-    'op.loaded': '불러왔습니다.',
-    'op.saved': '저장 완료 — SharePoint에 반영되었습니다.',
-    'op.fail': '실패: {err}',
-    'export.btn': '⬇ Export',
-    'export.title': '현재 필터가 적용된 목록을 엑셀(.xlsx)로 저장',
-    'export.sheetTitle': 'SAM × AFAB 비교 — {n} / {total} 건',
-    'export.filters': '필터: {f}',
-    'export.noFilter': '(필터 없음 — 전체)',
-    'export.exportedAt': '내보낸 시각: {ts}',
-    'export.noRows': '내보낼 행이 없습니다. 필터를 확인하세요.',
-    'export.f.prod': '생산월',
-    'export.f.my': 'MY',
-    'export.f.model': 'Model',
-    'export.f.type': 'Type',
-    'export.f.axle': 'Axle',
-    'export.f.cab': 'Cab',
-    'export.f.status': '상태',
-    'export.f.search': '검색',
-    'export.f.sort': '정렬',
-    'nav.build': '⟳ 데이터 다시 계산',
-    'build.btn': '⟳ 데이터 다시 계산',
-    'build.running': '⟳ 빌드 중…',
-    'build.title': '데이터 다시 계산',
-    'build.confirm': 'SharePoint 의 최신 WINGS(02) 와 최신 생산월 SAM(01) 으로 비교를 다시 계산합니다.\n'
-      + '이 브라우저에서 1~3분 정도 걸리고, 결과는 SharePoint(05. output)에 저장돼 모든 사용자에게 반영됩니다.\n'
-      + '모델 매핑 워크북(03. model_rules)의 인식모델_대조표·미매칭_진단 시트도 함께 갱신됩니다.\n\n계속할까요?',
-    'build.needLogin': '데이터 빌드는 회사 Microsoft 365 계정 로그인이 필요합니다.',
-    'build.step.ref': '참조 워크북(코드·매칭 규칙) 읽는 중…',
-    'build.step.upload': '결과를 SharePoint 에 저장하는 중…',
-    'build.step.mapping': '모델 매핑 워크북(model_mapping.xlsx) 갱신 중…',
-    'build.pto.created': 'PTO 코드 목록이 없어 {file} 을 만들었습니다 — PTO코드 {n}개 · 제외 {ex}개. '
-      + '코드 관리에서 검토하세요.',
-    'build.pto.fail': 'PTO 코드 워크북 생성 실패(내장 기본값으로 진행): {err}',
-    'build.mapping.done': '{file} 갱신 — 인식모델 {recog}행 · 미매칭_진단 {diag}행. SharePoint 에 저장했습니다.',
-    'build.mapping.fail': '모델 매핑 워크북 갱신 실패(비교 결과는 저장됨): {err}',
-    'build.done': '빌드 완료 — {rows}행 (일치 {match} / 불일치 {mismatch}). SharePoint 에 저장했습니다.',
-    'build.fail': '빌드 실패:',
-    'build.close': '닫기',
-    'meta.srcSp': '출처: SharePoint 최신 빌드',
-    'meta.srcBundled': '출처: 배포 사본(빌드 결과 없음)',
-    'alert.xlsxBlocked':
-      '엑셀 라이브러리를 불러오지 못했습니다(사내망 차단 가능). 잠시 후 다시 시도하세요.',
-    'alert.xlsxReadFail': '엑셀 읽기 실패: ',
-    'rules.loadFail': 'rules.json 로드 실패: ',
-  },
-  en: {
-    'nav.dashboard': 'Dashboard',
-    'nav.history': 'Month History',
-    'nav.matching': 'Model Matching',
-    'nav.codes': 'Code Manager',
-    'nav.manual': 'User Manual',
-    'role.noPerm': 'Admin permission required',
-    'role.denied': "You don't have permission. Contact the administrator.",
-    'meta.loading': 'Loading…',
-    'meta.generated': 'Generated: {when}  ·  WINGS: {file}',
-    'search.ph': 'Search commission no. / model / code…',
-    'filter.allStatus': 'All statuses',
-    'filter.allProd': 'All production months',
-    'filter.allMY': 'All MY',
-    'filter.allModel': 'All models',
-    'filter.allType': 'All types',
-    'filter.allAxle': 'All axles',
-    'filter.allCab': 'All cabs',
-    'filter.prod.title': 'Select production month (Requested delivery)',
-    'chk.upcoming': 'Only from start month',
-    'chk.upcoming.title': 'Uncheck to show every production month',
-    'filter.from.opt': 'From {m}',
-    'filter.from.title': 'Start production month — tiles and rows are counted from here (go back to compare past vehicles)',
-    'count': '{n} / {total} rows',
-    'dash.overall': 'Overall ({from} onward)',
-    'dash.soon': 'Within 2 weeks (Changeability D-14)',
-    'tile.total': 'Total commissions',
-    'tile.mismatch': 'Mismatch',
-    'tile.match': 'Match',
-    'tile.mand': 'Mandatory missing',
-    'tile.samupd': 'SAM update needed',
-    'tile.nosam': 'No SAM',
-    'dash.models': 'Units by model',
-    'dash.models.filtered': 'Units by model (filtered)',
-    'dash.models.kinds': 'kinds',
-    'dash.near': 'Upcoming changeability',
-    'dash.near.count': 'Commissions on that date',
-    'unit.ea': 'ea',
-    'unit.case': 'ea',
-    'dday.passed': 'Passed',
-    'cell.ok.title': 'No issue (no difference / omission)',
-    'msg.noData': 'No data to show. Build data.json first.',
-    'msg.noRows': 'No items match the current filters.',
-    'msg.loadFail': 'Could not load data.json: {err}',
-    'meta.loadFail': 'Failed to load data.json: {err}',
-    'code.none': 'None',
-    'code.okDiff': '✅ No issue — nothing missing or different',
-    'code.okMand': '✅ No issue — the mandatory codes below are present on both sides',
-    'drawer.xls': '⬇ Export this vehicle',
-    'hist.title': 'Production-month History',
-    'hist.sub': 'Lines up the WINGS commissions of one model (same MY) by production month and shows which codes, paints and tyres were added (＋) or removed (−) each month.',
-    'hist.src.wings': 'WINGS codes',
-    'hist.src.sam': 'SAM codes',
-    'hist.src.both': 'WINGS + SAM cross-check',
-    'hist.xTitle': 'All codes this month — only in WINGS: {w} / only in SAM: {s}',
-    'hist.xNone': 'WINGS and SAM carry the same codes this month.',
-    'hist.xDelta': 'Changes — only in WINGS: {w} / only in SAM: {s}',
-    'hist.xDeltaSame': 'WINGS and SAM changed the same way this month.',
-    'hist.xBase': 'This is the first production month for both sources (baseline).',
-    'hist.kind.code': 'Codes',
-    'hist.kind.paint': 'Paint',
-    'hist.kind.tyre': 'Tyre',
-    'hist.xOk': 'match',
-    'hist.xBad': 'mismatch',
-    'hist.basis.title': 'What each month is compared against',
-    'hist.basis.prev': 'vs previous month',
-    'hist.basis.first': 'vs first month',
-    'hist.searchPh': 'Search model / commission…',
-    'hist.added': 'added',
-    'hist.removed': 'removed',
-    'hist.export': '⬇ Export',
-    'hist.exportTitle': 'Download the history shown here as Excel (.xlsx)',
-    'hist.model': 'Model',
-    'hist.models': 'Models',
-    'hist.modelSub': '{n} units · {m} months',
-    'hist.chgMonths': ' months changed',
-    'hist.more': '+{n} more',
-    'hist.prodMonth': 'Production month',
-    'hist.base': 'Baseline',
-    'hist.same': 'No change',
-    'hist.count': '{models} models · {months} months · {n} commissions',
-    'hist.emptyMy': 'No commissions match this selection.',
-    'hist.noMy': 'MY unknown',
-    'hist.varied': '⚠ {n} code(s) differ between commissions of this month: {codes}',
-    'hist.cellTitle': 'Compared {ref} → {cur}',
-    'hist.baseTitle': '{m} — first production month of this model (baseline)',
-    'hist.gapTitle': 'No production in this month.',
-    'hist.exportTitleRow': 'Code history — {my} · {src} · {basis}',
-    'matching.title': 'Model Matching',
-    'matching.sub': 'SAM ↔ WINGS model recognition — rules live in model_mapping.xlsx',
-    'matching.paneDiag': 'Diagnostics',
-    'matching.diagSub': 'SAM documents no order used, and the WINGS order count per production month.',
-    'match.diagKind': 'Kind',
-    'match.diagKeys': 'Model keys read',
-    'match.diagWhere': 'Month folder',
-    'match.diagOrders': 'Orders that month',
-    'match.diagWhy': 'Cause · what to do',
-    'match.diagUnused': 'Unused SAM document',
-    'match.diagSkipped': 'Skipped SAM file',
-    'match.diagMonth': 'Month folder',
-    'match.diagNoOrders': 'No WINGS order for that production month — it will attach on its own once orders arrive.',
-    'match.diagNotPicked': 'None of that month’s {n} orders picked this document — check the model key, PTO or cab against the orders.',
-    'match.diagMonthWhy': 'Read {parsed} of {files} files and recognized {keys} model keys.',
-    'match.diagCount': '{n} of {total}',
-    'match.diagOld': 'This data carries no diagnostics — run ⟳ Recompute Data once.',
-    'matching.paneResult': 'Matching result',
-    'matching.paneSheet': 'Recognition table',
-    'matching.loading': 'Loading model_mapping.xlsx…',
-    'matching.result': 'Matching result',
-    'matching.resultSub': 'Model → the SAM file it was compared against. Cab and PTO come from the codes; ≠ marks a difference.',
-    'match.count': '{n} models',
-    'match.countOf': '{n} of {total} models',
-    'match.allPto': 'All PTO',
-    'match.searchPh': 'Search model / SAM file…',
-    'match.noHit': 'No model matches this selection.',
-    'match.samFile': 'Compared SAM file',
-    'match.units': 'Units',
-    'match.status': 'Status',
-    'match.noFile': 'No SAM matched',
-    'match.files': '{n} documents',
-    'matching.note':
-      '<code>인식모델_대조표</code> (what matched) and <code>미매칭_진단</code> (why it did not) are ' +
-      'verification views, rebuilt on every recompute. Edit a rule sheet and <b>Save to SharePoint</b>; ' +
-      'it applies on the next <b>Recompute Data</b>.',
-    'codes.title': 'Code Manager',
-    'codes.sub': 'Edit & save the Excel files in the SharePoint 04. code folder, right here',
-    'codes.note':
-      'Every reference table used by the comparison (mandatory codes, factory control codes, cab, ' +
-      'model category …) lives as an Excel file in the <code>04. code</code> folder. Pick a file below, ' +
-      'switch sheet tabs to edit, then <b>Save to SharePoint</b> — the original file is updated and the ' +
-      'change applies on the next <b>Rebuild data</b>.',
-    'codes.pickFile': 'Loading file list…',
-    'codes.empty': 'Pick an Excel file above to edit.',
-    'codes.searchPh': 'Search this sheet…',
-    'codes.unsaved': '● Unsaved changes',
-    'codes.loadingFile': 'Opening file…',
-    'codes.saving': 'Saving to SharePoint…',
-    'codes.saved': 'Saved — written back to SharePoint.',
-    'codes.listFail': 'Could not load the file list: {err}',
-    'codes.noXlsx': 'No Excel (.xlsx) files in this folder.',
-    'codes.confirmLeave': 'You have unsaved changes. Leaving will discard them. Continue?',
-    'codes.delRow': 'Delete this row?',
-    'btn.openFolder': '📂 Open SharePoint folder',
-    'btn.refresh': '↻ Refresh list',
-    'btn.loadSp': '⭳ Load from SharePoint',
-    'btn.saveSp': '⭱ Save to SharePoint',
-    'btn.addRow': '＋ Add row',
-    'btn.addRec': '＋ New',
-    'btn.reloadFile': '↺ Revert',
-    'btn.download': '⬇ Download',
-    'btn.delete': 'Delete',
-    'btn.cancel': 'Cancel',
-    'btn.apply': 'Save',
-    'btn.edit': 'Edit',
-    'mode.record': '🗂 Form editing',
-    'mode.grid': '▦ Table editing',
-    'rec.actions': 'Actions',
-    'rec.count': '{n} / {total} records',
-    'rec.empty': 'No records to show.',
-    'rec.emptySheet': '— empty sheet —',
-    'rec.new': 'New record',
-    'rec.edit': 'Edit record',
-    'rec.page': 'Page {page} / {pages}',
-    'rec.prev': '‹ Prev',
-    'rec.next': 'Next ›',
-    'rec.allOf': 'All · {col}',
-    'rec.blank': '(blank)',
-    'rec.on': 'Yes',
-    'rec.off': 'No',
-    'rec.colFallback': 'Column {n}',
-    'rec.delConfirm': 'Delete this record?',
-    'rec.hint': 'Click a row to open the edit form. To change the columns themselves, switch to table editing.',
-    'modal.upload': '⬆ Load Excel (local)',
-    'modal.upload.title': 'Load model_mapping.xlsx from your PC',
-    'modal.download': '⬇ Save Excel (local)',
-    'op.loading': 'Working…',
-    'op.needLogin': 'SharePoint sync is available after signing in with your company account.',
-    'op.loaded': 'Loaded.',
-    'op.saved': 'Saved — written back to SharePoint.',
-    'op.fail': 'Failed: {err}',
-    'export.btn': '⬇ Export',
-    'export.title': 'Download the currently filtered list as Excel (.xlsx)',
-    'export.sheetTitle': 'SAM × AFAB comparison — {n} / {total} rows',
-    'export.filters': 'Filters: {f}',
-    'export.noFilter': '(no filter — all rows)',
-    'export.exportedAt': 'Exported at: {ts}',
-    'export.noRows': 'Nothing to export — check the filters.',
-    'export.f.prod': 'Production month',
-    'export.f.my': 'MY',
-    'export.f.model': 'Model',
-    'export.f.type': 'Type',
-    'export.f.axle': 'Axle',
-    'export.f.cab': 'Cab',
-    'export.f.status': 'Status',
-    'export.f.search': 'Search',
-    'export.f.sort': 'Sort',
-    'nav.build': '⟳ Recompute Data',
-    'build.btn': '⟳ Recompute Data',
-    'build.running': '⟳ Building…',
-    'build.title': 'Recompute Data',
-    'build.confirm': 'This recomputes the comparison from the newest WINGS export (02) and the newest '
-      + 'production-month SAM folder (01) on SharePoint.\nIt runs in this browser (1–3 minutes) and the result is '
-      + 'saved to SharePoint (05. output) for everyone.\n'
-      + 'The model mapping workbook (03. model_rules) also gets its recognition and diagnostics sheets refreshed.\n\nContinue?',
-    'build.needLogin': 'Building requires signing in with your company Microsoft 365 account.',
-    'build.step.ref': 'Reading reference workbooks (codes, matching rules)…',
-    'build.step.upload': 'Saving the result to SharePoint…',
-    'build.step.mapping': 'Refreshing the model mapping workbook (model_mapping.xlsx)…',
-    'build.pto.created': 'No PTO code list found — created {file} with {n} PTO codes and {ex} exclusions. '
-      + 'Review it in the Code Manager.',
-    'build.pto.fail': 'Could not create the PTO code workbook (using built-in defaults): {err}',
-    'build.mapping.done': 'Updated {file} — {recog} recognized models, {diag} diagnostic rows. Saved to SharePoint.',
-    'build.mapping.fail': 'Could not refresh the model mapping workbook (comparison was still saved): {err}',
-    'build.done': 'Build complete — {rows} rows ({match} match / {mismatch} mismatch). Saved to SharePoint.',
-    'build.fail': 'Build failed:',
-    'build.close': 'Close',
-    'meta.srcSp': 'Source: latest SharePoint build',
-    'meta.srcBundled': 'Source: bundled copy (no build result yet)',
-    'alert.xlsxBlocked': 'The Excel library could not be loaded (corporate network may block it). Try again shortly.',
-    'alert.xlsxReadFail': 'Failed to read Excel: ',
-    'rules.loadFail': 'Failed to load rules.json: ',
-  },
-};
+// 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
+// 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
+const I18N = { ko: {}, en: {} };
+const I18N_VER = '20261017a';
+async function loadI18n() {
+  await Promise.all(['ko', 'en'].map(async (l) => {
+    try {
+      const r = await fetch('i18n/' + l + '.json?v=' + I18N_VER);
+      if (r.ok) I18N[l] = await r.json();
+    } catch (e) { console.warn('[i18n] ' + l + '.json 로드 실패:', e.message); }
+  }));
+}
 
-let LANG = localStorage.getItem('lang') || 'ko';
+// 선택 언어는 이 브라우저에 기억한다. 저장소가 막힌 환경(사생활 보호 창 등)에서는 기본값.
+function readLang() {
+  try { const v = localStorage.getItem('lang'); return v === 'en' ? 'en' : 'ko'; } catch { return 'ko'; }
+}
+let LANG = readLang();
 
 // ====================== 접속 권한 (auth.js 가 SharePoint 명단에서 확정) ======================
 // 로컬 개발처럼 로그인 게이트가 없는 환경에서는 auth.js 가 'admin' 을 넣어준다.
@@ -544,8 +112,13 @@ function applyStaticI18n() {
   document.querySelectorAll('[data-i18n-html]').forEach((el) => { el.innerHTML = t(el.dataset.i18nHtml); });
   document.querySelectorAll('[data-i18n-ph]').forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
   document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
-  const lb = $('#langBtn');
-  if (lb) lb.textContent = LANG === 'ko' ? '🌐 EN' : '🌐 한국어';
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+  document.querySelectorAll('.lang-toggle button[data-lang]').forEach((b) => {
+    const on = b.dataset.lang === LANG;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  document.body.classList.toggle('lang-en', LANG === 'en');
   applyRoleUi();
 }
 
@@ -565,13 +138,13 @@ function applyRoleUi() {
   if (bb) { bb.disabled = true; bb.title = t('role.noPerm'); }
 }
 
-function toggleLang() {
-  LANG = LANG === 'ko' ? 'en' : 'ko';
-  localStorage.setItem('lang', LANG);
+function setLang(lang) {
+  if (lang === LANG) return;
+  LANG = lang === 'en' ? 'en' : 'ko';
+  try { localStorage.setItem('lang', LANG); } catch { /* 저장 불가 — 이번 세션만 */ }
   applyStaticI18n();
   renderMeta();
   renderSummary();
-  renderDashSide();
   fillFilters();
   render();
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
@@ -604,8 +177,11 @@ function switchView(view) {
   CUR_VIEW = view;
   document.querySelectorAll('.view').forEach((el) =>
     el.classList.toggle('active', el.id === 'view-' + view));
-  document.querySelectorAll('.nav-link').forEach((el) =>
-    el.classList.toggle('active', el.dataset.view === view));
+  document.querySelectorAll('.nav-link').forEach((el) => {
+    el.classList.toggle('active', el.dataset.view === view);
+    if (el.dataset.view === view) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
+  });
   // Export 는 대시보드 필터에 대한 기능이라 다른 뷰에서는 숨긴다.
   const exportBtn = $('#exportBtn');
   if (exportBtn) exportBtn.classList.toggle('hidden', view !== 'dashboard');
@@ -701,7 +277,7 @@ function applyData(d, c) {
   (DATA.rows || []).forEach((r) => { r.MY = computeMY(r); });
   renderMeta();
   renderSummary();
-  renderDashSide();
+  renderModelPanel();
   fillFilters();
   renderHead();
   render();
@@ -721,13 +297,41 @@ function changeMonth(r) {
   return /^\d{4}-\d{2}/.test(s) ? s.slice(0, 7) : '';
 }
 
+// 시각은 언어와 상관없이 ISO 형식 KST(UTC+9)로 보여 준다 — 'YYYY-MM-DD HH:mm'.
+function fmtKst(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Date(d.getTime() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+}
+// WINGS 리포트 날짜 = 파일명 앞의 'YYYY-MM-DD'. 그런 접두어가 없으면 파일명 그대로.
+function wingsReportDate(file) {
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(file || '').trim());
+  return m ? m[1] : String(file || '-');
+}
+function fmtNum(n) { return Number(n).toLocaleString('en-US'); }
+
 function renderMeta() {
-  const locale = LANG === 'ko' ? 'ko-KR' : 'en-GB';
-  const when = DATA.generated_at ? new Date(DATA.generated_at).toLocaleString(locale) : '-';
+  const when = DATA.generated_at ? fmtKst(DATA.generated_at) : '';
   const src = DATA_SOURCE === 'sharepoint' ? t('meta.srcSp')
     : (DATA_SOURCE === 'bundled' ? t('meta.srcBundled') : '');
-  $('#meta').textContent = t('meta.generated', { when, file: DATA.wings_file || '-' })
-    + (src ? '  ·  ' + src : '');
+  const parts = [];
+  if (when) parts.push(t('meta.asOf', { when }));
+  if (DATA.wings_file) parts.push(t('meta.wings', { date: wingsReportDate(DATA.wings_file) }));
+  if (src) parts.push(src);
+  const meta = $('#meta');
+  meta.textContent = parts.join('  ·  ') || '-';
+  meta.title = DATA.wings_file ? 'WINGS: ' + DATA.wings_file : '';
+
+  // 최신성 — 마지막 계산(generated_at) 이후 24시간 미만 초록, 7일까지 주황, 그 이상 빨강.
+  const pill = $('#freshPill');
+  const ts = DATA.generated_at ? new Date(DATA.generated_at).getTime() : NaN;
+  if (!pill) return;
+  if (Number.isNaN(ts)) { pill.className = 'pill hidden'; return; }
+  const hours = Math.max(0, (Date.now() - ts) / 3600e3);
+  const days = Math.floor(hours / 24);
+  pill.className = 'pill ' + (hours < 24 ? 'ok' : (days <= 7 ? 'warn' : 'crit'));
+  pill.textContent = hours < 24 ? t('fresh.recent') : t('fresh.days', { n: days });
+  pill.title = t('fresh.title');
 }
 
 function dashStats(rows) {
@@ -750,9 +354,10 @@ function overallRows() {
   return DATA.rows.filter((r) => { const pm = prodMonth(r); return pm && pm >= DASH_FROM; });
 }
 
-function tile(cls, n, label, action) {
-  return `<div class="tile ${cls} clickable" data-tile="${cls}" data-action="${action}">` +
-    `<div class="n">${esc(n)}</div><div class="l">${label}</div></div>`;
+function tile(cls, n, label, action, row) {
+  return `<button type="button" class="tile ${cls} clickable" data-tile="${cls}" data-action="${action}"` +
+    ` aria-pressed="false" aria-label="${esc(t('tile.aria', { row, label, n: fmtNum(n) }))}">` +
+    `<span class="n">${esc(fmtNum(n))}</span><span class="l">${esc(label)}</span></button>`;
 }
 
 const TILE_ACTIONS = {
@@ -774,6 +379,7 @@ function applyTile(id) {
   const cfg = TILE_ACTIONS[id];
   if (!cfg) return;
   activeTile = id;
+  tileDate = null;
   restrictSoon = cfg.soon;
   tileMandatory = cfg.mand;
   tileSamUpdate = !!cfg.samupd;
@@ -794,53 +400,75 @@ function applyTile(id) {
 function renderSummary() {
   const all = dashStats(overallRows());
   const soon = dashStats(DATA.rows.filter(within2weeks));
-  $('#summary').innerHTML = `
-    ${nearestCardHtml()}
+  // 줄마다 같은 6칸 — 접미사 '2' 가 '2주 이내' 줄의 타일(TILE_ACTIONS 키와 같다).
+  const row = (title, sub, s, sfx) => `
     <div class="dash-row">
-      <div class="dash-cap">${esc(t('dash.overall', { from: DASH_FROM }))}</div>
+      <div class="row-head"><span class="row-title">${esc(title)}</span><span class="row-sub">${esc(sub)}</span></div>
       <div class="tiles">
-        ${tile('t-total', all.total, t('tile.total'), 't-total')}
-        ${tile('t-match', all.match, t('tile.match'), 't-match')}
-        ${tile('t-miss', all.mismatch, t('tile.mismatch'), 't-miss')}
-        ${tile('t-nosam', all.nosam, t('tile.nosam'), 't-nosam')}
-        ${tile('t-mand', all.mand, t('tile.mand'), 't-mand')}
-        ${tile('t-samupd', all.samupd, t('tile.samupd'), 't-samupd')}
-      </div>
-    </div>
-    <div class="dash-row">
-      <div class="dash-cap">${t('dash.soon')}</div>
-      <div class="tiles">
-        ${tile('t-total2', soon.total, t('tile.total'), 't-total2')}
-        ${tile('t-match2', soon.match, t('tile.match'), 't-match2')}
-        ${tile('t-miss2', soon.mismatch, t('tile.mismatch'), 't-miss2')}
-        ${tile('t-nosam2', soon.nosam, t('tile.nosam'), 't-nosam2')}
-        ${tile('t-mand2', soon.mand, t('tile.mand'), 't-mand2')}
-        ${tile('t-samupd2', soon.samupd, t('tile.samupd'), 't-samupd2')}
+        ${tile('t-total' + sfx, s.total, t('tile.total'), 't-total' + sfx, title)}
+        ${tile('t-match' + sfx, s.match, t('tile.match'), 't-match' + sfx, title)}
+        ${tile('t-miss' + sfx, s.mismatch, t('tile.mismatch'), 't-miss' + sfx, title)}
+        ${tile('t-nosam' + sfx, s.nosam, t('tile.nosam'), 't-nosam' + sfx, title)}
+        ${tile('t-mand' + sfx, s.mand, t('tile.mand'), 't-mand' + sfx, title)}
+        ${tile('t-samupd' + sfx, s.samupd, t('tile.samupd'), 't-samupd' + sfx, title)}
       </div>
     </div>`;
-  $('#summary').querySelectorAll('.tile[data-action]').forEach((el) =>
-    el.addEventListener('click', () => applyTile(el.dataset.action)));
+  const el = $('#summary');
+  el.innerHTML = nearestCardHtml()
+    + row(t('dash.overall'), t('dash.overall.sub', { from: DASH_FROM }), all, '')
+    + row(t('dash.soon'), t('dash.soon.sub'), soon, '2');
+  el.removeAttribute('aria-busy');
+  // 같은 타일을 다시 누르면 해제(= 기본 상태 '전체 Commission').
+  el.querySelectorAll('.tile[data-action]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const id = b.dataset.action;
+      applyTile(activeTile === id && id !== 't-total' ? 't-total' : id);
+    }));
+  const nb = $('#nearList');
+  if (nb) nb.addEventListener('click', () =>
+    (tileDate === nb.dataset.date ? applyTile('t-total') : applyNearDate(nb.dataset.date)));
   syncTileActive();
 }
 
-// 오늘과 가장 가까운 Changeability 카드(왼쪽 상단).
+// 다음 Changeability 마감 카드 — 날짜 · D-Day · 해당일 건수 + '목록 보기'.
 function nearestCardHtml() {
   const near = nearestChangeability(overallRows());
-  const body = near
-    ? `<div class="near-body">
-         <div class="near-date">${esc(near.date)}<span class="near-dd">${ddayLabel(near.dday)}</span></div>
-         <div class="near-count"><b>${near.count}</b> <span>${esc(t('unit.case'))} · ${esc(t('dash.near.count'))}</span></div>
-       </div>`
-    : `<div class="mc-empty">—</div>`;
-  return `<div class="near-card">
-      <div class="dash-cap">${esc(t('dash.near'))}</div>
-      ${body}
+  const cap = `<svg class="ic near-ic" aria-hidden="true"><use href="#i-calendar"/></svg>`
+    + `<span class="near-cap">${esc(t('dash.near'))}</span>`;
+  if (!near) return `<div class="near-card">${cap}<span class="near-none">${esc(t('dash.near.none'))}</span></div>`;
+  return `<div class="near-card">${cap}
+      <span class="near-sep" aria-hidden="true">·</span>
+      <span class="near-date">${esc(near.date)}</span>
+      ${ddayHtml(near.dday)}
+      <span class="near-sep" aria-hidden="true">·</span>
+      <span class="near-count"><b>${esc(t('dash.near.n', { n: fmtNum(near.count) }))}</b> · ${esc(t('dash.near.count'))}</span>
+      <button type="button" class="btn link near-btn" id="nearList" data-date="${esc(near.date)}" aria-pressed="false">${esc(t('dash.near.list'))}</button>
     </div>`;
 }
 
+// '목록 보기' — 카드의 마감일에 해당하는 Commission 만 남긴다. 카드 숫자는 시작월 이후
+// 차량에서 센 것이므로, 타일처럼 다른 필터를 다 풀고(시작월 조건만 유지) 날짜 조건만 건다
+// → 표 건수 = 카드 건수.
+function applyNearDate(date) {
+  applyTile('t-total');
+  activeTile = null;
+  tileDate = date;
+  syncTileActive();
+  render();
+}
+
 function syncTileActive() {
-  $('#summary').querySelectorAll('.tile').forEach((el) =>
-    el.classList.toggle('active', el.dataset.tile === activeTile));
+  $('#summary').querySelectorAll('.tile').forEach((el) => {
+    const on = el.dataset.tile === activeTile;
+    el.classList.toggle('active', on);
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const nb = $('#nearList');
+  if (nb) {
+    const on = !!tileDate && tileDate === nb.dataset.date;
+    nb.closest('.near-card').classList.toggle('active', on);
+    nb.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
 }
 
 // 모델 정보 조합(Model · Type · Axle · Cab · MY)을 1개 모델로 보고 대수를 집계한다.
@@ -884,50 +512,129 @@ function ddayLabel(n) {
   return 'D+' + (-n);
 }
 
-function renderDashSide() {
-  const rows = overallRows();
-  const combos = modelCombos(rows);
-  const totalUnits = combos.reduce((s, c) => s + c.count, 0);
+// 모델별 대수 — 예전의 '전체'·'필터' 두 목록을 한 패널에 두고 토글로 바꾼다.
+//   all      = 시작월 이후 전체(overallRows)   filtered = 지금 표에 보이는 행
+// 막대를 누르면 Model·Type·Axle·Cab·MY 드롭다운에 그 조합을 넣는다(기존 필터 그대로 사용).
+let MODEL_SCOPE = 'all';
+let MODEL_EXPANDED = false;
+let LAST_ROWS = [];
+const MODEL_TOP = 6;
+// modelCombos 의 parts 순서(Vehicle · Model(WINGS) · Type · Cab · MY)에 맞춘 드롭다운.
+const COMBO_FILTER_IDS = ['#modelFilter', '#typeFilter', '#axleFilter', '#cabFilter', '#myFilter'];
 
-  const listHtml = combos.length
-    ? combos.map((c) => `
-      <div class="mc-row">
-        <div class="mc-label" title="${esc(c.parts.filter(Boolean).join(' · '))}">${esc(c.parts.filter(Boolean).join(' · '))}</div>
-        <div class="mc-count">${c.count}</div>
-      </div>`).join('')
-    : `<div class="mc-empty">—</div>`;
-
-  $('#dashSide').innerHTML = `
-    <div class="side-card">
-      <div class="side-cap">${esc(t('dash.models'))}
-        <span class="side-sub">${combos.length}${esc(t('dash.models.kinds'))} · ${totalUnits}${esc(t('unit.ea'))}</span>
-      </div>
-      <div class="mc-list">${listHtml}</div>
-    </div>`;
+function comboSelected(c) {
+  return c.parts.every((p, k) => p === $(COMBO_FILTER_IDS[k]).value);
 }
 
-// 필터와 연동되는 모델별 대수 (왼쪽 전체 리스트와 동일한 형식). render() 가 매 필터 변경 시 호출.
-function renderFilteredModels(rows) {
-  const el = $('#dashFiltered');
+function renderModelPanel() {
+  const el = $('#modelPanel');
   if (!el) return;
-  const combos = modelCombos(rows || []);
-  const total = combos.reduce((s, c) => s + c.count, 0);
-  const listHtml = combos.length
-    ? combos.map((c) => {
-      const label = c.parts.filter(Boolean).join(' · ');
-      return `<div class="mc-row">
-        <div class="mc-label" title="${esc(label)}">${esc(label)}</div>
-        <div class="mc-count">${c.count}</div>
-      </div>`;
-    }).join('')
-    : `<div class="mc-empty">—</div>`;
+  const combos = modelCombos(MODEL_SCOPE === 'filtered' ? LAST_ROWS : overallRows());
+  const units = combos.reduce((s, c) => s + c.count, 0);
+  const max = combos.length ? combos[0].count : 1;
+  const shown = MODEL_EXPANDED ? combos : combos.slice(0, MODEL_TOP);
+  const rest = combos.slice(MODEL_TOP);
+  const restUnits = rest.reduce((s, c) => s + c.count, 0);
+
+  const bars = shown.map((c, i) => {
+    const label = c.parts.filter(Boolean).join(' · ');
+    const on = comboSelected(c);
+    return `<button type="button" class="mbar${on ? ' active' : ''}" data-i="${i}" aria-pressed="${on}"`
+      + ` aria-label="${esc(t('dash.models.aria', { label, n: c.count }))}" title="${esc(label)}">`
+      + `<span class="mbar-label">${esc(label)}</span><span class="mbar-n">${fmtNum(c.count)}</span>`
+      + `<span class="mbar-track" aria-hidden="true"><span class="mbar-fill" style="width:${Math.max(2, c.count / max * 100).toFixed(1)}%"></span></span>`
+      + `</button>`;
+  }).join('');
+  const more = rest.length
+    ? `<button type="button" class="btn link mbar-more" aria-expanded="${MODEL_EXPANDED}">${esc(MODEL_EXPANDED
+      ? t('dash.models.less') : t('dash.models.more', { n: rest.length, u: fmtNum(restUnits) }))}</button>`
+    : '';
+  const seg = (scope, key) => `<button type="button" data-scope="${scope}" aria-pressed="${MODEL_SCOPE === scope}"`
+    + ` class="${MODEL_SCOPE === scope ? 'active' : ''}">${esc(t(key))}</button>`;
+
   el.innerHTML = `
-    <div class="side-card">
-      <div class="side-cap">${esc(t('dash.models.filtered'))}
-        <span class="side-sub">${combos.length}${esc(t('dash.models.kinds'))} · ${total}${esc(t('unit.ea'))}</span>
+    <div class="panel-card">
+      <div class="panel-head">
+        <h3 class="panel-title">${esc(t('dash.models'))}
+          <span class="panel-sub">${esc(t('dash.models.sum', { n: combos.length, u: fmtNum(units) }))}</span></h3>
+        <div class="seg" role="group" aria-label="${esc(t('dash.models'))}">
+          ${seg('all', 'dash.models.all')}${seg('filtered', 'dash.models.filtered')}
+        </div>
       </div>
-      <div class="mc-list">${listHtml}</div>
+      <div class="mbar-list${MODEL_EXPANDED ? ' expanded' : ''}">${bars || '<div class="mc-empty">—</div>'}</div>
+      ${more}
     </div>`;
+
+  el.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    MODEL_SCOPE = b.dataset.scope;
+    renderModelPanel();
+  }));
+  const mb = el.querySelector('.mbar-more');
+  if (mb) mb.addEventListener('click', () => { MODEL_EXPANDED = !MODEL_EXPANDED; renderModelPanel(); });
+  el.querySelectorAll('.mbar').forEach((b) =>
+    b.addEventListener('click', () => applyModelCombo(shown[Number(b.dataset.i)])));
+}
+
+function applyModelCombo(c) {
+  if (!c) return;
+  const on = comboSelected(c);
+  if (MODEL_SCOPE === 'all') {
+    // '전체' 숫자는 시작월 이후 전체에서 센 값 — 타일처럼 다른 필터를 풀어야 표 건수 = 막대 숫자.
+    applyTile('t-total');
+    COMBO_FILTER_IDS.forEach((id, k) => { $(id).value = on ? '' : (c.parts[k] || ''); });
+    onFilterChange();
+  } else {
+    // '필터 적용' — 지금 걸린 조건(타일 포함) 안에서 이 모델로 좁힌다.
+    COMBO_FILTER_IDS.forEach((id, k) => { $(id).value = on ? '' : (c.parts[k] || ''); });
+    fillFilters();
+    render();
+  }
+}
+
+// 지금 걸린 필터를 칩으로 — ×로 하나씩 풀고, '필터 초기화'로 전부 푼다.
+function tileLabel(id) {
+  const base = String(id || '').replace(/2$/, '');
+  return t({ 't-total': 'tile.total', 't-match': 'tile.match', 't-miss': 'tile.mismatch',
+    't-nosam': 'tile.nosam', 't-mand': 'tile.mand', 't-samupd': 'tile.samupd' }[base] || base);
+}
+function renderChips() {
+  const el = $('#chips');
+  if (!el) return;
+  const chips = [];
+  if (activeTile && activeTile !== 't-total') {
+    const row = TILE_ACTIONS[activeTile] && TILE_ACTIONS[activeTile].soon ? t('dash.soon') : t('dash.overall');
+    chips.push({ k: 'tile', label: `${row} · ${tileLabel(activeTile)}` });
+  }
+  if (tileDate) chips.push({ k: 'date', label: `${t('chip.date')}: ${tileDate}` });
+  for (const f of FILTER_FIELDS) {
+    const v = $(f.id).value;
+    if (v) chips.push({ k: f.id, label: `${t('export.f.' + f.key)}: ${v}` });
+  }
+  const st = $('#statusFilter').value;
+  // 타일이 넣은 상태값은 타일 칩이 이미 말해 준다.
+  if (st && !(activeTile && TILE_ACTIONS[activeTile] && TILE_ACTIONS[activeTile].status === st)) {
+    chips.push({ k: '#statusFilter', label: `${t('export.f.status')}: ${st}` });
+  }
+  const q = $('#search').value.trim();
+  if (q) chips.push({ k: 'search', label: `${t('export.f.search')}: ${q}` });
+  if (!$('#upcomingOnly').checked) chips.push({ k: 'upcoming', label: t('chip.allMonths') });
+
+  el.innerHTML = chips.map((c) =>
+    `<span class="chip">${esc(c.label)}<button type="button" class="chip-x" data-k="${esc(c.k)}"`
+    + ` aria-label="${esc(t('chip.remove', { f: c.label }))}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button></span>`
+  ).join('') + (chips.length
+    ? `<button type="button" class="btn link chip-reset">${esc(t('chip.reset'))}</button>` : '');
+
+  el.querySelectorAll('.chip-x').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.k;
+    if (k === 'tile' || k === 'date') { applyTile('t-total'); return; }
+    if (k === 'search') { $('#search').value = ''; onManualFilter(); return; }
+    if (k === 'upcoming') { $('#upcomingOnly').checked = true; onFilterChange(); return; }
+    $(k).value = '';
+    onFilterChange();
+  }));
+  const rb = el.querySelector('.chip-reset');
+  if (rb) rb.addEventListener('click', () => applyTile('t-total'));
 }
 
 function fillSelectFilter(id, allKey, values) {
@@ -1003,7 +710,7 @@ function fillFromMonth() {
 function setDashFrom(month) {
   DASH_FROM = month || CUR_MONTH;
   renderSummary();
-  renderDashSide();
+  renderModelPanel();
   fillFilters();
   onManualFilter();
 }
@@ -1085,11 +792,18 @@ if (!window._cselOutside) {
 }
 
 function renderHead() {
+  // 열 제목은 두 언어 모두 영어(시스템 용어). 정렬 상태는 aria-sort 로도 알린다.
   $('#grid thead').innerHTML =
     '<tr>' + COLS.map((c) => {
-      const arrow = sortKey === c.key ? `<span class="arrow">${sortDir === 1 ? '▲' : '▼'}</span>` : '';
-      return `<th data-k="${esc(c.key)}">${c.label}${arrow}</th>`;
+      const on = sortKey === c.key;
+      const arrow = on ? `<span class="arrow" aria-hidden="true">${sortDir === 1 ? '▲' : '▼'}</span>` : '';
+      const sort = on ? (sortDir === 1 ? 'ascending' : 'descending') : 'none';
+      return `<th scope="col" data-k="${esc(c.key)}" aria-sort="${sort}" tabindex="0">${c.label}${arrow}</th>`;
     }).join('') + '</tr>';
+  $('#grid thead').querySelectorAll('th').forEach((th) =>
+    th.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
+    }));
   $('#grid thead').querySelectorAll('th').forEach((th) =>
     th.addEventListener('click', () => {
       const k = th.dataset.k;
@@ -1137,9 +851,11 @@ function hl(text) {
   } catch { return safe; }
 }
 
+// ✓ = 0개(이상 없음), ✕ n = n개. 색만으로 구분하지 않도록 기호와 aria-label 을 함께 둔다.
 function countCell(n, cls) {
-  if (!n) return `<span class="cbadge ok" title="${esc(t('cell.ok.title'))}">✓</span>`;
-  return `<span class="cbadge ${cls}">${n}</span>`;
+  if (!n) return `<span class="mark ok" role="img" aria-label="${esc(t('cell.ok.title'))}" title="${esc(t('cell.ok.title'))}">✓</span>`;
+  const label = t('cell.' + cls + '.aria', { n });
+  return `<span class="mark bad" role="img" aria-label="${esc(label)}" title="${esc(label)}">✕ ${n}</span>`;
 }
 
 // SAM Status 값 → CSS 클래스(공백/비ASCII 안전).
@@ -1149,6 +865,13 @@ const STATUS_CLASS = {
 function statusClass(v) {
   return STATUS_CLASS[v] || esc(v).replace(/[^A-Za-z0-9_-]/g, '');
 }
+// 상태 배지 — 값(Match / Mismatch / No SAM)은 데이터 그대로, 앞에 기호를 붙인다.
+const STATUS_ICON = { Match: '✓', Mismatch: '✕', NoSAM: '✕' };
+function statusBadge(v) {
+  const cls = statusClass(v);
+  const ic = STATUS_ICON[cls];
+  return `<span class="status ${cls}">${ic ? `<span aria-hidden="true">${ic}</span> ` : ''}${esc(v)}</span>`;
+}
 
 function filtered() {
   const q = $('#search').value.trim().toLowerCase();
@@ -1156,6 +879,7 @@ function filtered() {
     if (restrictSoon && !within2weeks(r)) return false;
     if (tileMandatory && countOf(r['Mandatory Codes']) === 0) return false;
     if (tileSamUpdate && !r['SAM Update']) return false;
+    if (tileDate && String(r['Changeability Date'] || '').slice(0, 10) !== tileDate) return false;
     if (!matchesFilters(r, null)) return false;   // 드롭다운 + 상태 + 생산월 체크박스
     if (q) {
       const hay = Object.values(r).join(' ').toLowerCase();
@@ -1184,8 +908,10 @@ function filtered() {
 
 function render() {
   const rows = filtered();
-  $('#count').textContent = t('count', { n: rows.length, total: DATA.rows.length });
-  renderFilteredModels(rows);
+  $('#count').textContent = t('count', { n: fmtNum(rows.length), total: fmtNum(DATA.rows.length) });
+  LAST_ROWS = rows;
+  renderModelPanel();
+  renderChips();
   const tb = $('#grid tbody');
   const msg = $('#statusMsg');
 
@@ -1197,7 +923,8 @@ function render() {
   }
   if (!rows.length) {
     tb.innerHTML = '';
-    msg.textContent = t('msg.noRows');
+    msg.innerHTML = `${esc(t('msg.noRows'))} <button type="button" class="btn link" id="emptyReset">${esc(t('chip.reset'))}</button>`;
+    $('#emptyReset').addEventListener('click', () => applyTile('t-total'));
     msg.classList.remove('hidden');
     return;
   }
@@ -1209,7 +936,11 @@ function render() {
       v = v == null ? '' : String(v);
       if (c.status) {
         const upd = r['SAM Update'] ? `<span class="status SAMupdate upd">${esc(t('tile.samupd'))}</span>` : '';
-        return `<td><div class="status-cell"><span class="status ${statusClass(v)}">${esc(v)}</span>${upd}</div></td>`;
+        return `<td><div class="status-cell">${statusBadge(v)}${upd}</div></td>`;
+      }
+      // Commission — 상세 창을 여는 버튼(행 클릭과 같은 동작, 키보드로도 열린다).
+      if (c.key === 'Commission no.') {
+        return `<td class="c-comm"><button type="button" class="comm-link" aria-label="${esc(t('table.open', { c: v }))}">${hl(v)}</button></td>`;
       }
       if (c.dday) return `<td class="num">${ddayHtml(v)}</td>`;
       if (c.count) return `<td class="num">${countCell(diffCount(r, c.count), c.count)}</td>`;
@@ -1267,36 +998,13 @@ function diffCodes(r, kind) {
 function diffCount(r, kind) { return diffCodes(r, kind).length; }
 
 let DRAWER_ROW = null;
+let DRAWER_TAB = 'diff';
+let DRAWER_RETURN = null;   // 닫으면 포커스를 돌려줄 요소
 
-function codeRowsHtml(codes, extraClass) {
-  const cls = extraClass ? ' ' + extraClass : '';
-  return codes.map((c) =>
-    `<div class="code-row${cls}"><span class="c">${esc(c)}</span><span class="d">${esc(describe(c) || '—')}</span></div>`).join('');
-}
+// 코드 검색(상세 창 오른쪽 위)이 훑는 문자열 — 코드 + 설명, 소문자.
+function qAttr(...parts) { return esc(parts.filter(Boolean).join(' ').toLowerCase()); }
 
-function codeColHtml(title, csv, opts) {
-  opts = opts || {};
-  const codes = splitCodes(csv);
-  const n = codes.length;
-  let badge, body;
-  if (n === 0) {
-    if (opts.diff) {
-      badge = '<span class="badge ok">✓ 0</span>';
-      const ok = opts.okCodes || [];
-      body = `<div class="ok-mark">${opts.okLabel || t('code.okDiff')}</div>`;
-      if (ok.length) body += `<div class="code-list ok-list">${codeRowsHtml(ok, 'ok-row')}</div>`;
-      else if (opts.okHint) body += `<div class="hint">${esc(opts.okHint)}</div>`;
-    } else {
-      badge = '<span class="badge">0</span>';
-      body = `<div class="none">${esc(t('code.none'))}</div>`;
-    }
-  } else {
-    badge = `<span class="badge ${opts.diff ? 'warn' : ''}">${n}</span>`;
-    body = `<div class="code-list">${codeRowsHtml(codes)}</div>`;
-  }
-  return `<div class="code-col"><h4>${esc(title)} ${badge}</h4>${body}</div>`;
-}
-
+// ---- 전체 코드 목록 탭 — 구조(좌 SAM / 우 WINGS 정렬, Paint·Tyre 블록)는 그대로 둔다 ----
 function alignedFullHtml(samCsv, wingsCsv) {
   const sam = new Set(splitCodes(samCsv));
   const wings = new Set(splitCodes(wingsCsv));
@@ -1306,7 +1014,7 @@ function alignedFullHtml(samCsv, wingsCsv) {
     : '';
   const rows = union.map((code) => {
     const inS = sam.has(code), inW = wings.has(code);
-    return `<div class="acode-row">`
+    return `<div class="acode-row" data-q="${qAttr(code, describe(code))}">`
       + `<div class="acode-cell${inS ? '' : ' miss'}">${cell(code, inS)}</div>`
       + `<div class="acode-cell${inW ? '' : ' miss'}">${cell(code, inW)}</div>`
       + `</div>`;
@@ -1338,7 +1046,7 @@ function alignedGroupHtml(title, samCsv, wingsCsv, kind, diffOnly) {
     : '';
   const rows = union.map((code) => {
     const inS = sam.has(code), inW = wings.has(code);
-    return `<div class="acode-row">`
+    return `<div class="acode-row" data-q="${qAttr(code, desc(code))}">`
       + `<div class="acode-cell${inS ? '' : ' miss'}">${cell(code, inS)}</div>`
       + `<div class="acode-cell${inW ? '' : ' miss'}">${cell(code, inW)}</div>`
       + `</div>`;
@@ -1355,89 +1063,271 @@ function alignedGroupHtml(title, samCsv, wingsCsv, kind, diffOnly) {
     </div>`;
 }
 
-function openDrawer(r) {
-  if (!r) return;
-  DRAWER_ROW = r;
-  // Title: Commission · Model · Type · Axle · Cab · PTO · MY (skip blanks).
-  // Column semantics: Model=Vehicle, Type=Model(WINGS), Axle=Type.
-  const _titleParts = [r['Vehicle'], r['Model(WINGS)'], r['Type'], r['Cab'], r['PTO'],
-    r['MY'] ? 'MY' + r['MY'] : '']
-    .map((x) => (x == null ? '' : String(x).trim())).filter(Boolean);
-  $('#drawerTitle').textContent = `${r['Commission no.']}  ·  ${_titleParts.join('  ·  ')}`;
-  $('#drawerSub').textContent = r['Compared SAM file name'] || '';
-  const meta = ['Vehicle', 'Category', 'Type', 'Cab', 'MY', 'PTO', 'Production date', 'Changeability Date',
-    'Until Dealine', 'SAM Baumuster', 'SAM now',
-    'Order status financial', 'SAM Status', 'FIN']
-    .filter((k) => r[k] !== undefined && r[k] !== '')
-    .map((k) => {
-      let val;
-      if (DDAY_KEYS.has(k)) val = ddayHtml(r[k]);
-      else if (k === 'Cab' && pairMismatch(r, 'cab')) {
-        val = `<span class="pair-diff" title="${esc(pairTitle(r, 'cab'))}">` +
-          `${esc(r[k])}<span class="ne">≠</span></span>`;
-      } else if (k === 'SAM Status') {
-        const s = String(r[k]);
-        const upd = r['SAM Update'] ? ` <span class="status SAMupdate">${esc(t('tile.samupd'))}</span>` : '';
-        val = `<span class="status ${statusClass(s)}">${esc(s)}</span>${upd}`;
-      } else val = esc(r[k]);
-      return `<div class="kv-item"><div class="k">${esc(META_LABELS[k] || k)}</div><div class="v">${val}</div></div>`;
-    }).join('');
-
+// ---- 차이 코드 탭 — 2×2 섹션 ----
+function okLine(text) {
+  return `<div class="ok-line"><svg class="ic" aria-hidden="true"><use href="#i-check-circle"/></svg>${esc(text)}</div>`;
+}
+function codeItemHtml(code, chip, desc, extra) {
+  return `<div class="crow${extra ? ' ' + extra : ''}" data-q="${qAttr(code, desc)}">`
+    + `<span class="cchip ${chip}">${esc(code)}</span><span class="cdesc">${esc(desc || '—')}</span></div>`;
+}
+function markHtml(side, has) {
+  const label = `${side} ${t(has ? 'mark.yes' : 'mark.no')}`;
+  return `<span class="mark ${has ? 'ok' : 'bad'}" role="img" aria-label="${esc(label)}" title="${esc(label)}">${has ? '✓' : '✕'}</span>`;
+}
+function diffSecHtml(o) {
+  return `<section class="dsec">
+      <header class="dsec-head">
+        <h3>${esc(o.title)}</h3><span class="cnt ${o.n ? o.cls : 'zero'}">${o.n}</span>
+        <span class="dsec-hint">${esc(o.hint)}</span>
+      </header>
+      <div class="dsec-body">${o.body}</div>
+    </section>`;
+}
+// 한쪽에만 있는 옵션코드 목록(SAM에만 / WINGS에만).
+function onlySecHtml(title, hint, cls, csv) {
+  const codes = splitCodes(csv);
+  const body = codes.length
+    ? codes.map((c) => codeItemHtml(c, cls, describe(c))).join('')
+    : okLine(t('code.okDiff'));
+  return diffSecHtml({ title, hint, cls, n: codes.length, body });
+}
+// Mandatory — 빠진 필수코드(한쪽에만 있음)와, 양쪽 모두 들어간 필수코드를 한 표로.
+function mandSecHtml(r) {
   const allSam = new Set(splitCodes(r['_all_sam_codes']));
   const allWings = new Set(splitCodes(r['_all_wings_codes']));
+  // 누락 판정은 compare.js 가 표기를 맞춘 코드(AJxxx=Jxxx 등)로 했으므로, 어느 쪽에
+  // 있는지도 같은 기준으로 본다.
+  const canon = (window.Compare && Compare._canonCode) || ((c) => c);
+  const samC = new Set([...allSam].map(canon));
+  const wingsC = new Set([...allWings].map(canon));
+  const missing = splitCodes(r['Mandatory Codes']);
   const mandSet = CODES.mandatory || {};
-  const matched = [...allSam].filter((c) => allWings.has(c)).sort();
-  const matchedMand = matched.filter((c) => c in mandSet);
+  const matched = [...allSam].filter((c) => allWings.has(c) && c in mandSet && !missing.includes(c)).sort();
+
+  const row = (c, chip, sHas, wHas) =>
+    `<div class="mrow" data-q="${qAttr(c, describe(c))}"><span class="cchip ${chip}">${esc(c)}</span>`
+    + `<span class="cdesc">${esc(describe(c) || '—')}</span>`
+    + `<span class="mcell">${markHtml('SAM', sHas)}</span><span class="mcell">${markHtml('WINGS', wHas)}</span></div>`;
+  const rows = missing.map((c) => row(c, 'crit', samC.has(c) || allSam.has(c), wingsC.has(c) || allWings.has(c)))
+    .concat(matched.map((c) => row(c, 'ok', true, true))).join('');
+  const head = rows
+    ? `<div class="mrow mhead" aria-hidden="true"><span>${esc(t('col.code'))}</span><span>${esc(t('col.desc'))}</span><span class="mcell">SAM</span><span class="mcell">WINGS</span></div>`
+    : '';
+  const body = (missing.length ? '' : okLine(t('code.okMand'))) + head + rows;
+  return diffSecHtml({ title: t('sec.mand'), hint: t('sec.mand.hint'), cls: 'crit', n: missing.length, body });
+}
+// Factory Control — 참고용. 처음 5개만 보이고 나머지는 '더 보기'.
+const FC_TOP = 5;
+function fcSecHtml(r) {
+  const codes = splitCodes(r['Factory Control Codes']);
+  const items = codes.map((c, i) => codeItemHtml(c, 'accent', describe(c), i >= FC_TOP ? 'more' : '')).join('');
+  const more = codes.length > FC_TOP
+    ? `<button type="button" class="btn link sec-more" aria-expanded="false" data-n="${codes.length - FC_TOP}">${esc(t('sec.more', { n: codes.length - FC_TOP }))}</button>`
+    : '';
+  const body = codes.length ? `<div class="fc-list">${items}</div>${more}` : okLine(t('code.okFc'));
+  return diffSecHtml({ title: t('sec.fc'), hint: t('sec.fc.hint'), cls: 'accent', n: codes.length, body });
+}
+
+// ---- 상단 요약 카드 ----
+function fieldHtml(label, valueHtml, cls) {
+  return `<div class="fld${cls ? ' ' + cls : ''}"><div class="fld-l">${esc(label)}</div><div class="fld-v">${valueHtml}</div></div>`;
+}
+function fv(r, k) {
+  const v = r[k];
+  return (v == null || String(v).trim() === '') ? '<span class="empty-cell">—</span>' : esc(v);
+}
+function ddayPassed(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return false;
+  if (s.toLowerCase() === 'passed') return true;
+  const n = Number(s);
+  return !Number.isNaN(n) && n < 0;
+}
+
+function summaryCardsHtml(r) {
+  const cab = (r.Cab && pairMismatch(r, 'cab'))
+    ? `<span class="pair-diff" title="${esc(pairTitle(r, 'cab'))}">${esc(r.Cab)}<span class="ne">≠</span></span>`
+    : fv(r, 'Cab');
+  const fin = String(r.FIN || '').trim();
+  const finHtml = fin
+    ? `<span class="mono">${esc(fin)}</span><button type="button" class="copy-btn" id="copyFin" data-v="${esc(fin)}"`
+      + ` aria-label="${esc(t('copy.fin'))}" title="${esc(t('copy.fin'))}"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg></button>`
+    : '<span class="empty-cell">—</span>';
+  const vehicle = `<section class="scard sc-vehicle"><h3 class="scard-t">${esc(t('g.vehicle'))}</h3><div class="fgrid g4">`
+    + fieldHtml('Model', fv(r, 'Vehicle')) + fieldHtml('Category', fv(r, 'Category'))
+    + fieldHtml('Axle', fv(r, 'Type')) + fieldHtml('Cab', cab)
+    + fieldHtml('MY', fv(r, 'MY')) + fieldHtml('PTO', fv(r, 'PTO'))
+    + fieldHtml('FIN', finHtml, 'span2') + `</div></section>`;
+
+  const passed = ddayPassed(r['Until Dealine']);
+  const ofs = String(r['Order status financial'] || '').trim();
+  const schedule = `<section class="scard"><h3 class="scard-t">${esc(t('g.schedule'))}</h3><div class="fgrid g2">`
+    + fieldHtml('Production', fv(r, 'Production date')) + fieldHtml('Changeability', fv(r, 'Changeability Date'))
+    + fieldHtml('Changeability D-Day', ddayHtml(r['Until Dealine'])
+      + (passed ? ` <span class="fld-note">${esc(t('dday.passedNote'))}</span>` : ''), ofs ? '' : 'span2')
+    + (ofs ? fieldHtml('Order status financial', esc(ofs)) : '')
+    + `</div></section>`;
+
+  // SAM 대조 — 값·차이 표시·상태만. 'SAM now' 가 Baumuster 와 다르다고 오류는 아니므로
+  // 고치라는 문구 없이 회색 칩만 붙인다.
+  const bm = String(r['SAM Baumuster'] || '').trim();
+  const now = String(r['SAM now'] || '').trim();
+  const differs = bm && now && bm !== now;
+  const nowHtml = fv(r, 'SAM now') + (differs
+    ? ` <span class="nchip" title="${esc(t('sam.differsTitle'))}">${esc(t('sam.differs'))}</span>` : '');
+  const st = String(r['SAM Status'] || '');
+  const upd = r['SAM Update'] ? t('fileUpdate.yes') : t('fileUpdate.no');
+  const sam = `<section class="scard"><h3 class="scard-t">${esc(t('g.sam'))}</h3><div class="fgrid g2">`
+    + fieldHtml('SAM Baumuster', fv(r, 'SAM Baumuster')) + fieldHtml('SAM now', nowHtml)
+    + fieldHtml('SAM Status', st ? statusBadge(st) : '<span class="empty-cell">—</span>')
+    + fieldHtml(t('f.samUpdate'), `<span class="npill${r['SAM Update'] ? ' on' : ''}">${esc(upd)}</span>`)
+    + `</div></section>`;
+  return `<div class="scards">${vehicle}${schedule}${sam}</div>`;
+}
+
+function openDrawer(r) {
+  if (!r) return;
+  const drawer = $('#drawer');
+  const wasOpen = !drawer.classList.contains('hidden');
+  if (!wasOpen) DRAWER_RETURN = document.activeElement;
+  if (DRAWER_ROW !== r) DRAWER_TAB = 'diff';
+  const q = wasOpen && DRAWER_ROW === r && $('#codeQ') ? $('#codeQ').value : '';
+  DRAWER_ROW = r;
+
+  // 제목 한 줄: Commission · Model Type · Axle · Cab · MY  + 상태 · D-Day 배지.
+  // Column semantics: Model=Vehicle, Type=Model(WINGS), Axle=Type.
+  const parts = [[r['Vehicle'], r['Model(WINGS)']].filter(Boolean).join(' '), r['Type'], r['Cab'],
+    r['MY'] ? 'MY' + r['MY'] : '']
+    .map((x) => (x == null ? '' : String(x).trim())).filter(Boolean);
+  const st = String(r['SAM Status'] || '');
+  $('#drawerTitle').innerHTML = `<span class="mono dh-comm">${esc(r['Commission no.'])}</span>`
+    + (parts.length ? `<span class="dh-sep" aria-hidden="true">·</span><span>${esc(parts.join(' · '))}</span>` : '')
+    + `<span class="dh-badges">${st ? statusBadge(st) : ''}${String(r['Until Dealine'] ?? '').trim() ? ddayHtml(r['Until Dealine']) : ''}</span>`;
+  const file = r['Compared SAM file name'] || '';
+  $('#drawerSub').innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-file"/></svg>`
+    + (file ? `<span title="${esc(t('drawer.fileTitle'))}">${esc(file)}</span>` : `<span class="empty-cell">${esc(t('drawer.noFile'))}</span>`);
+
+  const nDiff = diffCount(r, 'sam') + diffCount(r, 'win');
+  const nFull = new Set([...splitCodes(r['_all_sam_codes']), ...splitCodes(r['_all_wings_codes'])]).size;
+  const tab = (name, label, n) => `<button type="button" role="tab" class="dtab" id="dtab-${name}" data-tab="${name}"`
+    + ` aria-controls="dpane-${name}" aria-selected="false">${esc(label)} <span class="cnt">${fmtNum(n)}</span></button>`;
 
   $('#drawerBody').innerHTML = `
-    <div class="kv">${meta}</div>
-    <div class="drawer-actions">
-      <button id="drawerXls" class="icon-btn primary">${esc(t('drawer.xls'))}</button>
+    ${summaryCardsHtml(r)}
+    <div class="dtabs-bar">
+      <div class="dtabs" role="tablist">${tab('diff', t('tab.diff'), nDiff)}${tab('full', t('tab.full'), nFull)}</div>
+      <label class="search-box sm">
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <input type="search" id="codeQ" placeholder="${esc(t('code.searchPh'))}" aria-label="${esc(t('code.searchPh'))}" />
+      </label>
     </div>
-    <div class="tabs">
-      <button class="tab active" data-tab="diff">🔍 Difference Codes</button>
-      <button class="tab" data-tab="full">📄 Full Code List</button>
-    </div>
-    <div class="tab-pane" data-pane="diff">
+    <div class="dpane" id="dpane-diff" role="tabpanel" aria-labelledby="dtab-diff" data-pane="diff">
       ${alignedGroupHtml('🎨 Paint', r['_paint_sam'], r['_paint_wings'], 'paint', true)}
       ${alignedGroupHtml('🛞 Tyre', r['_tyre_sam'], r['_tyre_wings'], 'tyre', true)}
-      <div class="code-cols">
-        ${codeColHtml('Codes Only in SAM', r['Only_in_SAM'], { diff: true })}
-        ${codeColHtml('Codes Only in WINGS', r['Only_in_WINGS'], { diff: true })}
+      <div class="dgrid">
+        ${onlySecHtml(t('sec.samOnly'), t('sec.samOnly.hint'), 'crit', r['Only_in_SAM'])}
+        ${onlySecHtml(t('sec.winOnly'), t('sec.winOnly.hint'), 'accent', r['Only_in_WINGS'])}
+        ${mandSecHtml(r)}
+        ${fcSecHtml(r)}
       </div>
-      <div class="code-cols" style="margin-top:18px">
-        ${codeColHtml('Mandatory', r['Mandatory Codes'], { diff: true, okCodes: matchedMand, okLabel: t('code.okMand') })}
-        ${codeColHtml('Factory Control', r['Factory Control Codes'])}
-      </div>
+      <div class="q-none hidden">${esc(t('code.noHit'))}</div>
     </div>
-    <div class="tab-pane hidden" data-pane="full">
+    <div class="dpane hidden" id="dpane-full" role="tabpanel" aria-labelledby="dtab-full" data-pane="full">
       <!-- 캡·PTO 는 3자리 옵션코드라 아래 전체 목록에 이미 들어 있다. 여기서 또 세우면
            같은 코드가 두 번 나오므로 전체 탭에서는 빼고, 차이 탭에만 남긴다. -->
       ${alignedGroupHtml('🎨 Paint', r['_paint_sam'], r['_paint_wings'], 'paint')}
       ${alignedGroupHtml('🛞 Tyre', r['_tyre_sam'], r['_tyre_wings'], 'tyre')}
       ${alignedFullHtml(r['_all_sam_codes'], r['_all_wings_codes'])}
+      <div class="q-none hidden">${esc(t('code.noHit'))}</div>
     </div>
   `;
-  $('#drawerBody').querySelectorAll('.tab').forEach((tb) =>
-    tb.addEventListener('click', () => switchTab(tb.dataset.tab)));
-  $('#drawerXls').addEventListener('click', () => exportRowXls(r));
-  $('#drawer').classList.remove('hidden');
+  const body = $('#drawerBody');
+  body.querySelectorAll('.dtab').forEach((tb) => tb.addEventListener('click', () => switchTab(tb.dataset.tab)));
+  body.querySelector('.dtabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const next = DRAWER_TAB === 'diff' ? 'full' : 'diff';
+    switchTab(next);
+    $('#dtab-' + next).focus();
+  });
+  body.querySelectorAll('.sec-more').forEach((b) => b.addEventListener('click', () => {
+    const list = b.previousElementSibling;
+    const open = !list.classList.contains('open');
+    list.classList.toggle('open', open);
+    b.setAttribute('aria-expanded', open ? 'true' : 'false');
+    b.textContent = open ? t('sec.less') : t('sec.more', { n: b.dataset.n });
+  }));
+  const cf = $('#copyFin');
+  if (cf) cf.addEventListener('click', () => {
+    const done = () => { cf.classList.add('done'); cf.title = t('copy.done'); setTimeout(() => { cf.classList.remove('done'); cf.title = t('copy.fin'); }, 1400); };
+    if (navigator.clipboard) navigator.clipboard.writeText(cf.dataset.v).then(done).catch(() => {});
+  });
+  const qi = $('#codeQ');
+  qi.value = q;
+  qi.addEventListener('input', filterDrawerCodes);
+  switchTab(DRAWER_TAB);
+
+  drawer.classList.remove('hidden');
   $('#backdrop').classList.remove('hidden');
+  if (!wasOpen) {
+    drawer.scrollTop = 0;
+    $('#drawerClose').focus();
+  }
 }
 
 function switchTab(name) {
-  $('#drawerBody').querySelectorAll('.tab').forEach((tb) =>
-    tb.classList.toggle('active', tb.dataset.tab === name));
-  $('#drawerBody').querySelectorAll('.tab-pane').forEach((p) =>
+  DRAWER_TAB = name;
+  $('#drawerBody').querySelectorAll('.dtab').forEach((tb) => {
+    const on = tb.dataset.tab === name;
+    tb.classList.toggle('active', on);
+    tb.setAttribute('aria-selected', on ? 'true' : 'false');
+    tb.tabIndex = on ? 0 : -1;
+  });
+  $('#drawerBody').querySelectorAll('.dpane').forEach((p) =>
     p.classList.toggle('hidden', p.dataset.pane !== name));
+  filterDrawerCodes();
+}
+
+// 상세 창 코드 검색 — 보이는 탭의 줄(코드·설명)만 거른다. 섹션 숫자는 그대로 둔다.
+function filterDrawerCodes() {
+  const qi = $('#codeQ');
+  const q = qi ? qi.value.trim().toLowerCase() : '';
+  const pane = $('#drawerBody .dpane:not(.hidden)');
+  if (!pane) return;
+  let hits = 0, total = 0;
+  pane.querySelectorAll('[data-q]').forEach((el) => {
+    total++;
+    const hit = !q || el.dataset.q.includes(q);
+    el.classList.toggle('q-hide', !hit);
+    if (hit) hits++;
+  });
+  pane.classList.toggle('searching', !!q);
+  const none = pane.querySelector('.q-none');
+  if (none) none.classList.toggle('hidden', !q || hits > 0 || !total);
 }
 
 function closeDrawer() {
-  $('#drawer').classList.add('hidden');
+  const drawer = $('#drawer');
+  if (drawer.classList.contains('hidden')) return;
+  drawer.classList.add('hidden');
   $('#backdrop').classList.add('hidden');
+  if (DRAWER_RETURN && document.contains(DRAWER_RETURN)) DRAWER_RETURN.focus();
+  DRAWER_RETURN = null;
 }
 
-// ---- Dependency-free .xlsx writer (per-vehicle drawer export) ----
+// 상세 창이 열려 있는 동안 Tab 포커스를 창 안에 가둔다.
+function trapDrawerFocus(e) {
+  const drawer = $('#drawer');
+  if (e.key !== 'Tab' || drawer.classList.contains('hidden')) return;
+  const f = [...drawer.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+    .filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (!drawer.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
 const _today = () => new Date().toISOString().slice(0, 10);
 function _colName(n) {
   let s = ''; n++;
@@ -3179,8 +3069,9 @@ async function runBuild() {
 
   BUILDING = true;
   const btn = $('#buildBtn');
-  const orig = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = t('build.running'); }
+  const lbl = btn ? btn.querySelector('.lbl') : null;
+  if (btn) { btn.disabled = true; btn.classList.add('busy'); btn.setAttribute('aria-busy', 'true'); }
+  if (lbl) lbl.textContent = t('build.running');
   const log = buildLog();
   log.line(t('build.step.ref'));
   try {
@@ -3222,15 +3113,21 @@ async function runBuild() {
     log.line(t('build.fail') + ' ' + e.message, 'err');
   } finally {
     BUILDING = false;
-    if (btn) { btn.disabled = false; btn.textContent = orig || t('build.btn'); }
+    if (btn) { btn.disabled = false; btn.classList.remove('busy'); btn.removeAttribute('aria-busy'); }
+    if (lbl) lbl.textContent = t('build.btn');
   }
 }
 
 // ====================== 이벤트 & 초기화 ======================
 $('#drawerClose').addEventListener('click', closeDrawer);
 $('#backdrop').addEventListener('click', closeDrawer);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
-$('#langBtn').addEventListener('click', toggleLang);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDrawer();
+  else trapDrawerFocus(e);
+});
+$('#drawerXls').addEventListener('click', () => { if (DRAWER_ROW) exportRowXls(DRAWER_ROW); });
+document.querySelectorAll('.lang-toggle button[data-lang]').forEach((b) =>
+  b.addEventListener('click', () => setLang(b.dataset.lang)));
 
 // 뷰 전환 (네비 + 브랜드)
 document.querySelectorAll('[data-view]').forEach((el) =>
@@ -3250,6 +3147,7 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 function onManualFilter() {
+  tileDate = null;
   restrictSoon = false;
   tileMandatory = false;
   tileSamUpdate = false;
@@ -3272,11 +3170,19 @@ $('#search').addEventListener('input', onManualFilter);
 const _fromMonth = $('#fromMonth');
 if (_fromMonth) _fromMonth.addEventListener('input', () => setDashFrom(_fromMonth.value));
 
-applyStaticI18n();
-enhanceFilterSelects();
-load().catch((e) => {
-  $('#meta').textContent = t('meta.loadFail', { err: e.message });
-  const msg = $('#statusMsg');
-  msg.textContent = t('msg.loadFail', { err: e.message });
-  msg.classList.remove('hidden');
-});
+// 문구 사전을 먼저 읽고(실패해도 HTML 의 한국어가 남는다) 데이터를 불러온다.
+async function boot() {
+  await loadI18n();
+  applyStaticI18n();
+  enhanceFilterSelects();
+  try {
+    await load();
+  } catch (e) {
+    $('#meta').textContent = t('meta.loadFail', { err: e.message });
+    $('#grid tbody').innerHTML = '';
+    const msg = $('#statusMsg');
+    msg.textContent = t('msg.loadFail', { err: e.message });
+    msg.classList.remove('hidden');
+  }
+}
+boot();

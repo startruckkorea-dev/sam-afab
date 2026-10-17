@@ -18,6 +18,9 @@
   'use strict';
 
   var PROTECTED_HOSTS = ['sam-afab.startruckkorea.com'];
+  // 로그인 화면은 app.js(문구 사전)보다 먼저 뜨므로 여기서 직접 고른다 — 기본 한국어.
+  var EN = (function () { try { return localStorage.getItem('lang') === 'en'; } catch (e) { return false; } })();
+  function L(ko, en) { return EN ? en : ko; }
   function loginRequired() {
     return PROTECTED_HOSTS.indexOf(window.location.hostname) !== -1;
   }
@@ -31,7 +34,7 @@
     cache: { cacheLocation: 'localStorage' },
   };
   var LOGIN_REQUEST = { scopes: ['User.Read'] };
-  var APP_SCRIPT = 'app.js?v=20260909d';
+  var APP_SCRIPT = 'app.js?v=20261017a';
 
   var pca = null;
   var activeAccount = null;
@@ -249,21 +252,23 @@
 
   function showLogin(onClick, errMsg) {
     showOverlay({
-      desc: '회사 Microsoft 365 계정으로 로그인하세요.',
+      desc: L('회사 Microsoft 365 계정으로 로그인하세요.', 'Sign in with your company Microsoft 365 account.'),
       errMsg: errMsg,
-      btnText: 'Microsoft 계정으로 로그인',
-      busyText: '로그인 창으로 이동 중…',
+      btnText: L('Microsoft 계정으로 로그인', 'Sign in with Microsoft'),
+      busyText: L('로그인 창으로 이동 중…', 'Opening sign-in…'),
       onClick: onClick,
     });
   }
 
   // 로그인은 됐지만 권한 명단에 없는 계정.
   function showDenied(account, onLogout) {
-    var who = (account && account.username) ? account.username + ' 계정은 ' : '';
+    var who = (account && account.username) ? account.username : '';
     showOverlay({
-      desc: who + 'SAM × AFAB 시스템 접속 권한이 없습니다. 관리자에게 권한 등록을 요청하세요.',
-      btnText: '다른 계정으로 로그인',
-      busyText: '로그아웃 중…',
+      desc: EN
+        ? (who ? who + ' has' : 'This account has') + ' no access to SAM × AFAB. Ask an administrator to register it.'
+        : (who ? who + ' 계정은 ' : '') + 'SAM × AFAB 시스템 접속 권한이 없습니다. 관리자에게 권한 등록을 요청하세요.',
+      btnText: L('다른 계정으로 로그인', 'Sign in with another account'),
+      busyText: L('로그아웃 중…', 'Signing out…'),
       onClick: onLogout,
     });
   }
@@ -271,11 +276,13 @@
   // 권한 명단 자체를 읽지 못한 경우 — 통과시키지 않고 원인을 보여준다.
   function showAccessError(errMsg, onRetry) {
     showOverlay({
-      desc: '접속 권한 명단을 확인하지 못했습니다. 잠시 후 다시 시도하고, 계속 같은 화면이면 '
+      desc: L('접속 권한 명단을 확인하지 못했습니다. 잠시 후 다시 시도하고, 계속 같은 화면이면 '
         + '아래 메시지를 그대로 관리자에게 전달하세요.',
+        'The access list could not be checked. Try again shortly; if this screen persists, '
+        + 'send the message below to an administrator.'),
       errMsg: errMsg,
-      btnText: '다시 시도',
-      busyText: '확인 중…',
+      btnText: L('다시 시도', 'Try again'),
+      busyText: L('확인 중…', 'Checking…'),
       onClick: onRetry,
     });
   }
@@ -284,29 +291,69 @@
   function showUserChip(account, onLogout, role) {
     var slot = document.getElementById('navUser') || document.querySelector('header');
     if (!slot) return;
+    // 이름 · 권한 버튼 → 펼치면 계정(메일)과 로그아웃. 문구는 data-i18n 으로 두고
+    // app.js 의 applyStaticI18n() 이 언어에 맞게 바꾼다(여기 적힌 한국어는 기본값).
+    var name = account.name || account.username || '';
     var chip = document.createElement('div');
     chip.className = 'auth-chip';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'user-btn';
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('data-i18n-title', 'auth.menu');
+    btn.title = '사용자 메뉴';
+    var avatar = document.createElement('span');
+    avatar.className = 'avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.textContent = name.trim().charAt(0).toUpperCase();
+    var txt = document.createElement('span');
+    txt.className = 'user-txt';
     var user = document.createElement('span');
     user.className = 'auth-user';
-    user.textContent = account.name || account.username || '';
-    user.title = account.username || '';
-    var out = document.createElement('button');
-    out.className = 'icon-btn';
-    out.title = '로그아웃';
-    out.textContent = '⎋ 로그아웃';
-    out.addEventListener('click', onLogout);
-    chip.appendChild(user);
-    // 현재 권한을 이름 옆에 항상 표시한다 (엑셀의 Role 값과 같은 표기).
+    user.textContent = name;
+    txt.appendChild(user);
+    // 현재 권한을 이름 아래에 항상 표시한다 (엑셀의 Role 값과 같은 표기).
     if (role === 'admin' || role === 'read') {
       var badge = document.createElement('span');
-      badge.className = 'auth-badge ' + role;
+      badge.className = 'auth-role ' + role;
       badge.textContent = role === 'admin' ? 'Admin' : 'Read';
+      badge.setAttribute('data-i18n-title', 'auth.role.' + role);
       badge.title = role === 'admin'
         ? '전체 권한 — 모델 매칭 · 코드 관리 · 데이터 다시 계산 가능'
         : '조회 전용 — 모델 매칭 · 코드 관리 · 데이터 다시 계산 불가';
-      chip.appendChild(badge);
+      txt.appendChild(badge);
     }
-    chip.appendChild(out);
+    btn.appendChild(avatar);
+    btn.appendChild(txt);
+
+    var menu = document.createElement('div');
+    menu.className = 'user-menu hidden';
+    var mail = document.createElement('div');
+    mail.className = 'user-mail';
+    mail.textContent = account.username || '';
+    var out = document.createElement('button');
+    out.type = 'button';
+    out.className = 'user-menu-item';
+    out.setAttribute('data-i18n', 'auth.logout');
+    out.textContent = '로그아웃';
+    out.addEventListener('click', onLogout);
+    menu.appendChild(mail);
+    menu.appendChild(out);
+
+    function setOpen(open) {
+      menu.classList.toggle('hidden', !open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(menu.classList.contains('hidden'));
+    });
+    document.addEventListener('click', function (e) { if (!chip.contains(e.target)) setOpen(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+
+    chip.appendChild(btn);
+    chip.appendChild(menu);
     slot.appendChild(chip);
   }
 
@@ -315,7 +362,8 @@
     // MSAL 라이브러리 자체가 없으면(CDN·self-host 모두 차단):
     if (typeof msal === 'undefined') {
       if (loginRequired()) {
-        showLogin(null, 'Microsoft 로그인 라이브러리를 불러오지 못했습니다 (네트워크/CDN 차단). 관리자에게 문의하세요.');
+        showLogin(null, L('Microsoft 로그인 라이브러리를 불러오지 못했습니다 (네트워크/CDN 차단). 관리자에게 문의하세요.',
+          'The Microsoft sign-in library could not be loaded (network/CDN blocked). Contact an administrator.'));
       } else {
         setRole('admin');
         loadApp();  // 로컬 등: 로그인 없이 대시보드만 (SharePoint 편집은 비활성)
@@ -337,7 +385,7 @@
       console.error('MSAL redirect 처리 오류', e);
       if (loginRequired()) {
         showLogin(function () { pca.loginRedirect(LOGIN_REQUEST); },
-          '로그인 처리 중 오류가 발생했습니다. 다시 시도하세요: ' + (e && e.message ? e.message : e));
+          L('로그인 처리 중 오류가 발생했습니다. 다시 시도하세요: ', 'Sign-in failed. Please try again: ') + (e && e.message ? e.message : e));
         return;
       }
     }

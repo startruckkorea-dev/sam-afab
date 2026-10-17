@@ -488,7 +488,7 @@
     }
   }
 
-  const api = { compare: compare, _toDate: toDate, _fmtDate: fmtDate,
+  const api = { compare: compare, _toDate: toDate, _fmtDate: fmtDate, _canonCode: canonCode,
                 _modelKeyCandidates: modelKeyCandidates };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Compare = api;
