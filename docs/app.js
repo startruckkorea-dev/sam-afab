@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116e';
+const I18N_VER = '20261116f';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -2994,18 +2994,34 @@ function modelNumOf(model) {
   const m = /(\d{4})/.exec(String(model || ''));
   return m ? m[1] : '';
 }
+// SAM 폴더 이름 'MY27/2026-04' · '2026-04 생산' → 생산월 'YYYY-MM' 과 MY '2027' 로 나눈다.
+function folderProd(name) {
+  const m = /(\d{4})-(\d{2})/.exec(String(name || ''));
+  return m ? m[1] + '-' + m[2] : '';
+}
+function folderMy(name) {
+  const m = /(?:^|\/)MY(\d{2})(?![0-9])/i.exec(String(name || ''));
+  return m ? '20' + m[1] : '';
+}
 function matchProblems() {
   const g = (DATA && DATA.diagnostics) || null;
   const months = (g && g.sam_months) || [];
-  const monthByYm = new Map(months.map((m) => [String(m.yyyymm), m]));
+  // 같은 생산월이 연식(MY) 폴더마다 따로 있을 수 있다 — 인식 번호는 생산월 단위로 합친다.
+  const monthByYm = new Map();
+  for (const m of months) {
+    const k = String(m.yyyymm);
+    const prev = monthByYm.get(k);
+    monthByYm.set(k, prev ? { keys: [...new Set([...(prev.keys || []), ...(m.keys || [])])] } : m);
+  }
   const out = [];
 
   const groups = new Map();
   for (const r of DATA.rows || []) {
     if (String(r._orig_status || r['SAM Status'] || '') !== 'No SAM') continue;
     const ym = String(r['Production date'] || '').slice(0, 7);
-    const k = [r['Model(WINGS)'], r['Cab'], r['PTO'], ym].join('|');
-    if (!groups.has(k)) groups.set(k, { r, ym, n: 0, comms: [] });
+    const my = String(r.MY || '');
+    const k = [r['Model(WINGS)'], r['Cab'], r['PTO'], ym, my].join('|');
+    if (!groups.has(k)) groups.set(k, { r, ym, my, n: 0, comms: [] });
     const gg = groups.get(k);
     gg.n += 1;
     gg.comms.push(String(r['Commission no.']));
@@ -3022,26 +3038,28 @@ function matchProblems() {
       why = t('mp.why.noDoc', { num: num || gg.r['Model(WINGS)'],
         keys: (near.length ? near : keys).slice(0, 12).join(', ') || '—' });
     }
-    out.push({ key: ['nosam', gg.r['Model(WINGS)'] || '', gg.r['Cab'] || '', gg.r['PTO'] || '', gg.ym].join('|'),
+    // MY 를 나누기 전의 key(legacyKey)로 무시해 둔 것도 계속 인정한다.
+    const legacyKey = ['nosam', gg.r['Model(WINGS)'] || '', gg.r['Cab'] || '', gg.r['PTO'] || '', gg.ym].join('|');
+    out.push({ key: gg.my ? legacyKey + '|MY' + gg.my : legacyKey, legacyKey,
       kind: 'nosam', sev: 'problem', model: gg.r['Model(WINGS)'] || '', cab: gg.r['Cab'] || '',
-      pto: gg.r['PTO'] || '', ym: gg.ym, n: gg.n, file: '', why, num, comms: gg.comms,
+      pto: gg.r['PTO'] || '', ym: gg.ym, my: gg.my, n: gg.n, file: '', why, num, comms: gg.comms,
       sample: gg.r });
   }
   for (const u of ((g && g.sam_unused) || [])) {
     out.push({ key: ['unused', u.month, u.file].join('|'),
       kind: 'unused', sev: u.orders ? 'problem' : 'info', model: (u.keys || []).join(', '),
-      cab: '', pto: u.pto ? 'PTO' : '', ym: u.month, n: u.orders, file: u.file,
+      cab: '', pto: u.pto ? 'PTO' : '', ym: folderProd(u.month), my: folderMy(u.month), n: u.orders, file: u.file,
       why: u.orders === 0 ? t('match.diagNoOrders') : t('match.diagNotPicked', { n: u.orders }) });
   }
   for (const sk of ((g && g.sam_skipped) || [])) {
     out.push({ key: ['skipped', sk.month, sk.file].join('|'),
-      kind: 'skipped', sev: 'problem', model: '', cab: '', pto: '', ym: sk.month, n: '',
+      kind: 'skipped', sev: 'problem', model: '', cab: '', pto: '', ym: folderProd(sk.month), my: folderMy(sk.month), n: '',
       file: sk.file, why: sk.reason });
   }
   for (const m of months) {
     const orders = ((g && g.orders_by_month) || {})[m.yyyymm] || 0;
     out.push({ key: ['month', m.name].join('|'),
-      kind: 'month', sev: 'info', model: '', cab: '', pto: '', ym: m.name, n: orders, file: '',
+      kind: 'month', sev: 'info', model: '', cab: '', pto: '', ym: folderProd(m.name), my: folderMy(m.name), n: orders, file: m.name,
       why: t('match.diagMonthWhy', { parsed: m.parsed, files: m.files, keys: m.keys.length })
         + (m.keys.length ? ' — ' + m.keys.join(', ') : '') });
   }
@@ -3053,11 +3071,12 @@ function matchProblems() {
 // Admin 이 골라 '무시'하면 고칠 것 수·배지에서 빠진다(목록에서는 '무시됨' 칩으로 계속 볼 수 있음).
 // 공유되어야 하므로 SharePoint '06. exceptions/match-ignore.json' 에 둔다 — Mismatch 예외와
 // 같은 방식(eTag 조건부 저장 + log 누적).
-//   key = nosam|모델|캡|PTO|생산월  ·  unused|생산월폴더|파일  ·  skipped|생산월폴더|파일
+//   key = nosam|모델|캡|PTO|생산월[|MY연식]  ·  unused|생산월폴더|파일  ·  skipped|생산월폴더|파일
 const MI_FILE = 'match-ignore.json';
 const MI_LOCAL_KEY = 'sam-afab-match-ignore';
 let MI = { version: 1, items: {}, log: [], updated_at: '' };
 
+function miItem(p) { return MI.items[p.key] || (p.legacyKey ? MI.items[p.legacyKey] : undefined); }
 async function miRead() {
   if (excLocal()) {
     let d = null;
@@ -3079,12 +3098,13 @@ async function miMutate(action, probs, note) {
     const now = new Date().toISOString();
     let done = 0;
     for (const p of probs) {
-      const has = !!doc.items[p.key];
+      const has = !!doc.items[p.key] || !!(p.legacyKey && doc.items[p.legacyKey]);
       if (action === 'ignore' && !has) {
         doc.items[p.key] = { key: p.key, kind: p.kind, model: p.model, cab: p.cab, pto: p.pto, ym: p.ym,
           file: p.file, note: note || '', by: u.id, by_name: u.name, at: now };
-      } else if (action === 'unignore' && has) {
+      } else if (action === 'unignore' && (has || (p.legacyKey && doc.items[p.legacyKey]))) {
         delete doc.items[p.key];
+        if (p.legacyKey) delete doc.items[p.legacyKey];
       } else continue;
       doc.log.push({ at: now, by: u.id, by_name: u.name, action, key: p.key, text: note || '' });
       done++;
@@ -3224,7 +3244,7 @@ function initMatching() {
       if (b) showMatchPane(b.dataset.pane);
     });
   }
-  for (const id of ['#mpSearch', '#mpFrom', '#mpTo', '#mpModel']) {
+  for (const id of ['#mpSearch', '#mpFrom', '#mpTo', '#mpMy', '#mpModel']) {
     const el = $(id);
     if (el) el.addEventListener('input', renderMatchProblems);
   }
@@ -3442,7 +3462,7 @@ const MP_SEL = new Set();   // 체크한 문제 key
 function mpYm(p) { return String(p.ym || '').slice(0, 7); }
 function mpFilterVals() {
   const v = (id) => (($(id) || {}).value || '');
-  return { from: v('#mpFrom'), to: v('#mpTo'), model: v('#mpModel'),
+  return { from: v('#mpFrom'), to: v('#mpTo'), model: v('#mpModel'), my: v('#mpMy'),
     q: v('#mpSearch').trim().toLowerCase() };
 }
 // 칩(종류/무시됨) 말고 드롭다운·검색만 적용 — 칩 숫자도 이 결과로 센다.
@@ -3453,7 +3473,8 @@ function mpApplyFilters(list) {
     if (f.from && (!ym || ym < f.from)) return false;
     if (f.to && (!ym || ym > f.to)) return false;
     if (f.model && p.model !== f.model) return false;
-    if (f.q && ![t('mp.kind.' + p.kind), p.model, p.ym, p.file, p.why, (p.comms || []).join(' ')]
+    if (f.my && p.my !== f.my) return false;
+    if (f.q && ![t('mp.kind.' + p.kind), p.model, p.ym, p.my, p.file, p.why, (p.comms || []).join(' ')]
       .join(' ').toLowerCase().includes(f.q)) return false;
     return true;
   });
@@ -3474,6 +3495,7 @@ function mpFillFilters(all) {
   fill('#mpFrom', 'mp.f.from', months);
   fill('#mpTo', 'mp.f.to', months);
   fill('#mpModel', 'filter.allModel', models);
+  fill('#mpMy', 'filter.allMY', [...new Set(all.map((p) => p.my).filter(Boolean))].sort());
 }
 
 function mpIsTodo(p) { return p.sev === 'problem' && !p.ignored; }
@@ -3491,7 +3513,7 @@ function renderMatchProblems() {
   const table = $('#matchProbGrid');
   if (!table) return;
   const all = (DATA.rows.length || DATA.diagnostics) ? matchProblems() : [];
-  for (const p of all) p.ignored = !!MI.items[p.key];
+  for (const p of all) p.ignored = !!miItem(p);
 
   const badge = $('#matchPaneBadge');
   const nTodoAll = all.filter(mpIsTodo).length;
@@ -3535,7 +3557,7 @@ function renderMatchProblems() {
   const allOn = shown.length > 0 && shown.every((p) => MP_SEL.has(p.key));
   table.querySelector('thead').innerHTML = '<tr>'
     + `<th class="mp-ck"><input type="checkbox" id="mpAll" aria-label="${esc(t('mp.selAll'))}"${allOn ? ' checked' : ''} /></th>`
-    + ['mp.col.kind', 'mp.col.model', 'Cab', 'PTO', 'mp.col.month', 'mp.col.n', 'match.samFile', 'match.diagWhy', '']
+    + ['mp.col.kind', 'mp.col.model', 'Cab', 'PTO', 'mp.col.month', 'MY', 'mp.col.n', 'match.samFile', 'match.diagWhy', '']
       .map((k) => `<th>${k ? esc(k.indexOf('.') !== -1 ? t(k) : k) : ''}</th>`).join('') + '</tr>';
   table.querySelector('tbody').innerHTML = shown.length
     ? shown.map((p) => {
@@ -3545,7 +3567,7 @@ function renderMatchProblems() {
         : esc(String(p.n));
       const act = p.kind === 'nosam' && IS_ADMIN && !p.ignored
         ? `<button type="button" class="btn xs" data-add-rule="${esc(p.num)}">${esc(t('mp.addRule'))}</button>` : '';
-      const ig = p.ignored ? MI.items[p.key] : null;
+      const ig = p.ignored ? miItem(p) : null;
       const why = esc(p.why) + (ig ? `<div class="mp-ig">${esc(t('mp.ignoredBy', { who: excWho(ig.by_name, ig.at) }))}`
         + (ig.note ? ` — “${esc(ig.note)}”` : '') + `</div>` : '');
       const canSel = p.kind !== 'month';
@@ -3553,11 +3575,11 @@ function renderMatchProblems() {
         + `<td class="mp-ck">${canSel ? `<input type="checkbox" data-sel="${esc(p.key)}"${MP_SEL.has(p.key) ? ' checked' : ''} />` : ''}</td>`
         + `<td class="nowrap"><span class="mp-kind ${p.kind}">${esc(t('mp.kind.' + p.kind))}</span></td>`
         + `<td>${esc(p.model)}</td><td>${esc(p.cab)}</td><td>${esc(p.pto)}</td>`
-        + `<td class="nowrap">${esc(p.ym)}</td><td class="num">${units2}</td>`
+        + `<td class="nowrap">${esc(p.ym || '—')}</td><td class="nowrap">${esc(p.my || '—')}</td><td class="num">${units2}</td>`
         + `<td class="ms-file"><span title="${esc(p.file)}">${esc(p.file)}</span></td>`
         + `<td class="mp-why">${why}</td><td class="nowrap">${act}</td></tr>`;
     }).join('')
-    : `<tr><td class="none" colspan="10">${esc(t(MP_FILTER === 'problem' ? 'mp.allGood' : 'match.noHit'))}</td></tr>`;
+    : `<tr><td class="none" colspan="11">${esc(t(MP_FILTER === 'problem' ? 'mp.allGood' : 'match.noHit'))}</td></tr>`;
 }
 
 // 선택 막대 — 몇 개 골랐는지, 무시/해제 가능 여부.
