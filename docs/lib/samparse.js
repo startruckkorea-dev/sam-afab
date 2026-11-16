@@ -79,17 +79,26 @@
   // 5자리 코드는 반드시 AJ 로 시작한다.
   const CODE_SHAPE = /^(?:AJ[A-Z0-9]{3}|[A-Z][A-Z0-9]{2,3})$/;
 
+  // 추출 결과(extractSamDocx)의 형식/규칙이 바뀌면 올린다 — 빌드 캐시(sam-cache.json)가
+  // 이 값이 다른 항목을 버리고 파일을 다시 내려받는다.
+  const PARSER_VERSION = '20261116b';
+
   /**
-   * SAM .docx 한 개 파싱.
+   * SAM .docx 한 개 파싱 = extractSamDocx + finalizeSam.
    * @param {ArrayBuffer|Uint8Array} buf  .docx 바이트
    * @param {string} name                파일명
    * @param {object} ctx  { knownCodes: Set, ptoCodes: {codes:Set, excepts:Set} }
    * @returns {object|null} 파싱 결과(코드가 없으면 null)
    */
   async function parseSamDocx(buf, name, ctx) {
-    ctx = ctx || {};
-    const knownCodes = ctx.knownCodes || new Set();
+    return finalizeSam(await extractSamDocx(buf, name), ctx);
+  }
 
+  /**
+   * 1단계: 문서에서만 결정되는 값 추출. 참조 데이터(코드 DB·PTO 표)에 의존하지 않으므로
+   * 결과를 파일별로 캐시해도 된다. JSON 으로 직렬화 가능한 평범한 객체를 돌려준다.
+   */
+  async function extractSamDocx(buf, name) {
     let modelRaw = null;
     let codes = new Set();
     const trusted = new Set();     // 코드 DB에 없어도 유지할 코드(AJ+3자리 등)
@@ -176,11 +185,6 @@
       if (m) { modelRaw = m[1].trim(); break; }
     }
 
-    // 프로즈 단어 걸러내기: 숫자를 포함하거나 실제 SA 코드일 때만 유지
-    codes = new Set([...codes].filter(function (c) {
-      return hasDigit(c) || knownCodes.has(c) || trusted.has(c);
-    }));
-
     // --- 파일명 모델 (= SAM now) ---
     const bodyModel = (modelRaw || '').trim();
     const fnameUpper = name.toUpperCase();
@@ -201,6 +205,32 @@
       if (m2) bodySub = m2[1];
     }
 
+    return {
+      v: PARSER_VERSION, file: name,
+      codes: Array.from(codes), trusted: Array.from(trusted),
+      paint: Array.from(paint), tyre: Array.from(tyre),
+      model_now: modelNow, model_baumuster: modelBaumuster,
+      bm: bodyBm, sub: bodySub,
+    };
+  }
+
+  /**
+   * 2단계: 참조 데이터에 의존하는 판정 — 산문 단어 필터(코드 DB)와 PTO 판정.
+   * 코드 DB·PTO 표는 빌드마다 바뀔 수 있으므로 캐시하지 않고 매번 다시 적용한다.
+   * @param {object} raw  extractSamDocx 결과
+   * @returns {object|null} 파싱 결과(모델 또는 코드가 없으면 null)
+   */
+  function finalizeSam(raw, ctx) {
+    ctx = ctx || {};
+    const knownCodes = ctx.knownCodes || new Set();
+    const trusted = new Set(raw.trusted);
+    const modelNow = raw.model_now, modelBaumuster = raw.model_baumuster;
+
+    // 프로즈 단어 걸러내기: 숫자를 포함하거나 실제 SA 코드일 때만 유지
+    const codes = new Set(raw.codes.filter(function (c) {
+      return hasDigit(c) || knownCodes.has(c) || trusted.has(c);
+    }));
+
     if (!((modelNow || modelBaumuster) && codes.size)) return null;
 
     // --- PTO 판정 ---
@@ -215,9 +245,9 @@
     }
 
     return {
-      codes: codes, paint: paint, tyre: tyre, file: name,
+      codes: codes, paint: new Set(raw.paint), tyre: new Set(raw.tyre), file: raw.file,
       model_now: modelNow, model_baumuster: modelBaumuster,
-      bm: bodyBm, sub: bodySub, is_pto: isPto,
+      bm: raw.bm, sub: raw.sub, is_pto: isPto,
     };
   }
 
@@ -263,6 +293,9 @@
 
   const api = {
     parseSamDocx: parseSamDocx,
+    extractSamDocx: extractSamDocx,
+    finalizeSam: finalizeSam,
+    PARSER_VERSION: PARSER_VERSION,
     buildSamMapping: buildSamMapping,
     normalizeModel: normalizeModel,
     _wtText: wtText,

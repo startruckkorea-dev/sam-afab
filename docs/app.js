@@ -3202,6 +3202,12 @@ async function loadCodeFileList() {
 const GRAPH_SOURCE = {
   list: (key) => Graph.list(key),
   download: (key, name) => Graph.download(key, name),
+  // SAM 추출 결과 캐시(05. output/sam-cache.json) — 바뀌지 않은 SAM 파일은 다시 받지 않는다.
+  readCache: (name) => Graph.downloadJson('output', name),
+  writeCache: async (name, obj) => {
+    await Graph.ensureFolder('output');
+    await Graph.uploadJson('output', name, obj);
+  },
   optionCodes: (function () {
     let cache = null;
     return async function () {

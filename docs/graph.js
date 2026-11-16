@@ -80,12 +80,22 @@
     return parts.join('/');
   }
 
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
   async function api(url, opts) {
     opts = opts || {};
-    var t = await token();
-    var headers = Object.assign({ Authorization: 'Bearer ' + t }, opts.headers || {});
-    var res = await fetch(url.indexOf('http') === 0 ? url : GRAPH + url,
-      { method: opts.method || 'GET', headers: headers, body: opts.body });
+    var res;
+    // 동시 요청이 많을 때 SharePoint 가 429(요청 제한)/503 을 줄 수 있다 —
+    // Retry-After(초)만큼(없으면 점점 길게) 기다렸다가 최대 4번 다시 시도한다.
+    for (var attempt = 0; ; attempt++) {
+      var t = await token();
+      var headers = Object.assign({ Authorization: 'Bearer ' + t }, opts.headers || {});
+      res = await fetch(url.indexOf('http') === 0 ? url : GRAPH + url,
+        { method: opts.method || 'GET', headers: headers, body: opts.body });
+      if ((res.status !== 429 && res.status !== 503) || attempt >= 4) break;
+      var ra = Number(res.headers.get('Retry-After'));
+      await sleep(Math.min(30000, (ra > 0 ? ra * 1000 : 1000 * Math.pow(2, attempt))));
+    }
     if (!res.ok) {
       var detail = '';
       try { var j = await res.json(); detail = (j.error && j.error.message) || ''; } catch (e) {}

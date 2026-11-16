@@ -117,29 +117,32 @@
 
     // mandatory: 워크북이 없으면 빈 집합(파이썬은 option_codes 폴백이지만,
     // 워크북이 소스 오브 트루스이므로 없으면 경고 후 빈 값으로 진행).
-    const mandatory = await tryLoad('mandatory', RefData.loadMandatory,
-      { desc: {}, set: new Set(), groups: {}, cats: {} });
-    const modelCategory = await tryLoad('modelCategory', RefData.loadModelCategory, {});
-    const cabMap = await tryLoad('cab', RefData.loadCabMap, {});
-    const factoryControl = await tryLoad('factoryControl', RefData.loadFactoryControl,
-      RefData.loadFactoryControl(null));
-    const ptoCodes = await tryLoad('ptoCodes', RefData.loadPtoCodes,
-      RefData.loadPtoCodes(null));
-    const codeDict = await tryLoad('codeDict',
-      (buf) => RefData.loadCodeDict(buf, 'code_dict'), null);
-
-    let rules = RefData.RULE_DEFAULTS;
-    let rulesFile = '';
-    try {
-      const items = await src.list('model_rules');
-      const name = findFile(items, REF_FILES.rules);
-      rules = RefData.loadRules(name ? await src.download('model_rules', name) : null);
-      rulesFile = name || '';
-      log(`[ref] rules: ${name || '기본값(model_mapping.xlsx 없음)'}`);
-    } catch (e) {
-      log(`[ref] model_mapping.xlsx 실패(${String(e.message).slice(0, 80)}) — 기본 규칙 사용`);
-      rules = RefData.loadRules(null);
+    // 워크북들은 서로 독립이므로 동시에 내려받는다.
+    async function loadRules() {
+      try {
+        const items = await src.list('model_rules');
+        const name = findFile(items, REF_FILES.rules);
+        const r = RefData.loadRules(name ? await src.download('model_rules', name) : null);
+        log(`[ref] rules: ${name || '기본값(model_mapping.xlsx 없음)'}`);
+        return { rules: r, file: name || '' };
+      } catch (e) {
+        log(`[ref] model_mapping.xlsx 실패(${String(e.message).slice(0, 80)}) — 기본 규칙 사용`);
+        return { rules: RefData.loadRules(null), file: '' };
+      }
     }
+    const loaded = await Promise.all([
+      tryLoad('mandatory', RefData.loadMandatory,
+        { desc: {}, set: new Set(), groups: {}, cats: {} }),
+      tryLoad('modelCategory', RefData.loadModelCategory, {}),
+      tryLoad('cab', RefData.loadCabMap, {}),
+      tryLoad('factoryControl', RefData.loadFactoryControl, RefData.loadFactoryControl(null)),
+      tryLoad('ptoCodes', RefData.loadPtoCodes, RefData.loadPtoCodes(null)),
+      tryLoad('codeDict', (buf) => RefData.loadCodeDict(buf, 'code_dict'), null),
+      loadRules(),
+    ]);
+    const mandatory = loaded[0], modelCategory = loaded[1], cabMap = loaded[2];
+    const factoryControl = loaded[3], ptoCodes = loaded[4], codeDict = loaded[5];
+    const rules = loaded[6].rules, rulesFile = loaded[6].file;
 
     log(`[ref] option codes ${Object.keys(optionCodes).length} · mandatory ${mandatory.set.size}`
       + ` · category ${Object.keys(modelCategory).length} · cab ${Object.keys(cabMap).length}`
@@ -180,15 +183,40 @@
     for (const m of samMonthFolders(top)) {
       out.push({ yyyymm: m.yyyymm, name: m.name, path: m.name });
     }
-    // (신) MYxx 연식 폴더 → 그 하위의 YYYY-MM 폴더
+    // (신) MYxx 연식 폴더 → 그 하위의 YYYY-MM 폴더 (연식 폴더 목록은 동시에 조회)
     const myFolders = top.filter((it) => it.isFolder && /^MY\d{2}\b/i.test(it.name));
-    for (const my of myFolders) {
-      for (const m of samMonthFolders(await src.list('sam/' + my.name))) {
+    const subLists = await Promise.all(myFolders.map((my) => src.list('sam/' + my.name)));
+    myFolders.forEach(function (my, i) {
+      for (const m of samMonthFolders(subLists[i])) {
         out.push({ yyyymm: m.yyyymm, name: my.name + '/' + m.name, path: my.name + '/' + m.name });
       }
-    }
+    });
     out.sort((a, b) => a.yyyymm - b.yyyymm);
     return out;
+  }
+
+  // 동시 실행 개수를 limit 으로 묶어 fn 을 돌린다. 결과는 입력 순서대로.
+  // SharePoint 는 동시 요청이 너무 많으면 429 로 제한하므로 6~8 정도가 적당하다.
+  async function pool(items, limit, fn) {
+    const out = new Array(items.length);
+    let next = 0;
+    async function worker() {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i], i);
+      }
+    }
+    const n = Math.max(1, Math.min(limit, items.length));
+    await Promise.all(Array.from({ length: n }, worker));
+    return out;
+  }
+
+  const SAM_CONCURRENCY = 8;
+  const SAM_CACHE_FILE = 'sam-cache.json';
+
+  // 파일이 바뀌지 않았는지 판정하는 지문 — 크기 + 수정일시 + 파서 버전.
+  function samFingerprint(f) {
+    return [f.size || 0, f.modified || '', SamParse.PARSER_VERSION].join('|');
   }
 
   /** 생산월별 SAM 매핑. 존재하는 모든 생산월 폴더를 읽는다. */
@@ -213,28 +241,97 @@
     for (const c of ref.mandatory.set) knownCodes.add(c);
     const ctx = { codeDesc: ref.codeDesc, knownCodes: knownCodes, ptoCodes: ref.ptoCodes };
 
-    const maps = {};
-    for (const month of targets) {
-      const files = (await src.list('sam/' + month.path))
+    const now = () => ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+    const tList = now();
+
+    // 1) 생산월 폴더의 파일 목록을 동시에 조회
+    const fileLists = await pool(targets, SAM_CONCURRENCY, async function (month) {
+      return (await src.list('sam/' + month.path))
         .filter((it) => !it.isFolder && ext(it.name) === '.docx' && it.name.indexOf('.') !== 0)
         .sort((a, b) => (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0)));
-      const parsed = [];
-      for (const f of files) {
-        try {
-          const d = await SamParse.parseSamDocx(await src.download('sam/' + month.path, f.name),
-            f.name, ctx);
-          if (d) parsed.push(d);
-          else {
-            log(`  [sam] 건너뜀(모델/코드 인식 실패): ${f.name}`);
-            skipped.push({ month: month.name, file: f.name,
-              reason: '모델번호 또는 장비코드를 못 찾음 (본문 Vehicle type / Equipment overview 확인)' });
-          }
-        } catch (e) {
-          log(`  [sam] 파싱 실패: ${f.name} — ${String(e.message).slice(0, 80)}`);
-          skipped.push({ month: month.name, file: f.name,
-            reason: '파싱 실패 — ' + String(e.message).slice(0, 120) });
-        }
+    });
+
+    // 2) 이전 빌드의 추출 결과 캐시. 크기·수정일시·파서 버전이 같은 파일은 다시 받지 않는다.
+    //    캐시에는 참조 데이터와 무관한 추출 결과(extractSamDocx)만 있으므로, 코드 DB 나
+    //    PTO 표가 바뀌어도 finalizeSam 을 매번 다시 적용해 결과가 정확하다.
+    let cache = {};
+    if (src.readCache) {
+      try {
+        const c = await src.readCache(SAM_CACHE_FILE);
+        if (c && c.files && typeof c.files === 'object') cache = c.files;
+      } catch (e) {
+        log(`[sam] 캐시 없음/읽기 실패 — 전체 다운로드 (${String(e.message).slice(0, 60)})`);
       }
+    }
+
+    const jobs = [];
+    targets.forEach(function (month, mi) {
+      for (const f of fileLists[mi]) jobs.push({ month: month, mi: mi, f: f, key: month.path + '/' + f.name });
+    });
+    const tDl = now();
+    let hits = 0, fetched = 0;
+    // 3) 캐시에 없는 파일만 동시에 내려받아 추출
+    const results = await pool(jobs, SAM_CONCURRENCY, async function (job) {
+      const fp = samFingerprint(job.f);
+      const hit = cache[job.key];
+      if (hit && hit.fp === fp && hit.raw && hit.raw.v === SamParse.PARSER_VERSION) {
+        hits += 1;
+        return { raw: hit.raw, fp: fp };
+      }
+      try {
+        const raw = await SamParse.extractSamDocx(
+          await src.download('sam/' + job.month.path, job.f.name), job.f.name);
+        fetched += 1;
+        return { raw: raw, fp: fp };
+      } catch (e) {
+        return { error: e };
+      }
+    });
+    const tDone = now();
+    log(`[sam] 파일 ${jobs.length}개 — 캐시 ${hits} · 새로 받음 ${fetched}`
+      + ` (목록 ${((tDl - tList) / 1000).toFixed(1)}s · 다운로드/추출 ${((tDone - tDl) / 1000).toFixed(1)}s)`);
+
+    // 4) 캐시 갱신 — 지금 폴더에 있는 파일만 남긴다(지워진 파일은 정리).
+    const newCache = {};
+    let changed = fetched > 0;
+    jobs.forEach(function (job, i) {
+      const r = results[i];
+      if (r && r.raw) newCache[job.key] = { fp: r.fp, raw: r.raw };
+    });
+    if (!changed && Object.keys(newCache).length !== Object.keys(cache).length) changed = true;
+    if (changed && src.writeCache) {
+      try {
+        await src.writeCache(SAM_CACHE_FILE,
+          { parser_version: SamParse.PARSER_VERSION, files: newCache });
+      } catch (e) {
+        log(`[sam] 캐시 저장 실패(다음 빌드는 전체 다운로드) — ${String(e.message).slice(0, 80)}`);
+      }
+    }
+
+    // 5) 생산월별로 판정·매핑 (순서 고정 → 로그/결과가 매번 같다)
+    const maps = {};
+    for (let mi = 0; mi < targets.length; mi++) {
+      const month = targets[mi];
+      const files = fileLists[mi];
+      const parsed = [];
+      jobs.forEach(function (job, i) {
+        if (job.mi !== mi) return;
+        const f = job.f;
+        const r = results[i];
+        if (r.error) {
+          log(`  [sam] 파싱 실패: ${f.name} — ${String(r.error.message).slice(0, 80)}`);
+          skipped.push({ month: month.name, file: f.name,
+            reason: '파싱 실패 — ' + String(r.error.message).slice(0, 120) });
+          return;
+        }
+        const d = SamParse.finalizeSam(r.raw, ctx);
+        if (d) parsed.push(d);
+        else {
+          log(`  [sam] 건너뜀(모델/코드 인식 실패): ${f.name}`);
+          skipped.push({ month: month.name, file: f.name,
+            reason: '모델번호 또는 장비코드를 못 찾음 (본문 Vehicle type / Equipment overview 확인)' });
+        }
+      });
       const mapping = SamParse.buildSamMapping(parsed, ref.rules);
       if (mapping.size) maps[month.yyyymm] = mapping;
       monthStats.push({ name: month.name, yyyymm: month.yyyymm, files: files.length,
@@ -264,9 +361,10 @@
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
 
     const diag = { samMonths: [], samSkipped: [], rulesFile: '' };
-    const ref = await loadRefData(src, log);
+    // 참조 데이터와 WINGS 는 서로 독립 — 동시에 읽는다. SAM 은 참조 데이터(코드 DB)가 필요.
+    const both = await Promise.all([loadRefData(src, log), loadWings(src, log)]);
+    const ref = both[0], wings = both[1];
     diag.rulesFile = ref.rulesFile || '';
-    const wings = await loadWings(src, log);
     const samMaps = await loadSam(src, ref, !!opts.allMonths, log, diag);
 
     const rowsRaw = Compare.compare(wings.rows, samMaps, {
