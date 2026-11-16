@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="style.css?v=20261116f" />
+  <link rel="stylesheet" href="style.css?v=20261116g" />
 </head>
 <body>
   <!-- 아이콘 — <svg><use href="#i-…"/></svg> 로 쓴다. -->
@@ -36,6 +36,7 @@
     <nav class="nav" id="nav" data-i18n-aria="nav.aria" aria-label="주 메뉴">
       <button class="nav-link active" data-view="dashboard" data-i18n="nav.dashboard" aria-current="page">대시보드</button>
       <button class="nav-link" data-view="history" data-i18n="nav.history">생산월 이력관리</button>
+      <button class="nav-link" data-view="samcmp" data-i18n="nav.samcmp">SAM 파일 비교</button>
       <button class="nav-link" data-view="exceptions"><span data-i18n="nav.exceptions">Mismatch 예외</span></button>
       <button class="nav-link" data-view="matching" data-i18n="nav.matching">모델 매칭</button>
       <button class="nav-link" data-view="codes" data-i18n="nav.codes">코드 관리</button>
@@ -182,6 +183,50 @@
           </aside>
           <section class="hist-detail" id="histBody"></section>
         </div>
+      </div>
+    </section>
+
+    <!-- ===================== SAM 파일 비교 뷰 ===================== -->
+    <!-- 생산월(MY 폴더 · YYYY-MM 폴더) · 모델로 SAM 문서 두 개를 골라, 상세 창의 SAM/WINGS
+         좌우 대조와 같은 모양으로 맞대어 본다. 데이터는 data.json 의 sam_files(빌드가 남김). -->
+    <section class="view" id="view-samcmp">
+      <div class="page">
+        <div class="page-head">
+          <div>
+            <h1 data-i18n="scmp.title">SAM 파일 비교</h1>
+            <p class="page-sub" data-i18n="scmp.sub">생산월·모델로 SAM 파일 두 개를 골라 코드·도색·타이어를 왼쪽(A)·오른쪽(B)으로 맞대어 봅니다.</p>
+          </div>
+          <div class="page-actions">
+            <button id="scmpExport" type="button" class="btn" data-i18n-title="scmp.exportTitle" title="지금 비교를 엑셀로 저장">
+              <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="export.btn">Export</span>
+            </button>
+          </div>
+        </div>
+
+        <section class="scmp-pick">
+          <div class="scmp-side" data-side="a">
+            <div class="scmp-side-t"><span class="scmp-tag a">A</span><span data-i18n="scmp.sideA">기준</span></div>
+            <div class="scmp-sels">
+              <select id="scmpMyA"></select>
+              <select id="scmpMonthA"></select>
+              <select id="scmpFileA"></select>
+            </div>
+            <div class="scmp-file" id="scmpFileNameA"></div>
+          </div>
+          <button type="button" id="scmpSwap" class="btn scmp-swap" data-i18n-title="scmp.swap" title="A ↔ B 바꾸기" aria-label="A ↔ B">⇄</button>
+          <div class="scmp-side" data-side="b">
+            <div class="scmp-side-t"><span class="scmp-tag b">B</span><span data-i18n="scmp.sideB">비교</span></div>
+            <div class="scmp-sels">
+              <select id="scmpMyB"></select>
+              <select id="scmpMonthB"></select>
+              <select id="scmpFileB"></select>
+            </div>
+            <div class="scmp-file" id="scmpFileNameB"></div>
+          </div>
+        </section>
+        <div id="scmpNote" class="scmp-note hidden"></div>
+
+        <section class="scmp-body" id="scmpBody"></section>
       </div>
     </section>
 
@@ -1268,7 +1313,7 @@
   <script src="lib/wingsparse.js?v=20260928a"></script>
   <script src="lib/refdata.js?v=20261116b"></script>
   <script src="lib/compare.js?v=20261116b"></script>
-  <script src="lib/pipeline.js?v=20261116c"></script>
+  <script src="lib/pipeline.js?v=20261116d"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.
@@ -1282,7 +1327,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20261116a';
+      a.src = 'auth.js?v=20261116b';
       document.body.appendChild(a);
     }
     function tryCdn(i) {

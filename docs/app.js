@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116h';
+const I18N_VER = '20261116i';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -154,6 +154,7 @@ function setLang(lang) {
   fillFilters();
   render();
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
+  if (VIEW_INIT.samcmp) scmpRefresh();
   if (VIEW_INIT.exceptions) excRender();
   if (typeof codeEditor !== 'undefined') codeEditor.refresh();
   if (typeof matchEditor !== 'undefined') matchEditor.refresh();
@@ -168,10 +169,10 @@ function esc(s) {
 
 // ====================== 뷰 전환 (대시보드 / 생산월 이력관리 / 모델 매칭 / 코드 관리) ======================
 let CUR_VIEW = 'dashboard';
-const VIEW_INIT = { history: false, exceptions: false, matching: false, codes: false, manual: false };
+const VIEW_INIT = { history: false, samcmp: false, exceptions: false, matching: false, codes: false, manual: false };
 
 function switchView(view) {
-  if (!['dashboard', 'history', 'exceptions', 'matching', 'codes', 'manual'].includes(view)) return;
+  if (!['dashboard', 'history', 'samcmp', 'exceptions', 'matching', 'codes', 'manual'].includes(view)) return;
   if (!IS_ADMIN && LOCKED_VIEWS.includes(view)) { alert(t('role.denied')); return; }
   // 저장 안 한 편집이 있으면 이탈 확인 (모델 매칭 / 코드 관리)
   if (view !== CUR_VIEW) {
@@ -193,6 +194,7 @@ function switchView(view) {
   const exportBtn = $('#exportBtn');
   if (exportBtn) exportBtn.classList.toggle('hidden', view !== 'dashboard');
   if (view === 'history' && !VIEW_INIT.history) { VIEW_INIT.history = true; initHistory(); }
+  if (view === 'samcmp' && !VIEW_INIT.samcmp) { VIEW_INIT.samcmp = true; initSamCmp(); }
   if (view === 'exceptions' && !VIEW_INIT.exceptions) { VIEW_INIT.exceptions = true; initExceptions(); }
   if (view === 'matching' && !VIEW_INIT.matching) { VIEW_INIT.matching = true; initMatching(); }
   if (view === 'codes' && !VIEW_INIT.codes) { VIEW_INIT.codes = true; initCodes(); }
@@ -292,6 +294,7 @@ function applyData(d, c) {
   renderHead();
   render();
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
+  if (VIEW_INIT.samcmp) scmpRefresh();
   if (VIEW_INIT.exceptions) excRender();
   if (VIEW_INIT.matching) {
     renderMatchSummary();
@@ -1312,7 +1315,8 @@ let DRAWER_RETURN = null;   // 닫으면 포커스를 돌려줄 요소
 function qAttr(...parts) { return esc(parts.filter(Boolean).join(' ').toLowerCase()); }
 
 // ---- 전체 코드 목록 탭 — 구조(좌 SAM / 우 WINGS 정렬, Paint·Tyre 블록)는 그대로 둔다 ----
-function alignedFullHtml(samCsv, wingsCsv) {
+// heads: 좌/우 머리글 — 기본은 상세 창의 SAM / WINGS. 'SAM 파일 비교'는 A / B 로 쓴다.
+function alignedFullHtml(samCsv, wingsCsv, heads) {
   const sam = new Set(splitCodes(samCsv));
   const wings = new Set(splitCodes(wingsCsv));
   const union = [...new Set([...sam, ...wings])].sort();
@@ -1328,8 +1332,8 @@ function alignedFullHtml(samCsv, wingsCsv) {
   }).join('');
   return `<div class="acode">
       <div class="acode-head">
-        <h4>All SAM Codes <span class="badge">${sam.size}</span></h4>
-        <h4>All WINGS Codes <span class="badge">${wings.size}</span></h4>
+        <h4>${esc(heads ? heads[0] : 'All SAM Codes')} <span class="badge">${sam.size}</span></h4>
+        <h4>${esc(heads ? heads[1] : 'All WINGS Codes')} <span class="badge">${wings.size}</span></h4>
       </div>
       <div class="acode-body">${rows}</div>
     </div>`;
@@ -1338,7 +1342,7 @@ function alignedFullHtml(samCsv, wingsCsv) {
 // Aligned SAM-vs-WINGS block for a named category (Paint / Tyre). Same two-column
 // layout as alignedFullHtml but with its own heading; returns '' when there is no
 // data on either side so empty groups don't clutter the chart.
-function alignedGroupHtml(title, samCsv, wingsCsv, kind, diffOnly) {
+function alignedGroupHtml(title, samCsv, wingsCsv, kind, diffOnly, heads) {
   const sam = new Set(splitCodes(samCsv));
   const wings = new Set(splitCodes(wingsCsv));
   let union = [...new Set([...sam, ...wings])].sort();
@@ -1363,8 +1367,8 @@ function alignedGroupHtml(title, samCsv, wingsCsv, kind, diffOnly) {
   const nW = diffOnly ? union.filter((c) => wings.has(c)).length : wings.size;
   return `<div class="acode" style="margin-bottom:16px">
       <div class="acode-head">
-        <h4>${esc(title)} · SAM <span class="badge">${nS}</span></h4>
-        <h4>${esc(title)} · WINGS <span class="badge">${nW}</span></h4>
+        <h4>${esc(title)} · ${esc(heads ? heads[0] : 'SAM')} <span class="badge">${nS}</span></h4>
+        <h4>${esc(title)} · ${esc(heads ? heads[1] : 'WINGS')} <span class="badge">${nW}</span></h4>
       </div>
       <div class="acode-body">${rows}</div>
     </div>`;
@@ -2509,6 +2513,290 @@ function initHistory() {
   if (ex) ex.addEventListener('click', histExportXlsx);
 
   histRender();
+}
+
+// ====================== SAM 파일 비교 (SAM 문서 ↔ SAM 문서) ======================
+// MY 폴더 · 생산월 폴더 · 모델로 SAM 견적서 두 개(A=기준, B=비교)를 골라, 상세 창의
+// SAM/WINGS 좌우 대조와 같은 모양으로 코드·도색·타이어를 맞대어 본다.
+// 데이터는 빌드가 남긴 data.json 의 sam_files(읽은 문서 전체). 예전 data.json 에는 없으므로
+// 그때는 주문에 붙은 문서만 행(Compared SAM file name)에서 모아 쓴다.
+const SCMP = { a: { my: '', month: '', id: '', key: '' }, b: { my: '', month: '', id: '', key: '' },
+  tab: 'diff', list: [], byId: new Map(), fromRows: false };
+const SCMP_SIDES = ['a', 'b'];
+
+// 파일명 → 화면용 모델 이름. 'Internal quotation_TR01-1  Actros-L 2863 LS 6x2 G5F 2026-08_(1).docx'
+//   → label 'Actros-L 2863 LS 6x2 G5F', tag 'TR01-1'
+function scmpLabelOf(file) {
+  let s = String(file || '').split(/[\\/]/).pop().replace(/\.docx$/i, '');
+  s = s.replace(/^Internal[\s_]*quotation[\s_]*/i, '');
+  let tag = '';
+  const m = /^([A-Z]{2}\d{2}(?:-\d+)?)[\s_]+/.exec(s);
+  if (m) { tag = m[1]; s = s.slice(m[0].length); }
+  s = s.replace(/[\s_]*\(\d+\)\s*$/, '').replace(/[\s_]+\d{4}-\d{2}(?:-\d{2})?\s*$/, '');
+  s = s.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  return { label: s || String(file || ''), tag };
+}
+// 같은 모델인지 — 다른 달로 옮겨 가도 같은 모델을 계속 고르게 하는 키.
+function scmpModelKey(e) { return e.label.toLowerCase().replace(/[\s-]+/g, '') + (e.pto ? '|pto' : ''); }
+
+function scmpCatalog() {
+  const out = [];
+  const set = (csv) => new Set(splitCodes(csv));
+  const src = Array.isArray(DATA.sam_files) ? DATA.sam_files : null;
+  SCMP.fromRows = !src;
+  if (src) {
+    src.forEach((d) => {
+      const my = /^MY\d{2}$/i.test(d.my || '') ? String(2000 + Number(d.my.slice(2)))
+        : (computeMY({ _all_sam_codes: d.codes }) || HIST_NO_MY);
+      out.push({ id: (d.folder || '') + '|' + d.file, folder: d.folder || '', file: d.file, my, month: d.month || '',
+        now: d.model_now || '', bm: d.model_baumuster || '', pto: !!d.pto,
+        codes: set(d.codes), paint: set(d.paint), tyre: set(d.tyre), ...scmpLabelOf(d.file) });
+    });
+  } else {
+    const seen = new Set();
+    for (const r of DATA.rows || []) {
+      const f = String(r['Compared SAM file name'] || '');
+      if (!f || seen.has(f)) continue;
+      seen.add(f);
+      const fm = /(\d{4}-\d{2})/.exec(f.split(/[\\/]/).pop());
+      out.push({ id: 'row|' + f, folder: '', file: f, my: r.MY || HIST_NO_MY, month: fm ? fm[1] : prodMonth(r),
+        now: r['SAM now'] || '', bm: r['SAM Baumuster'] || '', pto: /(^|[^A-Za-z])PTO([^A-Za-z]|$)/i.test(f),
+        codes: set(r['_all_sam_codes']), paint: set(r['_paint_sam']), tyre: set(r['_tyre_sam']), ...scmpLabelOf(f) });
+    }
+  }
+  // 같은 폴더에 이름이 같은 모델이 둘이면 태그(TR01-1 등)로 가른다.
+  const groups = new Map();
+  const gk = (e) => e.my + '|' + e.month + '|' + e.label;
+  for (const e of out) {
+    e.key = scmpModelKey(e);
+    groups.set(gk(e), (groups.get(gk(e)) || 0) + 1);
+  }
+  for (const e of out) e.text = e.label + (groups.get(gk(e)) > 1 ? ' · ' + (e.tag || e.file) : '');
+  out.sort((x, y) => (y.month || '').localeCompare(x.month || '') || x.text.localeCompare(y.text));
+  return out;
+}
+
+// 처음 열 때: B = 가장 최근 문서 중 이전 생산월에도 같은 모델이 있는 것, A = 그 모델의 직전 문서.
+function scmpDefaults() {
+  const L = SCMP.list;
+  if (!L.length) return;
+  const b = L.find((e) => L.some((x) => x.key === e.key && x.month < e.month)) || L[0];
+  const a = L.filter((x) => x.key === b.key && x.month < b.month)[0] || L.find((x) => x !== b) || b;
+  SCMP.a = { my: a.my, month: a.month, id: a.id, key: a.key };
+  SCMP.b = { my: b.my, month: b.month, id: b.id, key: b.key };
+}
+
+function scmpOptions(sel, items, value) {
+  sel.innerHTML = items.map((o) => `<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('');
+  sel.value = value;
+  enhanceSelect(sel);
+}
+// 한 쪽(A/B)의 MY → 생산월 → 모델 드롭다운을 채운다. 위 단계가 바뀌면 같은 모델을 유지하려 한다.
+function scmpFillSide(side) {
+  const S = SCMP[side], up = side.toUpperCase(), L = SCMP.list;
+  const mySel = $('#scmpMy' + up), mSel = $('#scmpMonth' + up), fSel = $('#scmpFile' + up);
+  if (!mySel) return;
+  const mys = [...new Set(L.map((e) => e.my))].filter((v) => v !== HIST_NO_MY).sort().reverse();
+  if (L.some((e) => e.my === HIST_NO_MY)) mys.push(HIST_NO_MY);
+  if (!mys.includes(S.my)) S.my = mys[0] || '';
+  const months = [...new Set(L.filter((e) => e.my === S.my).map((e) => e.month))].sort().reverse();
+  if (!months.includes(S.month)) {
+    // 같은 모델이 있는 가장 최근 달을 먼저 찾는다.
+    S.month = months.find((m) => L.some((e) => e.my === S.my && e.month === m && e.key === S.key)) || months[0] || '';
+  }
+  const files = L.filter((e) => e.my === S.my && e.month === S.month).sort((x, y) => x.text.localeCompare(y.text));
+  if (!files.some((e) => e.id === S.id)) {
+    const same = files.find((e) => e.key === S.key);
+    S.id = (same || files[0] || {}).id || '';
+  }
+  const cur = SCMP.byId.get(S.id);
+  if (cur) S.key = cur.key;
+  scmpOptions(mySel, mys.map((v) => ({ v, t: histMyLabel(v) })), S.my);
+  scmpOptions(mSel, months.map((v) => ({ v, t: t('scmp.monthOpt', { m: v || '—' }) })), S.month);
+  scmpOptions(fSel, files.map((e) => ({ v: e.id, t: e.text })), S.id);
+  const fn = $('#scmpFileName' + up);
+  if (fn) {
+    fn.textContent = cur ? (cur.folder ? cur.folder + ' / ' : '') + cur.file.split(/[\\/]/).pop() : '';
+    fn.title = fn.textContent;
+  }
+}
+
+// 데이터가 바뀌면(빌드·언어 전환) 목록을 다시 만들고 화면을 새로 그린다.
+function scmpRefresh() {
+  SCMP.list = scmpCatalog();
+  SCMP.byId = new Map(SCMP.list.map((e) => [e.id, e]));
+  if (!SCMP.byId.has(SCMP.a.id) || !SCMP.byId.has(SCMP.b.id)) scmpDefaults();
+  SCMP_SIDES.forEach(scmpFillSide);
+  const note = $('#scmpNote');
+  if (note) {
+    const on = SCMP.fromRows && SCMP.list.length > 0;
+    note.textContent = on ? t('scmp.oldData') : '';
+    note.classList.toggle('hidden', !on);
+  }
+  scmpRender();
+}
+
+// 비교 계산 — 갈래(코드·도색·타이어)별 A에만 / B에만 / 공통.
+function scmpDiff(A, B) {
+  const out = {};
+  for (const k of ['codes', 'paint', 'tyre']) {
+    const a = A[k], b = B[k];
+    out[k] = {
+      onlyA: [...a].filter((c) => !b.has(c)).sort(),
+      onlyB: [...b].filter((c) => !a.has(c)).sort(),
+      common: [...a].filter((c) => b.has(c)).sort(),
+    };
+  }
+  return out;
+}
+function scmpHead(side, e) { return `${side.toUpperCase()} · ${histMyLabel(e.my)} ${e.month}`; }
+
+function scmpCardHtml(side, e) {
+  const v = (x) => (x == null || String(x).trim() === '') ? '<span class="empty-cell">—</span>' : esc(x);
+  return `<section class="scard scmp-card ${side}"><h3 class="scard-t"><span class="scmp-tag ${side}">${side.toUpperCase()}</span>` +
+    `<span class="scmp-card-name">${esc(e.label)}</span></h3><div class="fgrid g4">` +
+    fieldHtml('MY', v(e.my === HIST_NO_MY ? '' : e.my)) +
+    fieldHtml(t('scmp.f.month'), v(e.month)) +
+    fieldHtml('SAM now', v(e.now)) +
+    fieldHtml('SAM Baumuster', v(e.bm)) +
+    fieldHtml('PTO', e.pto ? 'PTO' : v('')) +
+    fieldHtml(t('scmp.f.codes'), esc(fmtNum(e.codes.size))) +
+    fieldHtml(t('scmp.f.file'), `<span class="scmp-fname" title="${esc(e.file)}">${esc(e.file.split(/[\\/]/).pop())}</span>`, 'span2') +
+    `</div></section>`;
+}
+
+function scmpRender() {
+  const el = $('#scmpBody');
+  if (!el) return;
+  if (!SCMP.list.length) {
+    el.innerHTML = `<div class="hist-empty">${esc(t(DATA.rows && DATA.rows.length ? 'scmp.empty' : 'msg.noData'))}</div>`;
+    return;
+  }
+  const A = SCMP.byId.get(SCMP.a.id), B = SCMP.byId.get(SCMP.b.id);
+  if (!A || !B) { el.innerHTML = ''; return; }
+  const d = scmpDiff(A, B);
+  const heads = [scmpHead('a', A), scmpHead('b', B)];
+  const nA = d.codes.onlyA.length + d.paint.onlyA.length + d.tyre.onlyA.length;
+  const nB = d.codes.onlyB.length + d.paint.onlyB.length + d.tyre.onlyB.length;
+  const nUnion = new Set([...A.codes, ...B.codes]).size;
+  const stat = (label, value, cls) =>
+    `<div class="hs-stat${cls ? ' ' + cls : ''}"><span class="hs-l">${esc(label)}</span><span class="hs-v">${value}</span></div>`;
+  const sum = `<div class="hist-sum">` +
+    stat(t('scmp.st.common'), esc(fmtNum(d.codes.common.length))) +
+    stat(t('scmp.st.onlyA'), `<span class="hs-del">−${nA}</span>`) +
+    stat(t('scmp.st.onlyB'), `<span class="hs-add">+${nB}</span>`) +
+    stat(t('scmp.st.result'), esc(t(nA + nB ? 'scmp.st.diff' : 'scmp.st.same')), nA + nB ? 'warn' : '') +
+    `<span class="hs-note">${esc(A.id === B.id ? t('scmp.sameFile') : t('scmp.note'))}</span></div>`;
+
+  const sec = (title, hint, cls, codes) => {
+    const body = codes.length ? codes.map((c) => codeItemHtml(c, cls, describe(c))).join('') : okLine(t('scmp.none'));
+    return diffSecHtml({ title, hint, cls, n: codes.length, body });
+  };
+  const tab = (name, label, n) => `<button type="button" role="tab" class="dtab${SCMP.tab === name ? ' active' : ''}" ` +
+    `data-tab="${name}" aria-selected="${SCMP.tab === name}">${esc(label)} <span class="cnt">${fmtNum(n)}</span></button>`;
+  const join = (s) => [...s].sort().join(',');
+
+  el.innerHTML = sum +
+    `<div class="scmp-inner">` +
+    `<div class="scards scmp-cards">${scmpCardHtml('a', A)}${scmpCardHtml('b', B)}</div>` +
+    `<div class="dtabs-bar"><div class="dtabs" role="tablist">${tab('diff', t('scmp.tab.diff'), nA + nB)}${tab('full', t('scmp.tab.full'), nUnion)}</div>` +
+    `<label class="search-box sm"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>` +
+    `<input type="search" id="scmpQ" placeholder="${esc(t('code.searchPh'))}" aria-label="${esc(t('code.searchPh'))}" /></label></div>` +
+    `<div class="dpane scmp-pane${SCMP.tab === 'diff' ? '' : ' hidden'}" data-pane="diff">` +
+      alignedGroupHtml('🎨 Paint', join(A.paint), join(B.paint), 'paint', true, heads) +
+      alignedGroupHtml('🛞 Tyre', join(A.tyre), join(B.tyre), 'tyre', true, heads) +
+      `<div class="dgrid">` +
+        sec(t('scmp.onlyA'), t('scmp.onlyA.hint'), 'crit', d.codes.onlyA) +
+        sec(t('scmp.onlyB'), t('scmp.onlyB.hint'), 'ok', d.codes.onlyB) +
+      `</div><div class="q-none hidden">${esc(t('code.noHit'))}</div></div>` +
+    `<div class="dpane scmp-pane${SCMP.tab === 'full' ? '' : ' hidden'}" data-pane="full">` +
+      alignedGroupHtml('🎨 Paint', join(A.paint), join(B.paint), 'paint', false, heads) +
+      alignedGroupHtml('🛞 Tyre', join(A.tyre), join(B.tyre), 'tyre', false, heads) +
+      alignedFullHtml(join(A.codes), join(B.codes), heads) +
+      `<div class="q-none hidden">${esc(t('code.noHit'))}</div></div>` +
+    `</div>`;
+
+  el.querySelectorAll('.dtab').forEach((b) => b.addEventListener('click', () => {
+    SCMP.tab = b.dataset.tab;
+    el.querySelectorAll('.dtab').forEach((x) => {
+      const on = x === b;
+      x.classList.toggle('active', on);
+      x.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    el.querySelectorAll('.scmp-pane').forEach((p) => p.classList.toggle('hidden', p.dataset.pane !== SCMP.tab));
+    scmpFilter();
+  }));
+  $('#scmpQ').addEventListener('input', scmpFilter);
+}
+
+// 코드 검색 — 보이는 탭의 줄(코드·설명)만 거른다(상세 창과 같은 방식).
+function scmpFilter() {
+  const qi = $('#scmpQ');
+  const q = qi ? qi.value.trim().toLowerCase() : '';
+  const pane = $('#scmpBody .scmp-pane:not(.hidden)');
+  if (!pane) return;
+  let hits = 0, total = 0;
+  pane.querySelectorAll('[data-q]').forEach((x) => {
+    total++;
+    const hit = !q || x.dataset.q.includes(q);
+    x.classList.toggle('q-hide', !hit);
+    if (hit) hits++;
+  });
+  pane.classList.toggle('searching', !!q);
+  const none = pane.querySelector('.q-none');
+  if (none) none.classList.toggle('hidden', !q || hits > 0 || !total);
+}
+
+// 엑셀 — 갈래 · 코드 · 설명 · A · B · 구분 을 한 표로.
+function scmpExportXlsx() {
+  const A = SCMP.byId.get(SCMP.a.id), B = SCMP.byId.get(SCMP.b.id);
+  if (!A || !B) return;
+  const rows = [], merges = [];
+  rows.push([{ v: `${t('scmp.title')} — A ${histMyLabel(A.my)} ${A.month} ${A.label}  ↔  B ${histMyLabel(B.my)} ${B.month} ${B.label}`, s: 1 }]);
+  merges.push('A1:F1');
+  rows.push([{ v: 'A', s: 5 }, { v: (A.folder ? A.folder + ' / ' : '') + A.file, s: 3 }]);
+  rows.push([{ v: 'B', s: 5 }, { v: (B.folder ? B.folder + ' / ' : '') + B.file, s: 3 }]);
+  merges.push('B2:F2', 'B3:F3');
+  rows.push([]);
+  rows.push(['Group', 'Code', 'Description', 'A', 'B', 'Result'].map((v) => ({ v, s: 2 })));
+  for (const [k, label] of [['codes', 'Code'], ['paint', 'Paint'], ['tyre', 'Tyre']]) {
+    const union = [...new Set([...A[k], ...B[k]])].sort();
+    for (const c of union) {
+      const inA = A[k].has(c), inB = B[k].has(c);
+      const res = inA && inB ? t('scmp.x.common') : (inA ? t('scmp.x.onlyA') : t('scmp.x.onlyB'));
+      const s = inA && inB ? 3 : 4;
+      const desc = k === 'codes' ? (describe(c) || '') : (k === 'paint' ? 'MB ' + c : '');
+      rows.push([{ v: label, s }, { v: c, s }, { v: desc, s },
+        { v: inA ? 'O' : '', s }, { v: inB ? 'O' : '', s }, { v: res, s }]);
+    }
+  }
+  const cols = [{ min: 1, max: 1, w: 9 }, { min: 2, max: 2, w: 14 }, { min: 3, max: 3, w: 54 },
+    { min: 4, max: 5, w: 6 }, { min: 6, max: 6, w: 12 }];
+  const name = (e) => `${histMyLabel(e.my)}_${e.month}_${e.label}`.replace(/[^\w.-]+/g, '_');
+  writeXlsx(`sam_compare_${name(A)}__${name(B)}.xlsx`, 'SAM Compare', rows, merges, cols);
+}
+
+function initSamCmp() {
+  SCMP_SIDES.forEach((side) => {
+    const up = side.toUpperCase();
+    const S = () => SCMP[side];
+    $('#scmpMy' + up).addEventListener('input', (e) => { S().my = e.target.value; S().month = ''; scmpFillSide(side); scmpRender(); });
+    $('#scmpMonth' + up).addEventListener('input', (e) => { S().month = e.target.value; scmpFillSide(side); scmpRender(); });
+    $('#scmpFile' + up).addEventListener('input', (e) => {
+      S().id = e.target.value;
+      const cur = SCMP.byId.get(S().id);
+      if (cur) S().key = cur.key;
+      scmpFillSide(side);
+      scmpRender();
+    });
+  });
+  $('#scmpSwap').addEventListener('click', () => {
+    [SCMP.a, SCMP.b] = [SCMP.b, SCMP.a];
+    SCMP_SIDES.forEach(scmpFillSide);
+    scmpRender();
+  });
+  $('#scmpExport').addEventListener('click', scmpExportXlsx);
+  scmpRefresh();
 }
 
 // ====================== 공용 시트 에디터 (모델 매칭 · 코드 관리 공유) ======================

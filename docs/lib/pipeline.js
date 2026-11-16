@@ -334,6 +334,27 @@
       });
       const mapping = SamParse.buildSamMapping(parsed, ref.rules);
       if (mapping.size) maps[month.yyyymm] = mapping;
+      // 'SAM 파일 비교' 메뉴용 카탈로그 — 주문에 붙지 않은 문서까지 읽은 그대로 남긴다.
+      // 코드는 비교 결과의 _all_sam_codes 와 같은 원본(finalizeSam 의 codes)이다.
+      if (diag && diag.samDocs) {
+        const myM = /^(MY\d{2})\b.*\//i.exec(month.path);
+        const ym = String(month.yyyymm);
+        for (const d of parsed) {
+          const sorted = (s) => Array.from(s || []).sort().join(',');
+          diag.samDocs.push({
+            folder: month.name,
+            my: myM ? myM[1].toUpperCase() : '',
+            month: ym.slice(0, 4) + '-' + ym.slice(4, 6),
+            file: d.file,
+            model_now: d.model_now || '',
+            model_baumuster: d.model_baumuster || '',
+            pto: !!d.is_pto,
+            codes: sorted(d.codes),
+            paint: sorted(d.paint),
+            tyre: sorted(d.tyre),
+          });
+        }
+      }
       monthStats.push({ name: month.name, yyyymm: month.yyyymm, files: files.length,
         parsed: parsed.length, keys: Array.from(mapping.keys()).sort(),
         // 붙지 않은 문서를 설명하려면 '무엇으로 읽혔는지'가 필요하다 — 모델키와 PTO 판정.
@@ -360,7 +381,7 @@
     const log = opts.log || function () {};
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
 
-    const diag = { samMonths: [], samSkipped: [], rulesFile: '' };
+    const diag = { samMonths: [], samSkipped: [], samDocs: [], rulesFile: '' };
     // 참조 데이터와 WINGS 는 서로 독립 — 동시에 읽는다. SAM 은 참조 데이터(코드 DB)가 필요.
     const both = await Promise.all([loadRefData(src, log), loadWings(src, log)]);
     const ref = both[0], wings = both[1];
@@ -435,6 +456,8 @@
         sam_months: Object.keys(samMaps).map(Number).sort((a, b) => a - b),
       },
       rows: rows,
+      // 읽은 SAM 문서 전체(생산월 폴더별) — 'SAM 파일 비교' 메뉴가 두 문서를 골라 맞대어 본다.
+      sam_files: diag.samDocs,
       // 진단을 결과에 같이 실어 둔다 — 안 붙은 SAM 문서는 rows 에 흔적이 없어서,
       // 여기 없으면 빌드한 사람의 브라우저를 벗어나는 순간 사라진다.
       diagnostics: {
