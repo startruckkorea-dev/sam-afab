@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116c';
+const I18N_VER = '20261116d';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -295,9 +295,7 @@ function applyData(d, c) {
   if (VIEW_INIT.exceptions) excRender();
   if (VIEW_INIT.matching) {
     renderMatchSummary();
-    renderMatchDiag();
-    // 대조표는 이 데이터로 만드는 보기라, 다시 계산했으면 열려 있는 시트도 새로 그린다.
-    refreshRecognitionSheet(matchEditor.S);
+    renderMatchProblems();
     matchEditor.refresh();
   }
 }
@@ -2662,6 +2660,7 @@ function makeSheetEditor(cfg) {
 
   function renderTabs() {
     const tabs = el('tabs');
+    tabs.classList.toggle('hidden', !!cfg.hideSingleTab && S.order.length <= 1);
     tabs.innerHTML = S.order.map((n) =>
       `<button class="sheet-tab${n === S.sheet ? ' active' : ''}" data-sheet="${esc(n)}">${esc(n)}</button>`).join('');
     tabs.querySelectorAll('.sheet-tab').forEach((b) =>
@@ -2771,17 +2770,17 @@ function makeSheetEditor(cfg) {
   }
 
   // 폼 모달로 한 건 편집 / 신규 등록
-  function editRecord(r) {
+  function editRecord(r, prefill) {
     const aoa = curAoa();
     const isNew = r == null;
-    const row = isNew ? [] : (aoa[r] || []);
+    const row = isNew ? (prefill || []) : (aoa[r] || []);
     RecModal.open({
       title: isNew ? t('rec.new') : t('rec.edit'),
       cols: S.cols,
       values: row,
       onDelete: isNew ? null : () => { aoa.splice(r, 1); setDirty(true); renderAll(); },
       onSave: (vals) => {
-        const target = isNew ? [] : row;
+        const target = isNew ? [] : row;   // 미리 채운 값은 폼에만 — 저장은 폼 값으로
         for (const col of S.cols) {
           while (target.length <= col.c) target.push('');
           // 원래 숫자였던 칸(id·정렬순서 등)은 숫자로 되돌려 저장한다 — 폼 입력은 항상 문자열이므로.
@@ -2916,8 +2915,8 @@ function makeSheetEditor(cfg) {
       for (const n of S.order)
         S.sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
       S.sheet = S.order[0] || null;
-      if (cfg.onLoaded) cfg.onLoaded(S);
-      setDirty(false);
+      const changed = cfg.onLoaded ? !!cfg.onLoaded(S) : false;
+      setDirty(changed);
       const emp = el('empty'); if (emp) emp.classList.add('hidden');
       const mn = el('main'); if (mn) mn.classList.remove('hidden');
       const sb = el('search'); if (sb) sb.value = '';
@@ -2925,7 +2924,8 @@ function makeSheetEditor(cfg) {
       S.cols = inferCols(curAoa());
       S.page = 1;
       setMode(S.mode);
-      setStatus(stSel, isRevert ? t('op.loaded') : '', isRevert ? 'ok' : 'info');
+      if (changed) setStatus(stSel, t(cfg.changedMsg || 'matching.migrated'), 'info');
+      else setStatus(stSel, isRevert ? t('op.loaded') : '', isRevert ? 'ok' : 'info');
     } catch (e) { setStatus(stSel, t('op.fail', { err: e.message }), 'err'); }
   }
 
@@ -2973,130 +2973,92 @@ function makeSheetEditor(cfg) {
   }
   // 언어 전환 등으로 라벨을 다시 그려야 할 때
   function refresh() { if (!S.sheet) return; S.cols = inferCols(curAoa()); buildFilter(); renderAll(); }
-  return { S, open, saveSp, wire, refresh };
-}
-
-// ---- 인식모델_대조표: data.json 으로 만드는 확인용 시트 ----
-// 로컬 파이썬 도구(build_model_rules_xlsx.py)가 만드는 시트지만, 브라우저에서 워크북을 열 때도
-// 지금 데이터로 다시 만든다 — 그래야 대시보드·목록·편집 창의 항목과 값이 어긋나지 않는다.
-// 컬럼 앞부분은 대시보드 목록과 같은 Model · Type · Axle · Cab · MY · PTO.
-const RECOG_SHEET = '인식모델_대조표';
-const RECOG_COLS = [
-  ['Model(차종)', 'Vehicle'],
-  ['Type(WINGS 모델)', 'Model(WINGS)'],
-  ['Axle(축)', 'Type'],
-  ['Cab(캡)', 'Cab'],
-  ['MY', 'MY'],
-  ['PTO', 'PTO'],
-  ['SAM Baumuster(원본)', 'SAM Baumuster'],
-  ['SAM now(수정)', 'SAM now'],
-  ['Baumuster', 'Baumuster'],
-  ['Subcategory', 'Subcategory (ID)'],
-  ['매칭상태', 'SAM Status'],
-  ['SAM 파일', 'Compared SAM file name'],
-];
-function recognitionAoa() {
-  const seen = new Map();
-  for (const r of DATA.rows) {
-    if (!String(r['Model(WINGS)'] ?? '').trim()) continue;
-    const row = RECOG_COLS.map(([, key]) => {
-      let v = String(r[key] ?? '').trim();
-      if (key === 'Compared SAM file name') v = v.split(/[\\/]/).pop();
-      return v;
-    });
-    const k = row.join('');
-    if (!seen.has(k)) seen.set(k, row);
+  // 밖에서 미리 채운 새 레코드 창을 연다(모델 매칭 '규칙 추가').
+  function addRecord(prefill) {
+    if (S.mode !== 'record') setMode('record');
+    if (!S.cols.length) S.cols = inferCols(curAoa());
+    editRecord(null, prefill);
   }
-  const rows = [...seen.values()].sort((a, b) =>
-    a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]) || a[11].localeCompare(b[11]));
-  return [RECOG_COLS.map(([label]) => label)].concat(rows);
-}
-function refreshRecognitionSheet(S) {
-  if (!DATA.rows.length || !S.sheets[RECOG_SHEET]) return;
-  S.sheets[RECOG_SHEET] = recognitionAoa();
+  return { S, open, saveSp, wire, refresh, addRecord };
 }
 
-// ---- 미매칭_진단: 왜 안 붙었는지를 워크북에 그대로 적는다 ----
-// 규칙 시트를 고칠 사람이 보는 화면이 워크북이므로, 진단도 같은 파일에 둔다.
-const DIAG_SHEET = '미매칭_진단';
-const DIAG_COLS = ['구분', 'Model(WINGS)', 'Cab', 'PTO', '생산월', '대수', 'SAM 파일 / 폴더', '원인 · 다음 할 일'];
-function diagnosticsAoa(diag) {
-  const out = [DIAG_COLS.slice()];
-  const months = (diag && diag.samMonths) || [];
-  const haveYm = new Set(months.map((m) => m.yyyymm));
+// ---- 매칭 문제 목록: 어디가 안 붙었는지를 한 표에 모은다 ----
+// 예전에는 '미매칭_진단' 시트 · 진단 탭 · 대조표에 흩어져 있던 것을, 데이터(rows +
+// diagnostics)에서 바로 만든다. 심각도: problem(고쳐야 함) / info(참고 — 주문이 아직 없는 등).
+//   nosam   SAM 을 못 찾은 WINGS 주문 (모델·캡·PTO·생산월로 묶음)
+//   unused  읽혔지만 그 달 주문 어디에도 안 붙은 SAM 문서
+//   skipped 읽지 못하고 건너뛴 SAM 파일
+//   month   생산월 폴더별 읽은 파일·인식 번호 (참고)
+const MP_KINDS = ['nosam', 'unused', 'skipped', 'month'];
+function modelNumOf(model) {
+  const m = /(\d{4})/.exec(String(model || ''));
+  return m ? m[1] : '';
+}
+function matchProblems() {
+  const g = (DATA && DATA.diagnostics) || null;
+  const months = (g && g.sam_months) || [];
+  const monthByYm = new Map(months.map((m) => [String(m.yyyymm), m]));
+  const out = [];
 
-  // 1) SAM 을 못 찾은 WINGS 주문 — 모델·캡·PTO·생산월별로 묶는다.
   const groups = new Map();
-  for (const r of DATA.rows) {
-    if (String(r['SAM Status'] || '') !== 'No SAM') continue;
+  for (const r of DATA.rows || []) {
+    if (String(r._orig_status || r['SAM Status'] || '') !== 'No SAM') continue;
     const ym = String(r['Production date'] || '').slice(0, 7);
     const k = [r['Model(WINGS)'], r['Cab'], r['PTO'], ym].join('|');
-    if (!groups.has(k)) groups.set(k, { r: r, ym: ym, n: 0 });
-    groups.get(k).n += 1;
+    if (!groups.has(k)) groups.set(k, { r, ym, n: 0, comms: [] });
+    const gg = groups.get(k);
+    gg.n += 1;
+    gg.comms.push(String(r['Commission no.']));
   }
-  const ymNum = (ym) => Number(String(ym).replace('-', '')) || 0;
-  for (const g of [...groups.values()].sort((a, b) => b.n - a.n)) {
-    const has = haveYm.has(ymNum(g.ym));
-    out.push(['WINGS 미매칭', g.r['Model(WINGS)'] || '', g.r['Cab'] || '', g.r['PTO'] || '',
-      g.ym, g.n, '',
-      has ? '그 생산월 SAM 에 이 모델 번호가 없음 — 파일 추가, 또는 같은 차의 다른 번호면 모델별칭·정규화_과거번호 에 한 줄 추가'
-          : '생산월 폴더 자체가 없음 — 01. SAM_files 에 ' + (g.ym || '해당 월') + ' 폴더/파일 추가']);
+  for (const gg of [...groups.values()].sort((a, b) => b.n - a.n)) {
+    const mf = monthByYm.get(gg.ym.replace('-', ''));
+    const num = modelNumOf(gg.r['Model(WINGS)']);
+    let why;
+    if (!g) why = t('mp.why.nosamNoDiag');
+    else if (!mf) why = t('mp.why.noFolder', { ym: gg.ym || '?' });
+    else {
+      const keys = (mf.keys || []).filter((k) => /^\d{4}/.test(k));
+      const near = num ? keys.filter((k) => k.slice(0, 2) === num.slice(0, 2)) : [];
+      why = t('mp.why.noDoc', { num: num || gg.r['Model(WINGS)'],
+        keys: (near.length ? near : keys).slice(0, 12).join(', ') || '—' });
+    }
+    out.push({ kind: 'nosam', sev: 'problem', model: gg.r['Model(WINGS)'] || '', cab: gg.r['Cab'] || '',
+      pto: gg.r['PTO'] || '', ym: gg.ym, n: gg.n, file: '', why, num, comms: gg.comms,
+      sample: gg.r });
   }
-
-  // 2) 읽다가 버린 SAM 파일.
-  for (const sk of ((diag && diag.samSkipped) || [])) {
-    out.push(['SAM 파일 건너뜀', '', '', '', '', '', sk.month + ' / ' + sk.file, sk.reason]);
+  for (const u of ((g && g.sam_unused) || [])) {
+    out.push({ kind: 'unused', sev: u.orders ? 'problem' : 'info', model: (u.keys || []).join(', '),
+      cab: '', pto: u.pto ? 'PTO' : '', ym: u.month, n: u.orders, file: u.file,
+      why: u.orders === 0 ? t('match.diagNoOrders') : t('match.diagNotPicked', { n: u.orders }) });
   }
-
-  // 3) 잘 읽혔지만 어떤 주문에도 안 붙은 SAM 문서 — 파일을 넣었는데 화면에 안 보이는 경우.
-  // 왜 안 붙었는지는 '그 달에 주문이 있었나 / 무슨 모델키로 읽혔나 / PTO 로 봤나' 셋이면 갈린다.
-  for (const un of ((diag && diag.samUnused) || [])) {
-    const keys = (un.keys || []).join(', ');
-    const why = un.orders === 0
-      ? '그 생산월 WINGS 주문이 0건 — 주문이 들어오면 자동으로 붙는다(파일·규칙 문제 아님)'
-      : `그 생산월 주문 ${un.orders}건 중 이 문서를 고른 것이 없음 — 모델키(${keys}) 또는 `
-        + `PTO(${un.pto ? 'PTO' : '비PTO'})·캡이 주문과 갈렸는지 확인`;
-    out.push(['안 붙은 SAM 문서', keys, '', un.pto ? 'PTO' : '', '', un.orders,
-      un.month + ' / ' + un.file, why]);
+  for (const sk of ((g && g.sam_skipped) || [])) {
+    out.push({ kind: 'skipped', sev: 'problem', model: '', cab: '', pto: '', ym: sk.month, n: '',
+      file: sk.file, why: sk.reason });
   }
-
-  // 3b) 생산월별 주문 수 — 'SAM 은 있는데 주문이 아직 없다' 를 한눈에.
-  const om = (diag && diag.ordersByMonth) || {};
-  for (const ym of Object.keys(om).sort()) {
-    out.push(['WINGS 주문 수', '', '', '', String(ym).slice(0, 4) + '-' + String(ym).slice(4),
-      om[ym], '', '이 생산월로 들어온 WINGS 주문 수']);
-  }
-  if (diag && diag.ordersNoDate) {
-    out.push(['WINGS 주문 수', '', '', '', '(생산일 없음)', diag.ordersNoDate, '',
-      '생산월을 못 정해 최신 생산월 폴더부터 훑는 주문']);
-  }
-
-  // 4) 월별로 몇 개를 읽었는지 — 파일을 넣었는데 수가 안 늘면 여기서 드러난다.
   for (const m of months) {
-    out.push(['생산월 폴더', '', '', '', m.name, m.parsed + ' / ' + m.files, '',
-      '인식된 모델키 ' + m.keys.length + '개: ' + m.keys.join(', ')]);
+    const orders = ((g && g.orders_by_month) || {})[m.yyyymm] || 0;
+    out.push({ kind: 'month', sev: 'info', model: '', cab: '', pto: '', ym: m.name, n: orders, file: '',
+      why: t('match.diagMonthWhy', { parsed: m.parsed, files: m.files, keys: m.keys.length })
+        + (m.keys.length ? ' — ' + m.keys.join(', ') : '') });
   }
   return out;
 }
 
-// ---- 규칙 시트 기본값 ----
-// 워크북에 없는 규칙 시트는 기본값으로 만들어 둔다 — 시트가 아예 없으면 고칠 수도 없다.
-const RULE_SHEET_SEEDS = [
-  ['정규화_과거번호', 'normalize_historic', ['과거/대체 번호', '정규 번호']],
-  ['모델별칭', 'reverse_aliases', ['SAM 번호', '같은 차의 WINGS 번호들(쉼표 구분)']],
-  ['이전모델', 'previous_model', ['현재 번호', '이전 세대 번호']],
-  ['현재모델', 'current_model', ['이전 번호', '현재 세대 번호']],
-  ['WINGS표시치환', 'wings_display_replace', ['WINGS 표기', '표시로 치환']],
-  ['차종키워드', 'vehicle_keywords', ['차종(Vehicle)', '매칭 번호들(쉼표 구분)']],
-];
-function ruleSeedAoa(key, headers) {
-  const src = (window.RefData && RefData.RULE_DEFAULTS) ? RefData.RULE_DEFAULTS[key] : null;
-  const aoa = [headers.slice()];
-  for (const k of Object.keys(src || {})) {
-    const v = src[k];
-    aoa.push([k, Array.isArray(v) ? v.join(', ') : String(v)]);
+// ---- 예전 워크북(종류별 시트 9장) → '매칭규칙' 시트 한 장 ----
+// 지금 실제로 적용되던 규칙(기본값 포함)을 그대로 옮기므로 매칭 결과는 바뀌지 않는다.
+// 자동 생성 시트(인식모델_대조표·미매칭_진단)와 쓰이지 않던 이전모델·현재모델은 버린다.
+// 바뀐 게 있으면 true — 편집기는 '저장 안 한 변경'으로 표시한다.
+function unifyRuleSheets(S) {
+  const RS = RefData.RULE_SHEET;
+  const others = S.order.filter((n) => n !== RS);
+  if (S.sheets[RS] && !others.length) return false;
+  if (!S.sheets[RS]) {
+    S.sheets[RS] = RefData.rulesToAoa(RefData.rulesFromSheets(S.order, (n) => S.sheets[n]));
   }
-  return aoa;
+  for (const n of others) delete S.sheets[n];
+  S.order = [RS];
+  S.sheet = RS;
+  return true;
 }
 
 // ---- pto-codes.xlsx 가 없으면 기본값으로 만들어 둔다 ----
@@ -3144,56 +3106,44 @@ async function ensurePtoCodesWorkbook() {
     review: Math.max(0, ref.length - 3 - listed.size) };
 }
 
-// ---- 빌드 결과로 model_mapping.xlsx 를 다시 만들어 SharePoint 에 올린다 ----
-// 사람이 쓰는 규칙 시트는 그대로 두고, 자동 시트(대조표·진단)만 새 데이터로 갈아 끼운다.
-async function saveModelMappingWorkbook(diag) {
+// ---- 빌드 때 model_mapping.xlsx 를 '매칭규칙' 한 장짜리로 정리한다 ----
+// 이미 한 장짜리면 손대지 않는다. 예전 워크북이면 지금 적용되던 규칙 그대로 옮겨 저장한다.
+async function saveModelMappingWorkbook() {
+  const RS = RefData.RULE_SHEET;
   const items = await Graph.list('model_rules');
   const found = items.find((it) => !it.isFolder
     && it.name.toLowerCase() === MODEL_MAPPING_FILE.toLowerCase());
   const name = found ? found.name : MODEL_MAPPING_FILE;
-
-  const sheets = {};
-  let order = [];
+  let aoa;
   if (found) {
     const wb = XLSX.read(new Uint8Array(await Graph.download('model_rules', name)), { type: 'array' });
-    const drop = new Set(['수동매핑', '매칭_별칭(수동)']);   // 폐기된 시트는 다시 쓰지 않는다
-    order = wb.SheetNames.filter((n) => !drop.has(n));
-    for (const n of order)
-      sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
+    if (wb.SheetNames.length === 1 && wb.SheetNames[0] === RS) return { name, changed: false };
+    const get = (n) => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
+    aoa = wb.SheetNames.indexOf(RS) !== -1 ? get(RS)
+      : RefData.rulesToAoa(RefData.rulesFromSheets(wb.SheetNames, get));
+  } else {
+    aoa = RefData.rulesToAoa(RefData.loadRules(null));
   }
-  for (const [sheet, key, headers] of RULE_SHEET_SEEDS) {
-    if (sheets[sheet] && sheets[sheet].length > 1) continue;
-    sheets[sheet] = ruleSeedAoa(key, headers);
-    if (order.indexOf(sheet) === -1) order.push(sheet);
-  }
-  if (!sheets['옵션']) {
-    sheets['옵션'] = [['옵션', '값'], ['normalize_28xx_to_26xx', 'true']];
-    order.push('옵션');
-  }
-  sheets[RECOG_SHEET] = recognitionAoa();
-  sheets[DIAG_SHEET] = diagnosticsAoa(diag);
-  order = [RECOG_SHEET, DIAG_SHEET].concat(order.filter((n) => n !== RECOG_SHEET && n !== DIAG_SHEET));
-
-  const wb = XLSX.utils.book_new();
-  for (const n of order) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheets[n] || [[]]), n);
-  await Graph.upload('model_rules', name, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
-  return { name: name, recog: sheets[RECOG_SHEET].length - 1, diag: sheets[DIAG_SHEET].length - 1 };
+  const out = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(out, XLSX.utils.aoa_to_sheet(aoa), RS);
+  await Graph.upload('model_rules', name, XLSX.write(out, { bookType: 'xlsx', type: 'array' }));
+  return { name, changed: true, n: aoa.length - 1 };
 }
 
-// ---- 모델 매칭: model_mapping.xlsx (03. model_rules) 전체 시트 편집 ----
+// ---- 모델 매칭: model_mapping.xlsx 의 '매칭규칙' 시트 편집 ----
 const matchEditor = makeSheetEditor({
   folderKey: 'model_rules', fixedFile: MODEL_MAPPING_FILE,
-  onLoaded: refreshRecognitionSheet,
-  // 수동 교정 시트는 폐기했다 — 매칭은 SAM 문서의 번호·코드로만 결정한다.
-  dropSheets: ['수동매핑', '매칭_별칭(수동)'],
-  // 대조표·진단은 빌드가 다시 만드는 보기라 편집해도 남지 않는다 — 편집 UI 자체를 숨긴다.
-  readOnlySheets: [RECOG_SHEET, DIAG_SHEET],
+  // 예전 워크북이면 열면서 한 장으로 합친다(저장해야 파일에 반영).
+  onLoaded: unifyRuleSheets,
+  hideSingleTab: true,
   els: { tabs: 'matchTabs', grid: 'matchGrid', addRow: 'matchAddRow', revert: 'matchLoadSp',
          saveSp: 'matchSaveSp', download: 'matchDownload', dirty: 'matchDirty',
          status: 'matchStatus', search: 'matchSearch', main: 'matchMain', empty: 'matchEmpty',
          recs: 'matchRecs', recWrap: 'matchRecWrap', gridWrap: 'matchGridWrap', pager: 'matchPager',
          mode: 'matchMode', filter: 'matchFilter', count: 'matchCount', addRec: 'matchAddRec' },
 });
+const MATCH_PANES = ['problem', 'result', 'rules'];
+let MP_FILTER = 'problem';   // 문제 탭의 칩 필터: problem(고칠 것) | all | nosam | unused | skipped | month
 function initMatching() {
   const link = $('#matchFolderLink'); if (window.Graph) link.href = Graph.folders.model_rules.shareUrl;
   matchEditor.wire();
@@ -3209,26 +3159,47 @@ function initMatching() {
       if (b) showMatchPane(b.dataset.pane);
     });
   }
-  const mdS = $('#mdSearch');
-  if (mdS) mdS.addEventListener('input', renderMatchDiag);
-  showMatchPane(localStorage.getItem('matchPane') || 'result');
+  const mpS = $('#mpSearch');
+  if (mpS) mpS.addEventListener('input', renderMatchProblems);
+  const chips = $('#mpChips');
+  if (chips) chips.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-mp]');
+    if (b) { MP_FILTER = b.dataset.mp; renderMatchProblems(); }
+  });
+  const grid = $('#matchProbGrid');
+  if (grid) grid.addEventListener('click', (e) => {
+    const add = e.target.closest('button[data-add-rule]');
+    if (add) { addRuleFor(add.dataset.addRule); return; }
+    const open = e.target.closest('button[data-open]');
+    if (open) { const r = rowByComm(open.dataset.open); if (r) openDrawer(r); }
+  });
+  let saved = 'problem';
+  try { saved = localStorage.getItem('matchPane') || 'problem'; } catch { /* 기본 */ }
+  showMatchPane(saved);
   renderMatchSummary();
 }
 
-// 매칭 결과 / 대조표 / 진단은 한 번에 하나만 — 보이는 쪽이 화면 높이를 다 쓴다.
+// 문제 / 매칭 결과 / 매칭 규칙은 한 번에 하나만 — 보이는 쪽이 화면 높이를 다 쓴다.
 function showMatchPane(name) {
-  const which = ['sheet', 'diag'].indexOf(name) !== -1 ? name : 'result';
-  localStorage.setItem('matchPane', which);
-  const sum = $('#matchSum'), ed = $('#matchEditor'), dg = $('#matchDiag');
+  const which = MATCH_PANES.indexOf(name) !== -1 ? name : 'problem';
+  try { localStorage.setItem('matchPane', which); } catch { /* 이번 세션만 */ }
+  const sum = $('#matchSum'), ed = $('#matchEditor'), pb = $('#matchProb');
   if (sum) sum.classList.toggle('hidden', which !== 'result');
-  if (ed) ed.classList.toggle('hidden', which !== 'sheet');
-  if (dg) dg.classList.toggle('hidden', which !== 'diag');
-  if (which === 'diag') renderMatchDiag();
+  if (ed) ed.classList.toggle('hidden', which !== 'rules');
+  if (pb) pb.classList.toggle('hidden', which !== 'problem');
+  if (which === 'problem') renderMatchProblems();
   const pane = $('#matchPane');
   if (pane) {
     pane.querySelectorAll('button[data-pane]').forEach((b) =>
       b.classList.toggle('active', b.dataset.pane === which));
   }
+}
+
+// 문제 줄의 '규칙 추가' — 규칙 탭으로 넘어가 '대체번호' 한 줄을 미리 채운 편집 창을 연다.
+function addRuleFor(num) {
+  showMatchPane('rules');
+  if (!matchEditor.S.file || !matchEditor.S.sheet) { alert(t('matching.loading')); return; }
+  matchEditor.addRecord(['대체번호', num || '', '', '']);
 }
 
 // ---- 매칭 결과: 지금 데이터의 '모델 → 실제로 비교된 SAM 파일' ----
@@ -3382,49 +3353,63 @@ function renderMatchSummary() {
   }));
 }
 
-// ---- 진단 패널 ----
-// 매칭 결과에는 '주문에 붙은' SAM 문서만 나온다. 넣었는데 안 쓰인 문서는 rows 에 흔적이
-// 없어서 그 화면에서는 영원히 안 보인다 — 그래서 따로 보여 준다.
-function renderMatchDiag() {
-  const table = $('#matchDiagGrid');
+// ---- 문제 탭 ----
+// 고칠 것(problem)을 먼저, 참고(info)는 칩으로 골라 본다. 맨 위 탭 버튼에도 고칠 것 수를 단다.
+function renderMatchProblems() {
+  const table = $('#matchProbGrid');
   if (!table) return;
-  const g = (DATA && DATA.diagnostics) || null;
-  const cnt = $('#matchDiagCount');
-  const q = (($('#mdSearch') || {}).value || '').trim().toLowerCase();
-  if (!g) {
+  const all = DATA.rows.length || (DATA && DATA.diagnostics) ? matchProblems() : [];
+  const q = (($('#mpSearch') || {}).value || '').trim().toLowerCase();
+  const nProblem = all.filter((p) => p.sev === 'problem').length;
+  const units = all.filter((p) => p.kind === 'nosam').reduce((a, p) => a + p.n, 0);
+  const cnt = (k) => all.filter((p) => p.kind === k).length;
+
+  const badge = $('#matchPaneBadge');
+  if (badge) { badge.textContent = nProblem ? fmtNum(nProblem) : ''; badge.classList.toggle('hidden', !nProblem); }
+
+  const chip = (k, label, n, cls) => `<button type="button" class="mp-chip ${cls || ''}${MP_FILTER === k ? ' active' : ''}" data-mp="${k}">`
+    + `<b>${esc(fmtNum(n))}</b> ${esc(label)}</button>`;
+  const chips = $('#mpChips');
+  if (chips) {
+    chips.innerHTML = chip('problem', t('mp.f.problem'), nProblem, nProblem ? 'bad' : 'ok')
+      + chip('nosam', t('mp.f.nosam', { units: fmtNum(units) }), cnt('nosam'))
+      + chip('unused', t('mp.f.unused'), cnt('unused'))
+      + chip('skipped', t('mp.f.skipped'), cnt('skipped'))
+      + chip('month', t('mp.f.month'), cnt('month'))
+      + chip('all', t('mp.f.all'), all.length);
+  }
+
+  const keep = (p) => MP_FILTER === 'all' || (MP_FILTER === 'problem' ? p.sev === 'problem' : p.kind === MP_FILTER);
+  const shown = all.filter(keep).filter((p) => !q
+    || [t('mp.kind.' + p.kind), p.model, p.ym, p.file, p.why, (p.comms || []).join(' ')]
+      .join(' ').toLowerCase().includes(q));
+  const c = $('#matchProbCount');
+  if (c) c.textContent = t('match.diagCount', { n: fmtNum(shown.length), total: fmtNum(all.length) });
+
+  if (!all.length) {
     table.querySelector('thead').innerHTML = '';
-    table.querySelector('tbody').innerHTML =
-      `<tr><td class="none">${esc(t('match.diagOld'))}</td></tr>`;
-    if (cnt) cnt.textContent = '';
+    table.querySelector('tbody').innerHTML = `<tr><td class="none">${esc(t(DATA.diagnostics ? 'mp.none' : 'match.diagOld'))}</td></tr>`;
     return;
   }
-  const rows = [];
-  for (const u of (g.sam_unused || [])) {
-    const keys = (u.keys || []).join(', ');
-    rows.push({ kind: t('match.diagUnused'), a: keys, b: u.pto ? 'PTO' : '', c: u.month,
-      file: u.file, n: u.orders,
-      why: u.orders === 0 ? t('match.diagNoOrders') : t('match.diagNotPicked', { n: u.orders }) });
-  }
-  for (const sk of (g.sam_skipped || [])) {
-    rows.push({ kind: t('match.diagSkipped'), a: '', b: '', c: sk.month, file: sk.file,
-      n: '', why: sk.reason });
-  }
-  for (const m of (g.sam_months || [])) {
-    const orders = (g.orders_by_month || {})[m.yyyymm] || 0;
-    rows.push({ kind: t('match.diagMonth'), a: '', b: '', c: m.name, file: '',
-      n: orders, why: t('match.diagMonthWhy', { parsed: m.parsed, files: m.files, keys: m.keys.length }) });
-  }
-  const shown = rows.filter((r) => !q
-    || [r.kind, r.a, r.c, r.file, r.why].join(' ').toLowerCase().includes(q));
-  if (cnt) cnt.textContent = t('match.diagCount', { n: shown.length, total: rows.length });
   table.querySelector('thead').innerHTML = '<tr>'
-    + [t('match.diagKind'), t('match.diagKeys'), 'PTO', t('match.diagWhere'), t('match.samFile'),
-      t('match.diagOrders'), t('match.diagWhy')].map((h) => `<th>${esc(h)}</th>`).join('') + '</tr>';
+    + ['mp.col.kind', 'mp.col.model', 'Cab', 'PTO', 'mp.col.month', 'mp.col.n', 'match.samFile', 'match.diagWhy', '']
+      .map((k) => `<th>${k ? esc(k.indexOf('.') !== -1 ? t(k) : k) : ''}</th>`).join('') + '</tr>';
   table.querySelector('tbody').innerHTML = shown.length
-    ? shown.map((r) => `<tr><td>${esc(r.kind)}</td><td>${esc(r.a)}</td><td>${esc(r.b)}</td>`
-      + `<td>${esc(r.c)}</td><td class="ms-file"><span title="${esc(r.file)}">${esc(r.file)}</span></td>`
-      + `<td class="num">${esc(String(r.n))}</td><td>${esc(r.why)}</td></tr>`).join('')
-    : `<tr><td class="none">${esc(t('match.noHit'))}</td></tr>`;
+    ? shown.map((p) => {
+      const first = p.comms && p.comms[0];
+      const units2 = p.kind === 'nosam' && first
+        ? `<button type="button" class="link-btn" data-open="${esc(first)}" title="${esc(p.comms.join(', '))}">${esc(fmtNum(p.n))}</button>`
+        : esc(String(p.n));
+      const act = p.kind === 'nosam' && IS_ADMIN
+        ? `<button type="button" class="btn xs" data-add-rule="${esc(p.num)}">${esc(t('mp.addRule'))}</button>` : '';
+      return `<tr class="mp-${p.sev}">`
+        + `<td class="nowrap"><span class="mp-kind ${p.kind}">${esc(t('mp.kind.' + p.kind))}</span></td>`
+        + `<td>${esc(p.model)}</td><td>${esc(p.cab)}</td><td>${esc(p.pto)}</td>`
+        + `<td class="nowrap">${esc(p.ym)}</td><td class="num">${units2}</td>`
+        + `<td class="ms-file"><span title="${esc(p.file)}">${esc(p.file)}</span></td>`
+        + `<td class="mp-why">${esc(p.why)}</td><td class="nowrap">${act}</td></tr>`;
+    }).join('')
+    : `<tr><td class="none" colspan="9">${esc(t(MP_FILTER === 'problem' ? 'mp.allGood' : 'match.noHit'))}</td></tr>`;
 }
 
 // 상태 뱃지(Match / Mismatch / No SAM 대수) — 모델 줄과 문서 줄이 같이 쓴다.
@@ -3766,8 +3751,8 @@ async function runBuild() {
 
     log.line(t('build.step.mapping'));
     try {
-      const r = await saveModelMappingWorkbook(diag);
-      log.line(t('build.mapping.done', { file: r.name, recog: r.recog, diag: r.diag }), 'ok');
+      const r = await saveModelMappingWorkbook();
+      log.line(r.changed ? t('build.mapping.done', { file: r.name, n: r.n }) : t('build.mapping.same', { file: r.name }), 'ok');
       if (matchEditor.S.file && !matchEditor.S.dirty) matchEditor.open(MODEL_MAPPING_FILE);
     } catch (e) {
       console.error(e);

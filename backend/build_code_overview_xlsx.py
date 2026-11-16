@@ -137,7 +137,7 @@ def sheet_files(wb):
         ('backend', 'backend/rules.py', 'Python', 142, '모델 변환 규칙 로더. 우선순위 model_mapping.xlsx > docs/rules.json > 내장 DEFAULTS. 정규화/이전·현재 모델/차종 키워드 제공.'),
         ('backend', 'backend/option_codes.py', 'Python', 2250, '참조 데이터. OPTION_CODE_MAP(≈2,149개 옵션코드→설명), MANDATORY_CODES(21개 필수), MANDATORY_GROUPS. 순수 데이터.'),
         ('backend', 'backend/wings_scraper.py', 'Python', 1774, 'WINGS 자동 다운로드(Playwright+로컬 Chrome 프로필). 로그인/TOTP/Extended Search로 Excel 다운로드.'),
-        ('backend', 'backend/build_model_rules_xlsx.py', 'Python', 117, 'model_rules/model_mapping.xlsx 생성. 인식모델_대조표(자동, 대시보드 컬럼) + 규칙 시트.'),
+        ('backend', 'backend/build_model_rules_xlsx.py', 'Python', 117, 'model_rules/model_mapping.xlsx 를 매칭규칙 시트 한 장으로 유지(예전 시트 자동 통합).'),
         ('docs', 'docs/index.html', 'HTML', 94, 'GitHub Pages 진입점. 테이블/필터 UI 골격.'),
         ('docs', 'docs/app.js', 'JS', 644, 'data.json/codes.json 로드 → 테이블 렌더링, 필터/검색/코드 설명 팝업.'),
         ('docs', 'docs/style.css', 'CSS', '-', '프런트 스타일.'),
@@ -195,7 +195,7 @@ def sheet_functions(wb):
     ])
     block('rules.py — 모델 규칙', [
         ('load_rules()', 'DEFAULTS 위에 rules.json, 그 위에 model_mapping.xlsx 병합(빈 시트는 무시).'),
-        ('load_rules_from_xlsx()', 'xlsx의 규칙 시트(정규화·이전/현재 모델·차종키워드·옵션) 파싱(openpyxl 지연 로드, 실패 무시).'),
+        ('load_rules_from_xlsx()', 'xlsx 의 매칭규칙 시트(대체번호·SAM별칭·표시치환·차종·옵션) 파싱. 예전 시트도 읽음(openpyxl 지연 로드, 실패 무시).'),
         ('apply_map(s, mapping)', '가장 긴 키 우선으로 문자열 치환.'),
         ('RULES / DEFAULTS', '전역 규칙 딕셔너리 및 내장 기본값(reverse_aliases, vehicle_keywords 등).'),
     ])

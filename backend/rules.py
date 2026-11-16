@@ -16,22 +16,43 @@ ROOT = HERE.parent
 RULES_PATH = ROOT / 'docs' / 'rules.json'
 XLSX_PATH = ROOT / 'model_rules' / 'model_mapping.xlsx'
 
-# model_mapping.xlsx editable sheets -> rules key. The '인식모델_대조표' sheet is an
-# auto-generated recognition view and is ignored here. The hand-correction sheets
-# ('수동매핑', '매칭_별칭(수동)') were dropped: matching is decided by the numbers and
-# codes in the SAM documents themselves, so there is nothing left to hand-pin.
+# All rules live on ONE sheet, '매칭규칙':  종류 | 기준 | 값 | 메모   (docs/lib/refdata.js too)
+#   대체번호  WINGS number -> SAM number tried only after the exact number found nothing
+#             in the production month and the 6 months before        -> normalize_historic
+#   SAM별칭   SAM document number -> WINGS numbers it is also known as -> reverse_aliases
+#   표시치환  WINGS spelling -> unified display                        -> wings_display_replace
+#   차종      vehicle -> numbers                                       -> vehicle_keywords
+#   옵션      normalize_28xx_to_26xx -> true/false
+# Older workbooks (one sheet per rule kind) are still read when '매칭규칙' is absent.
+# 이전모델/현재모델 (generation neighbours) were never used for matching and were dropped.
+RULE_SHEET = '매칭규칙'
+RULE_HEADER = ['종류', '기준', '값', '메모']
+# (kind, rules key, value is a comma list)
+RULE_KINDS = [
+    ('대체번호', 'normalize_historic', False),
+    ('SAM별칭', 'reverse_aliases', True),
+    ('표시치환', 'wings_display_replace', False),
+    ('차종', 'vehicle_keywords', True),
+    ('옵션', None, False),
+]
+OPTION_KEYS = ['normalize_28xx_to_26xx']
 _XLSX_MAP_SHEETS = {
     '정규화_과거번호': 'normalize_historic',
-    '이전모델': 'previous_model',
-    '현재모델': 'current_model',
     'WINGS표시치환': 'wings_display_replace',
 }
 _XLSX_LIST_SHEETS = {
     '차종키워드': 'vehicle_keywords',
-    # SAM document number -> WINGS numbers naming the same truck (e.g. 3253 -> 4153).
-    # load_sam_from_folder widens the model keys with this table.
     '모델별칭': 'reverse_aliases',
 }
+_TRUE = ('true', '1', 'yes', 'y', 'on')
+
+
+def _kind(name):
+    n = re.sub(r'\s+', '', str(name or '')).lower()
+    for kind, key, is_list in RULE_KINDS:
+        if kind.lower() == n or (key and key.lower() == n):
+            return kind, key, is_list
+    return None
 
 # Built-in defaults == the original hardcoded values (fallback only).
 DEFAULTS = {
@@ -41,12 +62,6 @@ DEFAULTS = {
     },
     'normalize_28xx_to_26xx': True,
     'reverse_aliases': {'3253': ['4153']},
-    'previous_model': {
-        '4453': '4153', '4153': '3253', '3343': '2643', '2853': '2663', '2851': '2661',
-    },
-    'current_model': {
-        '4453': '4463', '4153': '4163', '3343': '3363', '2853': '2863', '2851': '2861',
-    },
     'wings_display_replace': {
         '4140': '4440', '2651 LS': '2851 LS', '2653 LS': '2853 LS',
         '2663 LS': '2863 LS', '2643 A': '3343 A',
@@ -73,16 +88,44 @@ def load_rules_from_xlsx(path: Path | None = None) -> dict:
     except Exception:
         return out
 
+    def _cell(row, i):
+        return '' if len(row) <= i or row[i] is None else str(row[i]).strip()
+
     def _rows(ws):
         for i, row in enumerate(ws.iter_rows(values_only=True)):
             if i == 0:  # header
                 continue
             if not row:
                 continue
-            k = '' if row[0] is None else str(row[0]).strip()
-            v = '' if len(row) < 2 or row[1] is None else str(row[1]).strip()
+            k = _cell(row, 0)
             if k:
-                yield k, v
+                yield k, _cell(row, 1)
+
+    if RULE_SHEET in wb.sheetnames:
+        found: dict = {}
+        for i, row in enumerate(wb[RULE_SHEET].iter_rows(values_only=True)):
+            if i == 0 or not row:
+                continue
+            kd = _kind(_cell(row, 0))
+            k, v = _cell(row, 1), _cell(row, 2)
+            if not kd or not k:
+                continue
+            _kind_name, key, is_list = kd
+            if key is None:
+                if k in OPTION_KEYS:
+                    out[k] = v.lower() in _TRUE
+                continue
+            table = found.setdefault(key, {})
+            if is_list:
+                lst = table.setdefault(k, [])
+                for x in (p.strip() for p in v.split(',')):
+                    if x and x not in lst:
+                        lst.append(x)
+            else:
+                table[k] = v
+        out.update(found)
+        wb.close()
+        return out
 
     for sheet, key in _XLSX_MAP_SHEETS.items():
         if sheet in wb.sheetnames:
@@ -93,8 +136,8 @@ def load_rules_from_xlsx(path: Path | None = None) -> dict:
                         for k, v in _rows(wb[sheet])}
     if '옵션' in wb.sheetnames:
         for k, v in _rows(wb['옵션']):
-            if k == 'normalize_28xx_to_26xx':
-                out['normalize_28xx_to_26xx'] = str(v).strip().lower() in ('true', '1', 'yes', 'y', 'on')
+            if k in OPTION_KEYS:
+                out[k] = str(v).strip().lower() in _TRUE
 
     wb.close()
     return out
@@ -120,6 +163,19 @@ def load_rules(path: Path | None = None, xlsx_path: Path | None = None) -> dict:
         if v:  # non-empty sheet only, so an accidentally blank sheet can't wipe a rule
             merged[k] = v
     return merged
+
+
+def rules_to_rows(rules: dict) -> list:
+    """rules dict -> '매칭규칙' sheet rows (header first). Same order as refdata.rulesToAoa."""
+    rows = [RULE_HEADER[:]]
+    for kind, key, _is_list in RULE_KINDS:
+        if key is None:
+            continue
+        for k, v in (rules.get(key) or {}).items():
+            rows.append([kind, k, ', '.join(v) if isinstance(v, list) else str(v), ''])
+    for k in OPTION_KEYS:
+        rows.append(['옵션', k, 'true' if rules.get(k) else 'false', ''])
+    return rows
 
 
 def apply_map(s: str, mapping: dict) -> str:

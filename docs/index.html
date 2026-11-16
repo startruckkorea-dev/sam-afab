@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="style.css?v=20261116c" />
+  <link rel="stylesheet" href="style.css?v=20261116d" />
 </head>
 <body>
   <!-- 아이콘 — <svg><use href="#i-…"/></svg> 로 쓴다. -->
@@ -231,21 +231,21 @@
         <div class="page-head">
           <div>
             <h1 data-i18n="matching.title">모델 매칭</h1>
-            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 — 규칙은 <code>model_mapping.xlsx</code></p>
+            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 — 규칙은 model_mapping.xlsx 의 '매칭규칙' 시트 한 장</p>
           </div>
           <div class="page-actions">
             <!-- 매칭 결과 / 대조표를 한 화면에 쌓지 않고 서브탭으로 갈아 끼운다 -->
             <div class="mode-switch" id="matchPane">
-              <button type="button" data-pane="result" class="active" data-i18n="matching.paneResult">매칭 결과</button>
-              <button type="button" data-pane="sheet" data-i18n="matching.paneSheet">대조표</button>
-              <button type="button" data-pane="diag" data-i18n="matching.paneDiag">진단</button>
+              <button type="button" data-pane="problem" class="active"><span data-i18n="matching.paneProblem">문제</span><span id="matchPaneBadge" class="pane-badge hidden"></span></button>
+              <button type="button" data-pane="result" data-i18n="matching.paneResult">매칭 결과</button>
+              <button type="button" data-pane="rules" data-i18n="matching.paneRules">매칭 규칙</button>
             </div>
             <a id="matchFolderLink" class="icon-btn" target="_blank" rel="noopener" data-i18n="btn.openFolder">📂 SharePoint 폴더 열기</a>
           </div>
         </div>
 
         <!-- 지금 데이터가 어떤 SAM 파일에 붙었는지 — 대시보드와 같은 항목으로 -->
-        <section class="match-sum" id="matchSum">
+        <section class="match-sum hidden" id="matchSum">
           <div class="controls ms-filters">
             <span class="pane-hint" data-i18n="matching.resultSub">모델 → 비교된 SAM 파일. 캡·PTO 는 코드로 판정하며 WINGS/SAM 이 다르면 ≠.</span>
             <span id="matchSumCount" class="count"></span>
@@ -270,26 +270,30 @@
           </div>
         </section>
 
-        <!-- 진단: 붙지 않은 SAM 문서와 생산월별 주문 수. 매칭 결과에는 주문에 붙은 문서만
-             나오므로, 넣었는데 안 쓰인 문서는 여기서만 보인다. -->
-        <section class="match-sum hidden" id="matchDiag">
+        <!-- 문제: SAM 을 못 찾은 주문 · 안 붙은 SAM 문서 · 읽지 못한 파일을 한 표에.
+             칩으로 종류를 고르고, '고칠 것'이 기본이다. -->
+        <section class="match-sum" id="matchProb">
           <div class="controls ms-filters">
-            <span class="pane-hint" data-i18n="matching.diagSub">넣었는데 어떤 주문에도 안 붙은 SAM 문서와, 생산월별 WINGS 주문 수입니다.</span>
-            <span id="matchDiagCount" class="count"></span>
+            <span class="pane-hint" data-i18n="matching.probSub">고쳐야 할 매칭 문제를 한 곳에 모았습니다. SAM 을 못 찾은 주문은 '규칙 추가'로 대체 번호를 등록하거나 SAM 파일을 추가하세요.</span>
+            <span id="matchProbCount" class="count"></span>
           </div>
           <div class="controls ms-filters">
-            <input type="search" id="mdSearch" data-i18n-ph="match.searchPh" placeholder="모델 / SAM 파일 검색&hellip;" />
+            <div class="mp-chips" id="mpChips"></div>
+            <input type="search" id="mpSearch" data-i18n-ph="mp.searchPh" placeholder="모델 / 생산월 / 파일 / Commission 검색&hellip;" />
           </div>
           <div class="ms-scroll">
-            <table class="ms-grid" id="matchDiagGrid"><thead></thead><tbody></tbody></table>
+            <table class="ms-grid mp-grid" id="matchProbGrid"><thead></thead><tbody></tbody></table>
           </div>
         </section>
 
         <div class="code-editor hidden" id="matchEditor">
-          <p class="pane-hint" data-i18n-html="matching.note">
-            <code>인식모델_대조표</code>·<code>미매칭_진단</code>은 다시 계산할 때마다 새로 만들어지는 확인용 보기입니다.
-            규칙 시트를 고쳐 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.
-          </p>
+          <div class="rule-legend" data-i18n-html="matching.legend">
+            <div><b>대체번호</b> WINGS 번호로 SAM 을 못 찾을 때 대신 찾을 SAM 번호 (생산월·이전 6개월을 정확한 번호로 다 찾아본 뒤에 사용)</div>
+            <div><b>SAM별칭</b> SAM 문서 번호를 처음부터 WINGS 번호로도 인식 (같은 달이면 제 번호처럼 붙음)</div>
+            <div><b>표시치환</b> WINGS 표기가 달라 같은 차가 두 모델로 갈라지지 않게 표시를 통일</div>
+            <div><b>차종</b> 번호로 차종(Actros·Arocs…)을 정함 · <b>옵션</b> normalize_28xx_to_26xx = 28xx↔26xx 자동 연결</div>
+            <div class="rl-foot">고친 뒤 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.</div>
+          </div>
           <div class="editor-empty" id="matchEmpty" data-i18n="matching.loading">model_mapping.xlsx 를 불러오는 중…</div>
           <div class="editor-main hidden" id="matchMain">
             <div class="editor-bar">
@@ -795,50 +799,39 @@
 
         <section class="man-sec" id="m-07">
           <h2>07 · 모델 매칭</h2>
-          <p>“이 차는 <b>어느 SAM 문서</b>와 비교된 건가?”를 확인하고, 매칭 규칙을 고치는 화면입니다.</p>
+          <p>“<b>어디가 안 붙었나</b>”를 먼저 보고, “이 차는 <b>어느 SAM 문서</b>와 비교됐나”를 확인하고, 매칭 규칙을 고치는 화면입니다.
+            위쪽 버튼으로 <b>문제 · 매칭 결과 · 매칭 규칙</b> 세 화면을 오갑니다.</p>
           <figure class="shot">
-            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>모델 매칭 — 매칭 결과</i></div>
-            <figcaption>그림 7-1. 모델 → 비교된 SAM 파일</figcaption>
+            <div class="shot-ph"><span>📷</span><b>캡처 자리</b><i>모델 매칭 — 문제</i></div>
+            <figcaption>그림 7-1. 고칠 매칭 문제를 한 표에</figcaption>
           </figure>
+          <h3>문제 — 고칠 것부터</h3>
+          <p>매칭 문제를 한 표에 모았습니다. 버튼 옆 빨간 숫자가 <b>고칠 것</b>의 수이고, 위쪽 칩으로 종류를 골라 봅니다.</p>
+          <table class="man-tb">
+            <thead><tr><th>구분</th><th>뜻 · 할 일</th></tr></thead>
+            <tbody>
+              <tr><td><b>SAM 못 찾음</b></td><td>SAM 을 못 찾은 WINGS 주문(모델·캡·PTO·생산월로 묶음). 원인 칸이
+                “생산월 폴더가 없음”인지 “그 달 SAM 에 이 번호가 없음”인지 알려 주고, <b>그 달 비슷한 번호</b>도 함께 보여 줍니다.
+                같은 차의 다른 번호라면 <b>규칙 추가</b>로 대체번호를 등록합니다. 대수를 누르면 그 차량 상세가 열립니다</td></tr>
+              <tr><td><b>안 붙은 SAM</b></td><td>잘 읽혔는데 어떤 주문에도 안 쓰인 SAM 문서. 그 달 주문이 0건이면 <b>참고</b>(아직 주문이 없음)로 분류됩니다</td></tr>
+              <tr><td><b>읽지 못한 파일</b></td><td>읽다가 건너뛴 SAM 파일과 이유</td></tr>
+              <tr><td><b>생산월 폴더</b>(참고)</td><td>폴더별로 읽은 파일 수와 인식한 모델 번호, 그 달 주문 수</td></tr>
+            </tbody>
+          </table>
           <h3>매칭 결과</h3>
           <ul class="man-ul">
             <li>모델별로 <b>비교에 쓰인 SAM 파일</b>, 대수, 상태를 보여 줍니다</li>
             <li>캡·PTO는 파일명이 아니라 <b>실제 코드</b>로 판정하며, WINGS와 SAM이 다르면 <span class="mchip ne">≠</span></li>
-            <li><b>매칭된 SAM 없음</b>으로 나오는 모델이 바로 대시보드의 <b>No SAM</b> 원인입니다</li>
           </ul>
-          <h3>대조표(규칙 편집)</h3>
+          <h3>매칭 규칙</h3>
           <p>
-            <code>model_mapping.xlsx</code>의 시트를 웹에서 직접 고칩니다. 편집 방법은 코드 관리와 같습니다(→ 08장).
-            <code>인식모델_대조표</code> 시트는 <b>열 때마다 현재 데이터로 다시 만들어지는 확인용 보기</b>라 저장 대상이 아닙니다.
+            규칙은 <code>model_mapping.xlsx</code>의 <b><code>매칭규칙</code> 시트 한 장</b>(열: 종류 · 기준 · 값 · 메모)에 있습니다.
+            종류 드롭다운으로 좁혀 보고, 편집 방법은 코드 관리와 같습니다(→ 08장).
+            예전처럼 종류별 시트가 여러 장인 파일을 열면 <b>지금 적용되던 규칙 그대로</b> 한 장으로 합쳐 보여 주며, 저장하면 파일도 한 장으로 바뀝니다.
           </p>
           <div class="man-callout warn">
             규칙을 고쳐 저장해도 <b>화면은 바로 바뀌지 않습니다</b>. <b>⟳ 데이터 다시 계산</b>을 눌러야 반영됩니다.
           </div>
-          <h3>진단 탭 — 왜 안 붙었나</h3>
-          <p>
-            <b>매칭 결과</b> 표에는 <b>주문에 붙은</b> SAM 문서만 나옵니다. 넣었는데 아무 주문도 쓰지
-            않은 문서는 거기 흔적이 없어 영영 보이지 않습니다 — 그런 문서는 위 <b>진단</b> 탭에서 봅니다.
-            문서가 무슨 모델키로 읽혔는지, PTO 로 봤는지, 그 생산월 주문이 몇 건인지가 한 줄에 있습니다.
-            아래 워크북 시트와 같은 내용이라 엑셀을 열지 않아도 됩니다.
-          </p>
-
-          <h3>미매칭_진단 — 워크북에서 보기</h3>
-          <p>
-            <b>⟳ 데이터 다시 계산</b>은 끝나면서 이 워크북을 SharePoint 에 다시 씁니다. 규칙 시트는 그대로 두고
-            <code>인식모델_대조표</code>와 <code>미매칭_진단</code>만 이번 결과로 갈아 끼웁니다.
-            <b>새 SAM 파일을 넣었는데 반영이 안 된다</b> 싶으면 <code>미매칭_진단</code> 시트를 먼저 보세요.
-          </p>
-          <ul>
-            <li><b>WINGS 미매칭</b> — SAM 을 못 찾은 주문. 원인 칸이 “생산월 폴더 자체가 없음”인지
-              “그 달 SAM 에 이 번호가 없음”인지 알려 줍니다</li>
-            <li><b>SAM 파일 건너뜀</b> — 읽다가 버린 파일과 이유(모델번호·장비표를 못 찾음, 파싱 실패 등)</li>
-            <li><b>안 붙은 SAM 문서</b> — 잘 읽혔는데 어떤 주문에도 안 쓰인 문서.
-              그 문서가 <b>무슨 모델키로 읽혔는지</b>, <b>PTO 로 봤는지</b>, 그 <b>생산월 주문이 몇 건인지</b>를
-              함께 적습니다. 주문이 0건이면 파일·규칙 문제가 아니라 아직 주문이 없는 것입니다</li>
-            <li><b>WINGS 주문 수</b> — 생산월별 주문 건수. SAM 문서는 있는데 그 달 주문이 없는 경우를 가릅니다</li>
-            <li><b>생산월 폴더</b> — 폴더별로 몇 개를 읽었는지와 인식된 모델키. 파일을 넣었는데 수가
-              안 늘면 파일 형식(<code>.docx</code>)이나 폴더 이름(<code>YYYY-MM …</code>)을 확인하세요</li>
-          </ul>
         </section>
 
         <!-- ===== 08 ===== -->
@@ -1082,19 +1075,16 @@
           <h4><code>mbtruck-spec-data.xlsx</code> — 코드 사전 <span class="man-sheet">시트: code_dict</span></h4>
           <p>B열 = 코드, C열 = 영문 설명. 화면의 코드 설명과 <b>숫자 없는 코드의 인식</b>에 함께 쓰입니다.</p>
 
-          <h4><code>model_mapping.xlsx</code> — 매칭 규칙 (<code>03. model_rules</code>)</h4>
-          <p>모든 시트가 <b>A열=키, B열=값</b> 구조입니다.</p>
+          <h4><code>model_mapping.xlsx</code> — 매칭 규칙 (<code>03. model_rules</code>) <span class="man-sheet">시트: 매칭규칙</span></h4>
+          <p>시트 한 장, <b>A=종류 · B=기준 · C=값 · D=메모</b>. 같은 종류·기준이 여러 줄이면 목록 종류(SAM별칭·차종)는 값을 합칩니다.</p>
           <table class="man-tb">
-            <thead><tr><th>시트</th><th>역할</th></tr></thead>
+            <thead><tr><th>종류</th><th>기준 → 값</th><th>역할</th></tr></thead>
             <tbody>
-              <tr><td><code>정규화_과거번호</code></td><td><b>매칭에 쓰임</b> — 같은 차의 과거/대체 번호 (예 <code>3253 ↔ 4153</code>). 양방향으로 봅니다</td></tr>
-              <tr><td><code>모델별칭</code></td><td><b>매칭에 쓰임</b> — SAM 번호 → 같은 차를 부르는 WINGS 번호들(쉼표로 여러 개)</td></tr>
-              <tr><td><code>옵션</code></td><td><b>매칭에 쓰임</b> — <code>normalize_28xx_to_26xx</code> 가 true 면 28xx ↔ 26xx(DNA)를 같은 차로 봄</td></tr>
-              <tr><td><code>이전모델</code> / <code>현재모델</code></td><td>세대 관계 표기(참고용). 2853 과 2863 은 <b>다른 차</b>라 매칭 키로는 쓰지 않습니다</td></tr>
-              <tr><td><code>WINGS표시치환</code></td><td>WINGS 표기를 화면 표기로 치환 — 같은 차가 표기 차이로 두 모델처럼 갈라지는 걸 막습니다</td></tr>
-              <tr><td><code>차종키워드</code></td><td>차종 판정 키워드 (값은 쉼표로 여러 개)</td></tr>
-              <tr><td><code>인식모델_대조표</code></td><td><b>확인용 보기</b>. 다시 계산할 때마다 새로 생성되므로 편집·저장 대상 아님</td></tr>
-              <tr><td><code>미매칭_진단</code></td><td><b>확인용 보기</b>. SAM 을 못 찾은 주문과 그 원인, 건너뛴 SAM 파일, 생산월 폴더별 읽은 파일 수</td></tr>
+              <tr><td><code>대체번호</code></td><td>WINGS 번호 → SAM 번호</td><td><b>매칭에 쓰임</b> — 정확한 번호로 생산월·이전 6개월을 다 찾아본 뒤에 대신 찾을 번호. 양방향 (예 <code>3253 ↔ 4153</code>)</td></tr>
+              <tr><td><code>SAM별칭</code></td><td>SAM 번호 → WINGS 번호들(쉼표)</td><td><b>매칭에 쓰임</b> — 그 SAM 문서를 처음부터 WINGS 번호로도 인식. 같은 달이면 제 번호처럼 붙습니다</td></tr>
+              <tr><td><code>옵션</code></td><td><code>normalize_28xx_to_26xx</code> → true/false</td><td><b>매칭에 쓰임</b> — true 면 28xx ↔ 26xx(DNA)를 같은 차로 봄</td></tr>
+              <tr><td><code>표시치환</code></td><td>WINGS 표기 → 통일할 표기</td><td>같은 차가 표기 차이로 두 모델처럼 갈라지는 걸 막습니다</td></tr>
+              <tr><td><code>차종</code></td><td>차종 → 번호들(쉼표)</td><td>파일명에 차종이 없을 때 번호로 차종을 정합니다</td></tr>
             </tbody>
           </table>
           <div class="man-callout warn">
@@ -1264,9 +1254,9 @@
   <script src="lib/unzip.js?v=20260724b"></script>
   <script src="lib/samparse.js?v=20261116b"></script>
   <script src="lib/wingsparse.js?v=20260928a"></script>
-  <script src="lib/refdata.js?v=20260819c"></script>
-  <script src="lib/compare.js?v=20261017a"></script>
-  <script src="lib/pipeline.js?v=20261116b"></script>
+  <script src="lib/refdata.js?v=20261116a"></script>
+  <script src="lib/compare.js?v=20261116a"></script>
+  <script src="lib/pipeline.js?v=20261116c"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),
        로드가 끝난(성공/실패 확정) 뒤에 auth.js 를 이어서 로드한다.

@@ -229,7 +229,7 @@
     // 각 행의 생산월 폴더 + 이전 6개월로 'SAM update요청'을 판정하므로, 미래 폴더가
     // 있어도 이전 달이 누락되지 않도록 존재하는 모든 생산월 폴더를 읽는다.
     const targets = months;
-    // 진단용 수집 — 어떤 파일이 왜 빠졌는지는 빌드가 끝난 뒤 model_mapping.xlsx 에 적는다.
+    // 진단용 수집 — 어떤 파일이 왜 빠졌는지는 data.json(diagnostics)에 담아 모델 매칭 > 문제 탭이 보여 준다.
     const skipped = (diag && diag.samSkipped) || [];
     const monthStats = (diag && diag.samMonths) || [];
     log(`[sam] 생산월 폴더 ${months.length}개 사용: ${targets.map((m) => m.name).join(', ')}`);

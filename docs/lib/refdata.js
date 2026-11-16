@@ -184,14 +184,22 @@
     return { codes: codes, excepts: excepts };
   }
 
-  // ---- model_mapping.xlsx : 모든 매칭 규칙 (rules.py 와 동일 시트명) ----
+  // ---- model_mapping.xlsx : 모든 매칭 규칙 (rules.py 와 같은 규칙) ----
+  // 규칙은 '매칭규칙' 시트 한 장에 모은다:  종류 | 기준 | 값 | 메모
+  //   대체번호  기준=WINGS 번호, 값=SAM 번호        → normalize_historic
+  //             정확한 번호로 생산월·이전월을 다 찾은 뒤에야 쓰는 '대신 찾을 번호'(양방향).
+  //   SAM별칭   기준=SAM 문서 번호, 값=WINGS 번호들  → reverse_aliases
+  //             그 SAM 문서를 처음부터 WINGS 번호로도 인식한다(같은 달이면 제 번호처럼 붙는다).
+  //   표시치환  기준=WINGS 표기, 값=통일할 표기      → wings_display_replace (목록 표시용)
+  //   차종      기준=차종(Vehicle), 값=번호들         → vehicle_keywords
+  //   옵션      기준=normalize_28xx_to_26xx, 값=true/false
+  // 예전 워크북(종류별 시트 9장)도 그대로 읽는다 — '매칭규칙' 시트가 있으면 그것만 본다.
+  // 이전모델·현재모델(세대 이웃)은 매칭에 쓰인 적이 없어 폐기했다.
   const RULE_DEFAULTS = {
     normalize_historic: { '3253': '4153', '4140': '4440', '2643': '3343',
       '2851': '2651', '2135': '1835', '2863': '2663', '2853': '2653' },
     normalize_28xx_to_26xx: true,
     reverse_aliases: { '3253': ['4153'] },
-    previous_model: { '4453': '4153', '4153': '3253', '3343': '2643', '2853': '2663', '2851': '2661' },
-    current_model: { '4453': '4463', '4153': '4163', '3343': '3363', '2853': '2863', '2851': '2861' },
     wings_display_replace: { '4140': '4440', '2651 LS': '2851 LS', '2653 LS': '2853 LS',
       '2663 LS': '2863 LS', '2643 A': '3343 A' },
     vehicle_keywords: {
@@ -200,57 +208,118 @@
       'Arocs': ['2643', '3343', '4153', '4453', '3253', '2135', '4440', '4140'],
     },
   };
-  const MAP_SHEETS = {
+  const RULE_SHEET = '매칭규칙';
+  const RULE_HEADER = ['종류', '기준', '값', '메모'];
+  // 종류(시트에 적는 이름) → 규칙 키. list = 값이 쉼표 목록.
+  const RULE_KINDS = [
+    { kind: '대체번호', key: 'normalize_historic', list: false },
+    { kind: 'SAM별칭', key: 'reverse_aliases', list: true },
+    { kind: '표시치환', key: 'wings_display_replace', list: false },
+    { kind: '차종', key: 'vehicle_keywords', list: true },
+    { kind: '옵션', key: null, list: false },
+  ];
+  const OPTION_KEYS = ['normalize_28xx_to_26xx'];
+  // 예전 시트 이름 → 규칙 키 (마이그레이션·호환 읽기용)
+  const LEGACY_MAP_SHEETS = {
     '정규화_과거번호': 'normalize_historic',
-    '이전모델': 'previous_model',
-    '현재모델': 'current_model',
     'WINGS표시치환': 'wings_display_replace',
   };
-  // 수동 교정 시트(수동매핑·매칭_별칭(수동))는 폐기했다 — SAM 문서의 번호·코드로만 매칭한다.
-  const LIST_SHEETS = {
+  const LEGACY_LIST_SHEETS = {
     '차종키워드': 'vehicle_keywords',
-    // SAM 문서 번호 → 같은 차를 가리키는 WINGS 번호들. samparse.buildSamMapping 이
-    // 이 표로 모델키를 늘려 준다(예: 3253 → 4153).
     '모델별칭': 'reverse_aliases',
   };
 
-  function loadRules(buf) {
+  const truthy = (v) => ['true', '1', 'yes', 'y', 'on'].indexOf(String(v).toLowerCase()) !== -1;
+  const splitList = (v) => String(v).split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  function kindOf(name) {
+    const n = s(name).replace(/\s+/g, '').toLowerCase();
+    for (const k of RULE_KINDS) {
+      if (k.kind.toLowerCase() === n || (k.key && k.key.toLowerCase() === n)) return k;
+    }
+    return null;
+  }
+
+  // 시트 이름 → AOA 를 돌려주는 함수(getAoa)와 시트 이름 목록으로 규칙을 만든다.
+  // 워크북(xlsx 바이트)에서도, 편집 중인 화면의 시트에서도 같은 규칙이 나와야 해서 분리했다.
+  function rulesFromSheets(names, getAoa) {
     const merged = JSON.parse(JSON.stringify(RULE_DEFAULTS));
-    if (!buf) return merged;
-    let wb;
-    try { wb = readWb(buf); } catch (e) { return merged; }
+    const has = (n) => names.indexOf(n) !== -1;
     const pairs = function (sheet) {
-      const aoa = sheetAoa(wb, sheet);
+      const aoa = getAoa(sheet) || [];
       const out = [];
       for (let i = 1; i < aoa.length; i++) {
         const row = aoa[i] || [];
         const k = s(row[0]);
-        if (k) out.push([k, s(row[1])]);
+        if (k) out.push([k, s(row[1]), s(row[2])]);
       }
       return out;
     };
-    for (const sheet of Object.keys(MAP_SHEETS)) {
-      if (wb.SheetNames.indexOf(sheet) === -1) continue;
+    if (has(RULE_SHEET)) {
+      const found = {};
+      for (const [kindName, k, v] of pairs(RULE_SHEET)) {
+        const kd = kindOf(kindName);
+        if (!kd || !s(k)) continue;
+        if (!kd.key) {
+          if (OPTION_KEYS.indexOf(k) !== -1) merged[k] = truthy(v);
+          continue;
+        }
+        if (!found[kd.key]) found[kd.key] = {};
+        if (kd.list) {
+          const prev = found[kd.key][k] || [];
+          for (const x of splitList(v)) if (prev.indexOf(x) === -1) prev.push(x);
+          found[kd.key][k] = prev;
+        } else {
+          found[kd.key][k] = v;
+        }
+      }
+      // 종류가 하나도 없으면 기본값 유지 — 실수로 비운 시트가 규칙을 통째로 지우지 않도록.
+      for (const key of Object.keys(found)) if (Object.keys(found[key]).length) merged[key] = found[key];
+      return merged;
+    }
+    for (const sheet of Object.keys(LEGACY_MAP_SHEETS)) {
+      if (!has(sheet)) continue;
       const obj = {};
       for (const [k, v] of pairs(sheet)) obj[k] = v;
-      if (Object.keys(obj).length) merged[MAP_SHEETS[sheet]] = obj;
+      if (Object.keys(obj).length) merged[LEGACY_MAP_SHEETS[sheet]] = obj;
     }
-    for (const sheet of Object.keys(LIST_SHEETS)) {
-      if (wb.SheetNames.indexOf(sheet) === -1) continue;
+    for (const sheet of Object.keys(LEGACY_LIST_SHEETS)) {
+      if (!has(sheet)) continue;
       const obj = {};
-      for (const [k, v] of pairs(sheet)) {
-        obj[k] = v.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
-      }
-      if (Object.keys(obj).length) merged[LIST_SHEETS[sheet]] = obj;
+      for (const [k, v] of pairs(sheet)) obj[k] = splitList(v);
+      if (Object.keys(obj).length) merged[LEGACY_LIST_SHEETS[sheet]] = obj;
     }
-    if (wb.SheetNames.indexOf('옵션') !== -1) {
+    if (has('옵션')) {
       for (const [k, v] of pairs('옵션')) {
-        if (k === 'normalize_28xx_to_26xx') {
-          merged.normalize_28xx_to_26xx = ['true', '1', 'yes', 'y', 'on'].indexOf(v.toLowerCase()) !== -1;
-        }
+        if (OPTION_KEYS.indexOf(k) !== -1) merged[k] = truthy(v);
       }
     }
     return merged;
+  }
+
+  function loadRules(buf) {
+    if (!buf) return JSON.parse(JSON.stringify(RULE_DEFAULTS));
+    let wb;
+    try { wb = readWb(buf); } catch (e) { return JSON.parse(JSON.stringify(RULE_DEFAULTS)); }
+    return rulesFromSheets(wb.SheetNames, function (n) { return sheetAoa(wb, n); });
+  }
+
+  // 규칙 → '매칭규칙' 시트 AOA. 예전 워크북을 통합 시트로 옮길 때 쓴다 — 지금 실제로
+  // 적용되던 규칙(기본값 포함)을 그대로 옮기므로 매칭 결과가 바뀌지 않는다.
+  function rulesToAoa(rules, notes) {
+    notes = notes || {};
+    const aoa = [RULE_HEADER.slice()];
+    for (const kd of RULE_KINDS) {
+      if (!kd.key) continue;
+      const obj = rules[kd.key] || {};
+      for (const k of Object.keys(obj)) {
+        const v = obj[k];
+        aoa.push([kd.kind, k, Array.isArray(v) ? v.join(', ') : String(v), notes[kd.kind] || '']);
+      }
+    }
+    for (const k of OPTION_KEYS) {
+      aoa.push(['옵션', k, rules[k] ? 'true' : 'false', notes['옵션'] || '']);
+    }
+    return aoa;
   }
 
   const api = {
@@ -261,6 +330,11 @@
     loadFactoryControl: loadFactoryControl,
     loadPtoCodes: loadPtoCodes,
     loadRules: loadRules,
+    rulesFromSheets: rulesFromSheets,
+    rulesToAoa: rulesToAoa,
+    RULE_SHEET: RULE_SHEET,
+    RULE_HEADER: RULE_HEADER,
+    RULE_KINDS: RULE_KINDS,
     categoryForBaumuster: categoryForBaumuster,
     classifyPrefix: classifyPrefix,
     RULE_DEFAULTS: RULE_DEFAULTS,

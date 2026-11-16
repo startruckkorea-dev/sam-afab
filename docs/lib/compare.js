@@ -123,7 +123,7 @@
   /**
    * WINGS 모델키 하나로 SAM 쪽에서 찾아볼 키 후보들을 만든다.
    * 첫 번째는 언제나 원래 키라, 규칙은 '원래 키로 못 찾았을 때만' 개입한다(기존 결과 보존).
-   * model_mapping.xlsx 의 정규화_과거번호 · 이전모델 · 현재모델 · 모델별칭 · 옵션 시트가
+   * model_mapping.xlsx '매칭규칙' 시트의 대체번호 · SAM별칭 · 옵션이
    * 여기서 처음으로 실제 매칭에 쓰인다 — 시트를 고치면 매칭이 바뀐다.
    */
   function modelKeyCandidates(modelNorm, rules) {
@@ -140,8 +140,8 @@
       add(o[num]);
       for (const k of Object.keys(o)) if (String(o[k]) === num) add(k);
     };
-    // 같은 차를 가리키는 표만 쓴다. 이전모델/현재모델 은 '세대 이웃'이라
-    // (2853 과 2863 은 다른 차) 키로 쓰면 엉뚱한 모델과 조용히 비교된다.
+    // 같은 차를 가리키는 규칙만 쓴다. 세대 이웃(2853 과 2863 은 다른 차)을
+    // 키로 쓰면 엉뚱한 모델과 조용히 비교된다.
     both(rules.normalize_historic);
     const rev = rules.reverse_aliases || {};
     for (const k of Object.keys(rev)) {

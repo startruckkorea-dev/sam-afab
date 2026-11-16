@@ -109,7 +109,7 @@ def _model_key_candidates(model_norm: str) -> list:
 
     The original key always comes first, so the rule sheets only ever add a
     fallback — a row that already matched keeps matching the same file. This is
-    where model_mapping.xlsx (정규화_과거번호 · 이전모델 · 현재모델 · 모델별칭 · 옵션)
+    where model_mapping.xlsx ('매칭규칙' sheet: 대체번호 · SAM별칭 · 옵션)
     first reaches the matching itself: edit a sheet and the matching changes.
     """
     num, suf = _split_model(model_norm)
@@ -133,9 +133,8 @@ def _model_key_candidates(model_norm: str) -> list:
             if str(v) == num:
                 add(k)
 
-    # Only same-truck tables belong here. 이전모델/현재모델 are generation NEIGHBOURS
-    # (2853 vs 2863 are different trucks), so using them as keys would silently compare
-    # a vehicle against the wrong model.
+    # Only same-truck rules belong here — never generation neighbours (2853 vs 2863 are
+    # different trucks), which would silently compare a vehicle against the wrong model.
     both(RULES.get('normalize_historic'))
     for k, lst in (RULES.get('reverse_aliases') or {}).items():
         lst = lst or []

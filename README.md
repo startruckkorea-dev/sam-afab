@@ -19,7 +19,7 @@ SAM/WINGS/코드/모델규칙 원본은 **repo 에 커밋하지 않고 SharePoin
 |---|---|
 | `SAM-AFAB_Data/01. SAM_files` | SAM 원본 — 빌드는 **가장 최근 생산월** 폴더만 사용 (`YYYY-MM …`) |
 | `SAM-AFAB_Data/02. WINGS_data` | WINGS export — 빌드는 **최신 파일**만 사용 |
-| `SAM-AFAB_Data/03. model_rules` | `model_mapping.xlsx` — **모든 모델 매칭 규칙** |
+| `SAM-AFAB_Data/03. model_rules` | `model_mapping.xlsx` — **모든 모델 매칭 규칙**, `매칭규칙` 시트 한 장 (종류 · 기준 · 값 · 메모) |
 | `SAM-AFAB_Data/04. code` | 코드 사전 / 필수코드 / 카테고리 / cab xlsx |
 | `SAM-AFAB_Data/05. output` | **빌드 결과** `data.json` · `codes.json` (대시보드가 읽는 파일) |
 | `SAM-AFAB_Data/06. exceptions` | **Mismatch 예외** `exceptions.json` — Admin 이 코드별 '문제없음' 처리 · 노트 · 전체 이력. Admin 에게 **쓰기 권한** 필요 |
