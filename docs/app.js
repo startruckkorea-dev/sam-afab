@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116a';
+const I18N_VER = '20261116b';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -154,6 +154,7 @@ function setLang(lang) {
   fillFilters();
   render();
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
+  if (VIEW_INIT.exceptions) excRender();
   if (typeof codeEditor !== 'undefined') codeEditor.refresh();
   if (typeof matchEditor !== 'undefined') matchEditor.refresh();
   if (VIEW_INIT.matching) renderMatchSummary();
@@ -167,10 +168,10 @@ function esc(s) {
 
 // ====================== 뷰 전환 (대시보드 / 생산월 이력관리 / 모델 매칭 / 코드 관리) ======================
 let CUR_VIEW = 'dashboard';
-const VIEW_INIT = { history: false, matching: false, codes: false, manual: false };
+const VIEW_INIT = { history: false, exceptions: false, matching: false, codes: false, manual: false };
 
 function switchView(view) {
-  if (!['dashboard', 'history', 'matching', 'codes', 'manual'].includes(view)) return;
+  if (!['dashboard', 'history', 'exceptions', 'matching', 'codes', 'manual'].includes(view)) return;
   if (!IS_ADMIN && LOCKED_VIEWS.includes(view)) { alert(t('role.denied')); return; }
   // 저장 안 한 편집이 있으면 이탈 확인 (모델 매칭 / 코드 관리)
   if (view !== CUR_VIEW) {
@@ -192,6 +193,7 @@ function switchView(view) {
   const exportBtn = $('#exportBtn');
   if (exportBtn) exportBtn.classList.toggle('hidden', view !== 'dashboard');
   if (view === 'history' && !VIEW_INIT.history) { VIEW_INIT.history = true; initHistory(); }
+  if (view === 'exceptions' && !VIEW_INIT.exceptions) { VIEW_INIT.exceptions = true; initExceptions(); }
   if (view === 'matching' && !VIEW_INIT.matching) { VIEW_INIT.matching = true; initMatching(); }
   if (view === 'codes' && !VIEW_INIT.codes) { VIEW_INIT.codes = true; initCodes(); }
   if (view === 'manual' && !VIEW_INIT.manual) { VIEW_INIT.manual = true; initManual(); }
@@ -274,6 +276,7 @@ async function load() {
   DATA_SOURCE = '';
   const d = await fetchJson('data.json');
   const c = await fetchJson('codes.json', CODES);
+  await loadExceptions();   // 실패해도 대시보드는 뜬다(예외 미적용 = 원래 판정 그대로)
   applyData(d, c);
 }
 
@@ -281,6 +284,7 @@ async function load() {
 function applyData(d, c) {
   DATA = d; CODES = c || CODES;
   (DATA.rows || []).forEach((r) => { r.MY = computeMY(r); });
+  applyExceptions();
   renderMeta();
   renderSummary();
   renderModelPanel();
@@ -288,6 +292,8 @@ function applyData(d, c) {
   renderHead();
   render();
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
+  if (VIEW_INIT.exceptions) excRender();
+  excNavBadge();
   if (VIEW_INIT.matching) {
     renderMatchSummary();
     renderMatchDiag();
@@ -942,7 +948,10 @@ function render() {
       v = v == null ? '' : String(v);
       if (c.status) {
         const upd = r['SAM Update'] ? `<span class="status SAMupdate upd">${esc(t('tile.samupd'))}</span>` : '';
-        return `<td><div class="status-cell">${statusBadge(v)}${upd}</div></td>`;
+        const exc = r._accepted
+          ? `<span class="status exc upd" title="${esc(t('exc.chip.title'))}">${esc(t('exc.chip'))}</span>`
+          : (r._accN ? `<span class="status exc part upd" title="${esc(t('exc.chipPart.title'))}">${esc(t('exc.chipPart', { n: r._accN }))}</span>` : '');
+        return `<td><div class="status-cell">${statusBadge(v)}${exc}${upd}</div></td>`;
       }
       // Commission — 상세 창을 여는 버튼(행 클릭과 같은 동작, 키보드로도 열린다).
       if (c.key === 'Commission no.') {
@@ -987,7 +996,8 @@ function pairTitle(r, kind) {
 }
 
 const DIFF_GROUPS = ['_paint', '_tyre'];
-function diffCodes(r, kind) {
+// 원본 차이 — 'Mismatch 예외' 승인 여부와 상관없이 compare 가 낸 그대로.
+function rawDiffCodes(r, kind) {
   if (kind === 'mand') return splitCodes(r['Mandatory Codes']);
   const mine = kind === 'sam' ? '_sam' : '_wings';
   const other = kind === 'sam' ? '_wings' : '_sam';
@@ -1001,7 +1011,294 @@ function diffCodes(r, kind) {
   }
   return out;
 }
+// 화면·Export 가 쓰는 차이 — 관리자가 '문제없음'으로 승인한 코드는 뺀다.
+function diffCodes(r, kind) {
+  const raw = rawDiffCodes(r, kind);
+  return kind === 'mand' ? raw : raw.filter((c) => !isAccepted(r, kind, c));
+}
 function diffCount(r, kind) { return diffCodes(r, kind).length; }
+
+// ====================== Mismatch 예외 (문제없는 차이) ======================
+// 담당자가 '문제없음'으로 요청한 차이 코드를 관리자가 코드 하나씩 승인하면, 그 코드는
+// 더 이상 차이로 세지 않는다. 한 차량의 차이 코드가 모두 승인되면 대시보드에서 Match 로
+// 분류된다. 원래 판정은 r._orig_status 에 남기고, 요청·승인·반려·해제는 전부
+// SharePoint '06. exceptions/exceptions.json' 의 log 에 쌓는다(지우지 않는다).
+//
+//   단위(key) = Commission | 구분(sam = SAM에만, win = WINGS에만) | 코드
+//   상태      = pending(승인 대기) → approved(승인) | rejected(반려) | cancelled(요청 취소)
+//               approved → revoked(승인 해제).  rejected/cancelled/revoked 는 다시 요청할 수 있다.
+//
+// 빌드 결과(data.json)는 건드리지 않는다 — 승인은 다시 계산 없이 화면을 여는 순간 반영된다.
+const EXC_FILE = 'exceptions.json';
+const EXC_LOCAL_KEY = 'sam-afab-exceptions';   // 로그인 없는 로컬 개발용 저장소
+let EXC = { version: 1, items: {}, log: [], updated_at: '' };
+let EXC_STATE = 'idle';   // 'ok' | 'none'(아직 파일 없음) | 'error' | 'local'
+let EXC_ERR = '';
+
+function excKey(comm, side, code) { return `${String(comm).trim()}|${side}|${code}`; }
+function excItem(r, side, code) { return r ? EXC.items[excKey(r['Commission no.'], side, code)] : undefined; }
+function isAccepted(r, side, code) { const it = excItem(r, side, code); return !!it && it.status === 'approved'; }
+function excLocal() { return !(window.Graph && Graph.available()); }
+
+function excUser() {
+  const a = window.MB_AUTH && typeof window.MB_AUTH.account === 'function' ? window.MB_AUTH.account() : null;
+  const id = String((a && a.username) || 'local').toLowerCase();
+  return { id, name: (a && (a.name || a.username)) || id };
+}
+
+function excNormalize(d) {
+  d = d && typeof d === 'object' ? d : {};
+  return {
+    version: 1,
+    items: d.items && typeof d.items === 'object' ? d.items : {},
+    log: Array.isArray(d.log) ? d.log : [],
+    updated_at: d.updated_at || '',
+  };
+}
+
+async function excRead() {
+  if (excLocal()) {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(EXC_LOCAL_KEY) || 'null'); } catch { /* 저장소 막힘 */ }
+    return { data: d, etag: null };
+  }
+  return Graph.readJsonVersioned('exceptions', EXC_FILE);
+}
+
+async function loadExceptions() {
+  try {
+    const { data } = await excRead();
+    EXC = excNormalize(data);
+    EXC_STATE = excLocal() ? 'local' : (data ? 'ok' : 'none');
+    EXC_ERR = '';
+  } catch (e) {
+    console.warn('[exceptions] 읽기 실패 — 예외 미적용:', e.message);
+    EXC_STATE = 'error';
+    EXC_ERR = e.message;
+  }
+}
+
+// 차량별 상태를 예외 승인 기준으로 다시 매긴다. 원래 판정은 _orig_status 에 보존.
+function excRowCodes(r) {
+  return [...rawDiffCodes(r, 'sam').map((c) => ['sam', c]), ...rawDiffCodes(r, 'win').map((c) => ['win', c])];
+}
+function applyExceptions() {
+  for (const r of DATA.rows || []) {
+    if (r._orig_status === undefined) r._orig_status = r['SAM Status'];
+    r._accepted = false;
+    r._accN = 0;
+    if (r._orig_status !== 'Mismatch') { r['SAM Status'] = r._orig_status; continue; }
+    const codes = excRowCodes(r);
+    r._accN = codes.filter(([s, c]) => isAccepted(r, s, c)).length;
+    r._accepted = codes.length > 0 && r._accN === codes.length;
+    r['SAM Status'] = r._accepted ? 'Match' : 'Mismatch';
+  }
+}
+
+// 누가 무엇을 할 수 있나 — 화면 버튼 표시와 저장 직전 재검사에 같이 쓴다.
+const EXC_NEXT = { request: 'pending', cancel: 'cancelled', approve: 'approved', reject: 'rejected', revoke: 'revoked' };
+function excCan(action, it, u) {
+  u = u || excUser();
+  const st = it ? it.status : '';
+  switch (action) {
+    case 'request': return !it || ['rejected', 'cancelled', 'revoked'].includes(st);
+    case 'cancel':  return st === 'pending' && (IS_ADMIN || it.requested_by === u.id);
+    case 'approve':
+    case 'reject':  return IS_ADMIN && st === 'pending';
+    case 'revoke':  return IS_ADMIN && st === 'approved';
+    default: return false;
+  }
+}
+
+function rowByComm(comm) {
+  const k = String(comm).trim();
+  return (DATA.rows || []).find((r) => String(r['Commission no.']).trim() === k) || null;
+}
+
+// 읽고 → 바꾸고 → eTag 조건부로 쓴다. 그 사이 누가 고쳤으면 다시 읽어서 처음부터.
+// targets = [{ comm, side, code }]. 지금 상태에서 할 수 없는 항목은 건너뛴다.
+async function excMutate(action, targets, text) {
+  const u = excUser();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data, etag } = await excRead();
+    const doc = excNormalize(data);
+    const now = new Date().toISOString();
+    let done = 0;
+    for (const tg of targets) {
+      const key = excKey(tg.comm, tg.side, tg.code);
+      const it = doc.items[key];
+      if (!excCan(action, it, u)) continue;
+      if (action === 'request') {
+        const r = rowByComm(tg.comm) || {};
+        doc.items[key] = {
+          commission: String(tg.comm).trim(), side: tg.side, code: tg.code, status: 'pending',
+          reason: text || '', requested_by: u.id, requested_by_name: u.name, requested_at: now,
+          decided_by: '', decided_by_name: '', decided_at: '', note: '',
+          // 그 차량이 다음 빌드에서 빠져도 무엇에 대한 요청이었는지 알 수 있게 남긴다.
+          vehicle: r['Vehicle'] || '', type: r['Model(WINGS)'] || '', axle: r['Type'] || '',
+          production: r['Production date'] || '', sam_file: r['Compared SAM file name'] || '',
+        };
+      } else {
+        it.status = EXC_NEXT[action];
+        it.decided_by = u.id; it.decided_by_name = u.name; it.decided_at = now; it.note = text || '';
+      }
+      doc.log.push({ at: now, by: u.id, by_name: u.name, action, key,
+        commission: String(tg.comm).trim(), side: tg.side, code: tg.code, text: text || '' });
+      done++;
+    }
+    if (!done) { EXC = doc; return 0; }
+    doc.updated_at = now;
+    if (excLocal()) {
+      try { localStorage.setItem(EXC_LOCAL_KEY, JSON.stringify(doc)); } catch { /* 이번 세션만 */ }
+      EXC = doc;
+      return done;
+    }
+    try {
+      if (!etag) await Graph.ensureFolder('exceptions');
+      await Graph.writeJsonVersioned('exceptions', EXC_FILE, doc, etag);
+      EXC = doc;
+      EXC_STATE = 'ok';
+      return done;
+    } catch (e) {
+      if (e.conflict && attempt < 3) continue;   // 다른 사람이 먼저 저장 — 최신본에 다시 적용
+      throw e;
+    }
+  }
+  return 0;
+}
+
+// 버튼 동작 공통 — 사유/메모 입력 → 저장 → 화면 전체 갱신.
+let EXC_BUSY = false;
+async function excAction(action, targets) {
+  if (EXC_BUSY || !targets.length) return;
+  let text = '';
+  if (action === 'request') {
+    text = prompt(t('exc.ask.reason', { n: targets.length }), '');
+    if (text === null) return;
+    text = text.trim();
+    if (!text) { alert(t('exc.ask.reasonReq')); return; }
+  } else if (action === 'reject' || action === 'revoke') {
+    text = prompt(t('exc.ask.' + action), '');
+    if (text === null) return;
+    text = text.trim();
+    if (action === 'revoke' && !text) { alert(t('exc.ask.reasonReq')); return; }
+  } else if (action === 'approve') {
+    const tg = targets[0];
+    if (!confirm(t('exc.ask.approve', { c: tg.comm, code: tg.code }))) return;
+  } else if (action === 'cancel') {
+    if (!confirm(t('exc.ask.cancel'))) return;
+  }
+  EXC_BUSY = true;
+  document.body.classList.add('exc-busy');
+  try {
+    const n = await excMutate(action, targets, text);
+    if (n < targets.length) alert(t('exc.skipped', { n: targets.length - n }));
+  } catch (e) {
+    console.error(e);
+    alert(t(e.status === 403 || e.status === 401 ? 'exc.err.perm' : 'exc.err.save', { err: e.message }));
+  } finally {
+    EXC_BUSY = false;
+    document.body.classList.remove('exc-busy');
+    excRefreshAll();
+  }
+}
+
+// 예외가 바뀌면 상태·타일·표·상세 창·예외 화면을 모두 다시 그린다.
+function excRefreshAll() {
+  applyExceptions();
+  renderSummary();
+  fillFilters();
+  render();
+  if (VIEW_INIT.history) histRender();
+  if (VIEW_INIT.exceptions) excRender();
+  excNavBadge();
+  if (DRAWER_ROW && !$('#drawer').classList.contains('hidden')) openDrawer(DRAWER_ROW);
+}
+
+function excNavBadge() {
+  const b = $('#excNavBadge');
+  if (!b) return;
+  const n = Object.values(EXC.items).filter((it) => it.status === 'pending').length;
+  b.textContent = n ? fmtNum(n) : '';
+  b.classList.toggle('hidden', !n);
+  b.title = t('exc.navBadge', { n });
+}
+
+function excSideLabel(side) { return t(side === 'sam' ? 'exc.side.sam' : 'exc.side.win'); }
+function excStateHtml(it) {
+  const st = it ? it.status : 'none';
+  return `<span class="exc-st ${st}">${esc(t('exc.st.' + st))}</span>`;
+}
+function excWho(name, at) {
+  return [name, at ? fmtKst(at) : ''].filter(Boolean).join(' · ');
+}
+// 한 코드에 대해 지금 사용자가 누를 수 있는 버튼들.
+function excButtonsHtml(it, comm, side, code) {
+  const u = excUser();
+  const btn = (a, cls) => excCan(a, it, u)
+    ? `<button type="button" class="btn xs ${cls || ''}" data-exc="${a}" data-comm="${esc(comm)}" data-side="${side}" data-code="${esc(code)}">${esc(t('exc.act.' + a))}</button>`
+    : '';
+  return btn('request', 'primary-soft') + btn('approve', 'ok') + btn('reject', 'danger') + btn('cancel') + btn('revoke', 'danger');
+}
+function excTargetOf(b) { return { comm: b.dataset.comm, side: b.dataset.side, code: b.dataset.code }; }
+
+// 상세 창 — 원래 Mismatch 인 차량에만, 차이 코드마다 예외 상태와 버튼을 보여 준다.
+function excSecHtml(r) {
+  if (r._orig_status !== 'Mismatch') return '';
+  const comm = String(r['Commission no.']).trim();
+  const codes = excRowCodes(r);
+  if (!codes.length) return '';
+  const rows = codes.map(([side, code]) => {
+    const it = excItem(r, side, code);
+    const meta = [];
+    if (it && it.requested_at) {
+      meta.push(`${esc(t('exc.meta.req'))} ${esc(excWho(it.requested_by_name, it.requested_at))}`
+        + (it.reason ? ` — “${esc(it.reason)}”` : ''));
+    }
+    if (it && it.decided_at && it.status !== 'pending') {
+      meta.push(`${esc(t('exc.st.' + it.status))} ${esc(excWho(it.decided_by_name, it.decided_at))}`
+        + (it.note ? ` — “${esc(it.note)}”` : ''));
+    }
+    const chip = side === 'sam' ? 'crit' : 'accent';
+    return `<div class="exc-row${it && it.status === 'approved' ? ' accepted' : ''}" data-q="${qAttr(code, describe(code))}">`
+      + `<span class="exc-side">${esc(excSideLabel(side))}</span>`
+      + `<span class="cchip ${chip}">${esc(code)}</span>`
+      + `<span class="cdesc">${esc(describe(code) || '—')}</span>`
+      + excStateHtml(it)
+      + `<span class="exc-acts">${excButtonsHtml(it, comm, side, code)}</span>`
+      + (meta.length ? `<div class="exc-meta">${meta.join('<br>')}</div>` : '')
+      + `</div>`;
+  }).join('');
+  const open = codes.filter(([s, c]) => excCan('request', excItem(r, s, c)));
+  const all = open.length > 1
+    ? `<button type="button" class="btn xs primary-soft" data-exc-all="request">${esc(t('exc.act.requestAll', { n: open.length }))}</button>`
+    : '';
+  const n = r._accN || 0;
+  return `<section class="dsec exc-sec">
+      <header class="dsec-head">
+        <h3>${esc(t('exc.sec.title'))}</h3><span class="cnt ${n === codes.length ? 'zero' : 'crit'}">${n}/${codes.length}</span>
+        ${all}
+        <span class="dsec-hint">${esc(t('exc.sec.hint'))}</span>
+      </header>
+      <div class="dsec-body">${rows}</div>
+    </section>`;
+}
+
+function wireExcSec(root, r) {
+  const sec = root.querySelector('.exc-sec');
+  if (!sec) return;
+  sec.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-exc]');
+    if (b) { excAction(b.dataset.exc, [excTargetOf(b)]); return; }
+    const all = e.target.closest('button[data-exc-all]');
+    if (all) {
+      const comm = String(r['Commission no.']).trim();
+      const targets = excRowCodes(r).filter(([s, c]) => excCan('request', excItem(r, s, c)))
+        .map(([side, code]) => ({ comm, side, code }));
+      excAction('request', targets);
+    }
+  });
+}
 
 let DRAWER_ROW = null;
 let DRAWER_TAB = 'diff';
@@ -1091,10 +1388,11 @@ function diffSecHtml(o) {
     </section>`;
 }
 // 한쪽에만 있는 옵션코드 목록(SAM에만 / WINGS에만).
-function onlySecHtml(title, hint, cls, csv) {
+// r·side 를 주면 'Mismatch 예외'로 승인된 코드는 흐리게(취소선) 표시한다.
+function onlySecHtml(title, hint, cls, csv, r, side) {
   const codes = splitCodes(csv);
   const body = codes.length
-    ? codes.map((c) => codeItemHtml(c, cls, describe(c))).join('')
+    ? codes.map((c) => codeItemHtml(c, cls, describe(c), r && isAccepted(r, side, c) ? 'accepted' : '')).join('')
     : okLine(t('code.okDiff'));
   return diffSecHtml({ title, hint, cls, n: codes.length, body });
 }
@@ -1186,7 +1484,8 @@ function summaryCardsHtml(r) {
   const upd = r['SAM Update'] ? t('fileUpdate.yes') : t('fileUpdate.no');
   const sam = `<section class="scard"><h3 class="scard-t">${esc(t('g.sam'))}</h3><div class="fgrid g2">`
     + fieldHtml('SAM Baumuster', fv(r, 'SAM Baumuster')) + fieldHtml('SAM now', nowHtml)
-    + fieldHtml('SAM Status', st ? statusBadge(st) : '<span class="empty-cell">—</span>')
+    + fieldHtml('SAM Status', (st ? statusBadge(st) : '<span class="empty-cell">—</span>')
+      + (r._accepted ? ` <span class="nchip" title="${esc(t('exc.chip.title'))}">${esc(t('exc.chip.orig'))}</span>` : ''))
     + fieldHtml(t('f.samUpdate'), `<span class="npill${r['SAM Update'] ? ' on' : ''}">${esc(upd)}</span>`)
     + `</div></section>`;
   return `<div class="scards">${vehicle}${schedule}${sam}</div>`;
@@ -1229,11 +1528,12 @@ function openDrawer(r) {
       </label>
     </div>
     <div class="dpane" id="dpane-diff" role="tabpanel" aria-labelledby="dtab-diff" data-pane="diff">
+      ${excSecHtml(r)}
       ${alignedGroupHtml('🎨 Paint', r['_paint_sam'], r['_paint_wings'], 'paint', true)}
       ${alignedGroupHtml('🛞 Tyre', r['_tyre_sam'], r['_tyre_wings'], 'tyre', true)}
       <div class="dgrid">
-        ${onlySecHtml(t('sec.samOnly'), t('sec.samOnly.hint'), 'crit', r['Only_in_SAM'])}
-        ${onlySecHtml(t('sec.winOnly'), t('sec.winOnly.hint'), 'accent', r['Only_in_WINGS'])}
+        ${onlySecHtml(t('sec.samOnly'), t('sec.samOnly.hint'), 'crit', r['Only_in_SAM'], r, 'sam')}
+        ${onlySecHtml(t('sec.winOnly'), t('sec.winOnly.hint'), 'accent', r['Only_in_WINGS'], r, 'win')}
         ${mandSecHtml(r)}
         ${fcSecHtml(r)}
       </div>
@@ -1249,6 +1549,7 @@ function openDrawer(r) {
     </div>
   `;
   const body = $('#drawerBody');
+  wireExcSec(body, r);
   body.querySelectorAll('.dtab').forEach((tb) => tb.addEventListener('click', () => switchTab(tb.dataset.tab)));
   body.querySelector('.dtabs').addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -1516,6 +1817,8 @@ const EXPORT_COLS = [
   { label: 'Changeability D-Day', w: 18, get: (r) => ddayText(r['Until Dealine']) },
   { label: 'Status',              w: 14, get: (r) => r['SAM Status'] },
   { label: 'SAM Update',          w: 12, get: (r) => (r['SAM Update'] ? 'Y' : '') },
+  { label: 'Mismatch exception',  w: 22, get: (r) => (r._accepted ? 'Approved (was Mismatch)'
+    : (r._accN ? `${r._accN} code(s) approved` : '')) },
   { label: 'Only in SAM (n)',     w: 14, num: true, get: (r) => diffCount(r, 'sam') },
   { label: 'Only in SAM',         w: 40, get: (r) => diffCodes(r, 'sam').join(',') },
   { label: 'Only in WINGS (n)',   w: 16, num: true, get: (r) => diffCount(r, 'win') },
@@ -3240,6 +3543,178 @@ function buildLog() {
     },
     close() { box.remove(); },
   };
+}
+
+// ====================== Mismatch 예외 관리 화면 ======================
+// 대시보드에서는 승인된 차이가 Match 로 사라지므로, 무엇이 왜 Match 가 됐는지는 여기서 본다.
+// 탭: 승인 대기 / 승인됨 / 반려·취소·해제 / 변경 이력(전체 log).
+let EXC_TAB = 'pending';
+const EXC_TAB_STATES = {
+  pending: ['pending'],
+  approved: ['approved'],
+  closed: ['rejected', 'cancelled', 'revoked'],
+};
+
+function initExceptions() {
+  document.querySelectorAll('#excTabs button[data-tab]').forEach((b) =>
+    b.addEventListener('click', () => { EXC_TAB = b.dataset.tab; excRender(); }));
+  $('#excSearch').addEventListener('input', excRender);
+  $('#excReload').addEventListener('click', async () => {
+    const b = $('#excReload');
+    b.disabled = true;
+    try { await loadExceptions(); } finally { b.disabled = false; }
+    excRefreshAll();
+  });
+  $('#excExport').addEventListener('click', excExport);
+  $('#excBody').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-exc]');
+    if (b) { e.stopPropagation(); excAction(b.dataset.exc, [excTargetOf(b)]); return; }
+    const c = e.target.closest('button[data-open]');
+    if (c) {
+      const r = rowByComm(c.dataset.open);
+      if (r) openDrawer(r);
+    }
+  });
+  excRender();
+}
+
+// 차량이 지금 데이터에서 어떤 상태인지 — 승인의 효과를 바로 보이게 한다.
+function excVehicleState(it) {
+  const r = rowByComm(it.commission);
+  if (!r) return { cls: 'gone', text: t('exc.veh.gone') };
+  if (r._orig_status !== 'Mismatch') return { cls: 'na', text: t('exc.veh.nowMatch') };
+  const stillDiff = rawDiffCodes(r, it.side).includes(it.code);
+  if (!stillDiff) return { cls: 'na', text: t('exc.veh.codeGone') };
+  if (r._accepted) return { cls: 'ok', text: t('exc.veh.match') };
+  const left = excRowCodes(r).length - (r._accN || 0);
+  return { cls: 'miss', text: t('exc.veh.left', { n: left }) };
+}
+
+function excItemsFor(tab) {
+  const states = EXC_TAB_STATES[tab] || [];
+  const q = ($('#excSearch').value || '').trim().toLowerCase();
+  return Object.values(EXC.items)
+    .filter((it) => states.includes(it.status))
+    .filter((it) => !q || [it.commission, it.code, it.vehicle, it.type, it.reason, it.note,
+      it.requested_by_name, it.decided_by_name, describe(it.code)].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => String(b.decided_at || b.requested_at).localeCompare(String(a.decided_at || a.requested_at)));
+}
+function excLogFor() {
+  const q = ($('#excSearch').value || '').trim().toLowerCase();
+  return EXC.log.slice().reverse()
+    .filter((l) => !q || [l.commission, l.code, l.by_name, l.by, l.text, t('exc.act.' + l.action)]
+      .join(' ').toLowerCase().includes(q));
+}
+
+function excNoticeHtml() {
+  if (EXC_STATE === 'error') return `<div class="note warn">${esc(t('exc.notice.error', { err: EXC_ERR }))}</div>`;
+  if (EXC_STATE === 'local') return `<div class="note">${esc(t('exc.notice.local'))}</div>`;
+  return '';
+}
+
+function excRender() {
+  if (!VIEW_INIT.exceptions) return;
+  const counts = {
+    pending: Object.values(EXC.items).filter((it) => it.status === 'pending').length,
+    approved: Object.values(EXC.items).filter((it) => it.status === 'approved').length,
+    closed: Object.values(EXC.items).filter((it) => EXC_TAB_STATES.closed.includes(it.status)).length,
+    log: EXC.log.length,
+  };
+  document.querySelectorAll('#excTabs button[data-tab]').forEach((b) => {
+    const on = b.dataset.tab === EXC_TAB;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    const c = b.querySelector('.cnt');
+    if (c) c.textContent = fmtNum(counts[b.dataset.tab] || 0);
+  });
+  $('#excNotice').innerHTML = excNoticeHtml();
+  $('#excUpdated').textContent = EXC.updated_at ? t('exc.updated', { when: fmtKst(EXC.updated_at) }) : '';
+
+  const body = $('#excBody');
+  const empty = $('#excEmpty');
+  let html = '';
+  let n = 0;
+  if (EXC_TAB === 'log') {
+    const logs = excLogFor();
+    n = logs.length;
+    html = `<table class="exc-table"><thead><tr>`
+      + ['exc.col.at', 'exc.col.by', 'exc.col.action', 'exc.col.comm', 'exc.col.side', 'exc.col.code', 'exc.col.text']
+        .map((k) => `<th>${esc(t(k))}</th>`).join('')
+      + `</tr></thead><tbody>`
+      + logs.map((l) => `<tr>
+          <td class="mono nowrap">${esc(fmtKst(l.at))}</td>
+          <td title="${esc(l.by)}">${esc(l.by_name || l.by)}</td>
+          <td><span class="exc-st ${esc(EXC_NEXT[l.action] || '')}">${esc(t('exc.act.' + l.action))}</span></td>
+          <td>${excCommHtml(l.commission)}</td>
+          <td>${esc(excSideLabel(l.side))}</td>
+          <td><span class="cchip ${l.side === 'sam' ? 'crit' : 'accent'}">${esc(l.code)}</span></td>
+          <td class="wrap">${esc(l.text || '')}</td>
+        </tr>`).join('')
+      + `</tbody></table>`;
+  } else {
+    const items = excItemsFor(EXC_TAB);
+    n = items.length;
+    html = `<table class="exc-table"><thead><tr>`
+      + ['exc.col.comm', 'exc.col.model', 'exc.col.prod', 'exc.col.side', 'exc.col.code', 'exc.col.desc',
+        'exc.col.status', 'exc.col.req', 'exc.col.reason', 'exc.col.dec', 'exc.col.note', 'exc.col.vehicle', '']
+        .map((k) => `<th>${k ? esc(t(k)) : ''}</th>`).join('')
+      + `</tr></thead><tbody>`
+      + items.map((it) => {
+        const v = excVehicleState(it);
+        const model = [it.vehicle, it.type, it.axle].filter(Boolean).join(' ');
+        const decided = it.status !== 'pending' && it.decided_at;
+        return `<tr>
+          <td>${excCommHtml(it.commission)}</td>
+          <td class="nowrap">${esc(model || '—')}</td>
+          <td class="mono nowrap">${esc(String(it.production || '').slice(0, 10) || '—')}</td>
+          <td class="nowrap">${esc(excSideLabel(it.side))}</td>
+          <td><span class="cchip ${it.side === 'sam' ? 'crit' : 'accent'}">${esc(it.code)}</span></td>
+          <td class="wrap">${esc(describe(it.code) || '—')}</td>
+          <td>${excStateHtml(it)}</td>
+          <td class="nowrap">${esc(it.requested_by_name || '')}<div class="sub mono">${esc(fmtKst(it.requested_at))}</div></td>
+          <td class="wrap">${esc(it.reason || '')}</td>
+          <td class="nowrap">${decided ? `${esc(it.decided_by_name || '')}<div class="sub mono">${esc(fmtKst(it.decided_at))}</div>` : '—'}</td>
+          <td class="wrap">${decided ? esc(it.note || '') : ''}</td>
+          <td><span class="exc-veh ${v.cls}">${esc(v.text)}</span></td>
+          <td class="exc-acts nowrap">${excButtonsHtml(it, it.commission, it.side, it.code)}</td>
+        </tr>`;
+      }).join('')
+      + `</tbody></table>`;
+  }
+  $('#excCount').textContent = tn('exc.count', n, { n: fmtNum(n) });
+  body.innerHTML = n ? html : '';
+  empty.textContent = n ? '' : t('exc.empty.' + EXC_TAB);
+  empty.classList.toggle('hidden', !!n);
+}
+
+function excCommHtml(comm) {
+  return rowByComm(comm)
+    ? `<button type="button" class="comm-link" data-open="${esc(comm)}">${esc(comm)}</button>`
+    : `<span class="mono">${esc(comm)}</span>`;
+}
+
+// 지금 탭(검색 포함)을 엑셀로 — 감사·보고용.
+function excExport() {
+  const isLog = EXC_TAB === 'log';
+  const H = (v) => ({ v, s: 2 });
+  const C = (v) => ({ v: v == null ? '' : String(v), s: 3 });
+  const rows = [];
+  if (isLog) {
+    rows.push(['Time (KST)', 'User', 'User ID', 'Action', 'Commission', 'Side', 'Code', 'Description', 'Reason / Note'].map(H));
+    excLogFor().forEach((l) => rows.push([fmtKst(l.at), l.by_name, l.by, t('exc.act.' + l.action), l.commission,
+      excSideLabel(l.side), l.code, describe(l.code), l.text].map(C)));
+  } else {
+    rows.push(['Commission', 'Model', 'Production', 'Side', 'Code', 'Description', 'Status',
+      'Requested by', 'Requested at (KST)', 'Reason', 'Decided by', 'Decided at (KST)', 'Note', 'Vehicle now'].map(H));
+    excItemsFor(EXC_TAB).forEach((it) => rows.push([it.commission, [it.vehicle, it.type, it.axle].filter(Boolean).join(' '),
+      String(it.production || '').slice(0, 10), excSideLabel(it.side), it.code, describe(it.code), t('exc.st.' + it.status),
+      it.requested_by_name, fmtKst(it.requested_at), it.reason,
+      it.status !== 'pending' ? it.decided_by_name : '', it.status !== 'pending' ? fmtKst(it.decided_at) : '',
+      it.status !== 'pending' ? it.note : '', excVehicleState(it).text].map(C)));
+  }
+  const widths = isLog ? [18, 18, 28, 12, 14, 12, 10, 40, 50] : [14, 20, 12, 12, 10, 40, 12, 18, 18, 40, 18, 18, 40, 22];
+  const cols = widths.map((w, i) => ({ min: i + 1, max: i + 1, w }));
+  writeXlsx(`mismatch_exceptions_${EXC_TAB}_${CUR_DATE}.xlsx`, 'Exceptions', rows, [], cols);
 }
 
 let BUILDING = false;

@@ -1091,3 +1091,70 @@ body.lang-en .man-lang-note { display: block; margin: 0 0 18px; padding: 10px 14
   .man-toc { display: none; }
   .man-body { padding: 24px 20px 80px; }
 }
+
+/* ===================== Mismatch 예외 (문제없는 차이) ===================== */
+.nav-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 6px; border-radius: 999px;
+  background: var(--crit); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.nav-link.active .nav-badge { background: #fff; color: var(--accent); }
+.status.exc { background: var(--accent-bg); color: var(--accent); }
+.status.exc.part { background: var(--neutral-bg); color: var(--neutral); }
+body.exc-busy, body.exc-busy button { cursor: progress; }
+
+.btn.xs { height: 26px; padding: 0 10px; font-size: 12px; font-weight: 600; }
+.btn.xs.primary-soft { background: var(--accent-bg); border-color: #C3D2F7; color: var(--accent); }
+.btn.xs.primary-soft:hover { background: #DCE5FB; }
+.btn.xs.ok { background: var(--ok-bg); border-color: #B5E0C6; color: var(--ok); }
+.btn.xs.ok:hover { background: #D2EEDD; }
+.btn.xs.danger { color: var(--crit); }
+.btn.xs.danger:hover { background: var(--crit-bg); border-color: #F6C4C0; }
+
+.crow.accepted .cchip { text-decoration: line-through; opacity: .55; }
+.crow.accepted .cdesc { color: var(--text-3); }
+
+/* 상세 창 — 차이 코드별 예외 상태 */
+.exc-sec { margin-bottom: 22px; }
+.exc-sec .dsec-head .btn { margin-left: 4px; }
+.exc-row { display: grid; grid-template-columns: 74px auto minmax(0, 1fr) auto auto; align-items: center; gap: 4px 12px;
+  padding: 9px 4px; border-bottom: 1px solid var(--border-soft); }
+.exc-row:hover { background: var(--surface-2); }
+.exc-row.accepted .cchip { text-decoration: line-through; opacity: .6; }
+.exc-side { font-size: 11.5px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.exc-acts { display: inline-flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.exc-meta { grid-column: 2 / -1; font-size: 12px; color: var(--text-3); line-height: 1.5; overflow-wrap: anywhere; }
+.exc-st { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px;
+  white-space: nowrap; background: var(--neutral-bg); color: var(--text-3); }
+.exc-st.pending { background: var(--warn-bg); color: var(--warn); }
+.exc-st.approved { background: var(--ok-bg); color: var(--ok); }
+.exc-st.rejected, .exc-st.revoked { background: var(--crit-bg); color: var(--crit); }
+.exc-st.cancelled { background: var(--neutral-bg); color: var(--neutral); }
+
+/* 예외 관리 화면 */
+#view-exceptions .page { max-width: none; }
+.exc-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.exc-toolbar .seg button { padding: 6px 12px; font-size: 12.5px; display: inline-flex; align-items: center; gap: 4px; }
+.exc-toolbar .seg .cnt { background: var(--surface); color: var(--text-3); }
+.exc-toolbar .seg button.active .cnt { background: var(--accent-bg); color: var(--accent); }
+.exc-search { flex: 0 1 300px; min-width: 200px; }
+.exc-updated { font-size: 12px; color: var(--text-3); }
+.exc-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: auto; }
+.exc-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+.exc-table th { position: sticky; top: 0; background: var(--thead-bg); text-align: left; padding: 10px 12px;
+  font-size: 11.5px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 1px solid var(--border); white-space: nowrap; }
+.exc-table td { padding: 9px 12px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+.exc-table tbody tr:last-child td { border-bottom: none; }
+.exc-table tbody tr:hover td { background: var(--row-hover); }
+.exc-table td.nowrap { white-space: nowrap; }
+.exc-table td.wrap { min-width: 160px; max-width: 320px; overflow-wrap: anywhere; }
+.exc-table td .sub { font-size: 11.5px; color: var(--text-3); }
+.exc-table td.exc-acts { text-align: right; }
+.exc-veh { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.exc-veh.ok { color: var(--ok); }
+.exc-veh.miss { color: var(--crit); }
+.exc-veh.na, .exc-veh.gone { color: var(--text-3); }
+.note.warn { background: var(--warn-bg); border-left-color: var(--warn); }
+@media (max-width: 900px) {
+  .exc-row { grid-template-columns: auto minmax(0, 1fr); }
+  .exc-row .exc-side { grid-column: 1 / -1; }
+  .exc-meta { grid-column: 1 / -1; }
+}

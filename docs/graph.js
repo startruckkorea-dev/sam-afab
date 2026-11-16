@@ -42,6 +42,11 @@
     output: {
       path: 'SAM-AFAB_Data/05. output',
     },
+    // 'Mismatch 예외'(문제없는 차이) 요청·승인 기록. 빌드와 무관하게 담당자/관리자가
+    // 화면에서 직접 쓴다. 담당자(Read)도 요청을 남기므로 이 폴더에는 쓰기 권한이 필요하다.
+    exceptions: {
+      path: 'SAM-AFAB_Data/06. exceptions',
+    },
     // 접속 권한 명단(Admin / Read). auth.js 가 로그인 직후 읽는다.
     // shareUrl 은 /shares 해석에 그대로 쓰이므로 SharePoint 가 발급한 링크를
     // 글자 하나 바꾸지 말고 그대로 둘 것. 이 링크 덕분에 Read 권한자는
@@ -99,7 +104,9 @@
     if (!res.ok) {
       var detail = '';
       try { var j = await res.json(); detail = (j.error && j.error.message) || ''; } catch (e) {}
-      throw new Error('Graph ' + res.status + (detail ? ' — ' + detail : '') + ' (' + url + ')');
+      var err = new Error('Graph ' + res.status + (detail ? ' — ' + detail : '') + ' (' + url + ')');
+      err.status = res.status;
+      throw err;
     }
     return res;
   }
@@ -176,6 +183,40 @@
   async function uploadJson(folderKey, filename, obj) {
     var bytes = new TextEncoder().encode(JSON.stringify(obj));
     return upload(folderKey, filename, bytes);
+  }
+
+  // ---- 버전 확인 읽기/쓰기 (여러 사람이 같은 JSON 을 고칠 때) ----------------
+  // 읽을 때 eTag 를 함께 받고, 쓸 때 If-Match 로 "그 사이 아무도 안 고쳤을 때만"
+  // 덮어쓴다. 누가 먼저 고쳤으면 412(새 파일이면 409)가 나고 err.conflict = true.
+  // 파일이 없으면 { data: null, etag: null }.
+  async function readJsonVersioned(folderKey, filename) {
+    var base = await pathBase(folderKey, filename);
+    var meta;
+    try {
+      meta = await getJson(base + '?$select=id,eTag');
+    } catch (e) {
+      if (e.status === 404) return { data: null, etag: null };
+      throw e;
+    }
+    var res = await api(base + '/content');
+    var text = await res.text();
+    return { data: text ? JSON.parse(text) : null, etag: meta.eTag || null };
+  }
+
+  async function writeJsonVersioned(folderKey, filename, obj, etag) {
+    var base = await pathBase(folderKey, filename);
+    var url = base + '/content';
+    var headers = { 'Content-Type': 'application/json' };
+    if (etag) headers['If-Match'] = etag;
+    else url += '?@microsoft.graph.conflictBehavior=fail';   // 새로 만들 때 남이 먼저 만들었으면 실패
+    try {
+      var res = await api(url, { method: 'PUT', headers: headers,
+        body: new TextEncoder().encode(JSON.stringify(obj, null, 1)) });
+      return res.json();
+    } catch (e) {
+      if (e.status === 412 || e.status === 409) e.conflict = true;
+      throw e;
+    }
   }
 
   // 파일 저장(덮어쓰기 또는 신규). data = ArrayBuffer | Blob | Uint8Array.
@@ -291,6 +332,8 @@
     upload: upload,
     uploadJson: uploadJson,
     ensureFolder: ensureFolder,
+    readJsonVersioned: readJsonVersioned,
+    writeJsonVersioned: writeJsonVersioned,
     encodeShareUrl: encodeShareUrl,
     shareBase: shareBase,
     itemBase: itemBase,

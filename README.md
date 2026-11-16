@@ -22,6 +22,7 @@ SAM/WINGS/코드/모델규칙 원본은 **repo 에 커밋하지 않고 SharePoin
 | `SAM-AFAB_Data/03. model_rules` | `model_mapping.xlsx` — **모든 모델 매칭 규칙** |
 | `SAM-AFAB_Data/04. code` | 코드 사전 / 필수코드 / 카테고리 / cab xlsx |
 | `SAM-AFAB_Data/05. output` | **빌드 결과** `data.json` · `codes.json` (대시보드가 읽는 파일) |
+| `SAM-AFAB_Data/06. exceptions` | **Mismatch 예외** `exceptions.json` — 담당자 요청 · Admin 코드별 승인 · 전체 이력. 요청자(Read 포함)에게 **쓰기 권한** 필요 |
 
 접근은 전부 **로그인한 사용자 본인의 위임 권한(Graph)** 으로 이뤄집니다.
 클라이언트 시크릿·GitHub Actions·PAT 는 사용하지 않습니다.
