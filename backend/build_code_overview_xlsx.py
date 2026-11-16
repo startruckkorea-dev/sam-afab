@@ -181,7 +181,7 @@ def sheet_functions(wb):
     block('sam_parser.py', [
         ('parse_single_sam_file()', '.docx zip→document.xml 파싱. Equipment overview/Standard equipment 표에서 코드 추출. 본문 Vehicle type/Baumuster/Subcategory, 파일명 모델 추출. PTO 판정. mapping에 두 번호(now/baumuster) 키로 등록.'),
         ('normalize_model(model)', '모델 문자열 정규화: 축(8x4)/DNA/비영숫자 제거·대문자화. 세대변환은 하지 않음(실번호 매칭).'),
-        ('load_sam_from_folder(folder)', '폴더 내 SAM 파일 전체 파싱 → mapping. reverse_aliases 별칭 자동 생성.'),
+        ('load_sam_from_folder(folder)', '폴더 내 SAM 파일 전체 파싱 → mapping (파일명·본문 번호 두 키).'),
         ('load_sam_by_month(root)', 'root/YYYY_MM/ 하위폴더 스캔 → {yyyymm(int): mapping}.'),
     ])
     block('compare.py — 비교 핵심', [
@@ -197,7 +197,7 @@ def sheet_functions(wb):
         ('load_rules()', 'DEFAULTS 위에 rules.json, 그 위에 model_mapping.xlsx 병합(빈 시트는 무시).'),
         ('load_rules_from_xlsx()', 'xlsx 의 매칭규칙 시트(대체번호·SAM별칭·표시치환·차종·옵션) 파싱. 예전 시트도 읽음(openpyxl 지연 로드, 실패 무시).'),
         ('apply_map(s, mapping)', '가장 긴 키 우선으로 문자열 치환.'),
-        ('RULES / DEFAULTS', '전역 규칙 딕셔너리 및 내장 기본값(reverse_aliases, vehicle_keywords 등).'),
+        ('RULES / DEFAULTS', '전역 규칙 딕셔너리 및 내장 기본값(model_rename = 모델명 변경).'),
     ])
     block('build_model_rules_xlsx.py', [
         ('build()', 'docs/data.json 기반 인식모델_대조표(자동) + 규칙 시트로 model_mapping.xlsx 생성.'),

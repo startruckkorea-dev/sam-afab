@@ -104,51 +104,29 @@ def _split_model(s: str):
     return s, ''
 
 
-def _model_key_candidates(model_norm: str) -> list:
-    """SAM keys worth trying for one WINGS model key, best first.
+def _rename_model(name: str, mapping: dict) -> str:
+    """모델명 변경 (model_mapping.xlsx '모델명변경'): From -> To, one way, chained up to 5 times."""
+    cur, seen = name, set()
+    for _ in range(5):
+        if not mapping or cur not in mapping or not mapping[cur] or cur in seen:
+            break
+        seen.add(cur)
+        cur = str(mapping[cur])
+    return cur
 
-    The original key always comes first, so the rule sheets only ever add a
-    fallback — a row that already matched keeps matching the same file. This is
-    where model_mapping.xlsx ('매칭규칙' sheet: 대체번호 · SAM별칭 · 옵션)
-    first reaches the matching itself: edit a sheet and the matching changes.
+
+def _wings_model_name(r, model_raw) -> tuple:
+    """WINGS model name without axle/DNA, with 모델명 변경 applied -> (name, inline axle).
+
+    This one name is both the Type shown on the dashboard and the matching key.
     """
-    num, suf = _split_model(model_norm)
-    out = [model_norm]
-
-    def add(n):
-        if not n:
-            return
-        k = re.sub(r'[^A-Z0-9]', '', str(n).upper()) + suf
-        if k and k != suf and k not in out:
-            out.append(k)
-
-    if not num.isdigit():
-        return out
-
-    def both(table):
-        # A rule written 'A -> B' has to be usable in both directions.
-        table = table or {}
-        add(table.get(num))
-        for k, v in table.items():
-            if str(v) == num:
-                add(k)
-
-    # Only same-truck rules belong here — never generation neighbours (2853 vs 2863 are
-    # different trucks), which would silently compare a vehicle against the wrong model.
-    both(RULES.get('normalize_historic'))
-    for k, lst in (RULES.get('reverse_aliases') or {}).items():
-        lst = lst or []
-        if k == num:
-            for a in lst:
-                add(a)
-        elif num in lst:
-            add(k)
-    if RULES.get('normalize_28xx_to_26xx') and len(num) == 4:
-        if num[1] == '8':
-            add(num[0] + '6' + num[2:])
-        if num[1] == '6':
-            add(num[0] + '8' + num[2:])
-    return out
+    d = re.sub(r'DNA$', '', str(r.get('Model', model_raw) if 'Model' in r.index else model_raw).strip())
+    axle = ''
+    m = re.search(r'(?<![0-9])(\d+x\d+)(?![0-9])', d, re.IGNORECASE)
+    if m:
+        d = re.sub(r'\s{2,}', ' ', d.replace(m.group(0), '')).strip()
+        axle = m.group(1)
+    return _rename_model(d, RULES.get('model_rename') or {}), axle
 
 
 _AJ_CODE_RE = re.compile(r'AJ[A-Z0-9]{3}')
@@ -292,8 +270,9 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         wings_codes = _canon_codes(wings_raw)
         wings_paint = set(r.get('WINGS_paint') or []) if 'WINGS_paint' in r.index else set()
         wings_tyre = set(r.get('WINGS_tyre') or []) if 'WINGS_tyre' in r.index else set()
-        model_norm = normalize_model(model_raw)
-        key_cands = _model_key_candidates(model_norm)
+        _wm_name, _wm_axle = _wings_model_name(r, model_raw)
+        # The (renamed) model name is the only matching key — no fallback numbers.
+        key_cands = [normalize_model(_wm_name or model_raw)]
 
         # Extra match fields — from WINGS columns (SAM side comes from the word body).
         wings_bm = str(r.get('Baumuster', '') or '').strip()
@@ -446,12 +425,6 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         # The list shows one value per column: WINGS first, SAM when WINGS is silent.
         _cab_code = (sorted(expected_cabs) or sorted(sam_cabs) or [''])[0]
         _pto_flag = 'PTO' if (is_pto or sam_pto) else ''
-        if not _vehicle:
-            _mu = str(model_raw).upper()
-            for _veh, _kws in RULES['vehicle_keywords'].items():
-                if any(k in _mu for k in _kws):
-                    _vehicle = _veh
-                    break
 
         # Status: distinguish "no SAM to compare" from "compared but differs".
         if not sam_file:
@@ -467,18 +440,9 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
         _sam_now = sam_data.get('model_now', '') if sam_data else ''
         # WINGS spells the same truck both ways ('4153 K' and '4153 K 8x4'). Move the
         # axle into its own column so one model does not split into two rows.
-        _model_display = re.sub(r'DNA$', '',
-            str(r.get('Model', model_raw) if 'Model' in r.index else model_raw).strip())
-        _inline_axle = re.search(r'(?<![0-9])(\d+x\d+)(?![0-9])', _model_display, re.IGNORECASE)
-        if _inline_axle:
-            _model_display = re.sub(r'\s{2,}', ' ',
-                                    _model_display.replace(_inline_axle.group(0), '')).strip()
-            if not _axle_type:
-                _axle_type = _inline_axle.group(1)
-        # WINGS표시치환 — keeps one truck from splitting into two models over spelling.
-        _display_repl = RULES.get('wings_display_replace') or {}
-        if _display_repl.get(_model_display):
-            _model_display = str(_display_repl[_model_display])
+        _model_display = _wm_name
+        if _wm_axle and not _axle_type:
+            _axle_type = _wm_axle
 
         row_dict = {
             'Commission no.': com,
@@ -547,12 +511,32 @@ def compare(df_wings: pd.DataFrame, sam_maps_by_month: dict,
 
         rows.append(row_dict)
 
-    # Axle and vehicle only come from the SAM filename (or the vehicle-keyword rule), so
-    # a row with no matched SAM has neither. A Baumuster is one spec, so borrow the value
-    # from the rows that do know it -- only when they all agree.
+    # Axle and vehicle only come from the SAM filename, so a row with no matched SAM has
+    # neither. A Baumuster is one spec, so borrow the value from the rows that do know it --
+    # only when they all agree. Vehicle then falls back to the same model name / number.
     _fill_from_baumuster(rows, 'Type')
     _fill_from_baumuster(rows, 'Vehicle')
+    _fill_by(rows, 'Vehicle', lambda row: normalize_model(row.get('Model(WINGS)', '')))
+    _fill_by(rows, 'Vehicle', lambda row: (re.match(r'(\d{4})', normalize_model(row.get('Model(WINGS)', ''))) or [None, ''])[1])
     return pd.DataFrame(rows)
+
+
+def _fill_by(rows: list, col: str, key_of) -> None:
+    known: dict = {}
+    for row in rows:
+        k, v = key_of(row), str(row.get(col, '') or '').strip()
+        if not k or not v:
+            continue
+        if k not in known:
+            known[k] = v
+        elif known[k] != v:
+            known[k] = ''
+    for row in rows:
+        if str(row.get(col, '') or '').strip():
+            continue
+        v = known.get(key_of(row))
+        if v:
+            row[col] = v
 
 
 def _fill_from_baumuster(rows: list, col: str) -> None:

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="style.css?v=20261116e" />
+  <link rel="stylesheet" href="style.css?v=20261116f" />
 </head>
 <body>
   <!-- 아이콘 — <svg><use href="#i-…"/></svg> 로 쓴다. -->
@@ -231,14 +231,14 @@
         <div class="page-head">
           <div>
             <h1 data-i18n="matching.title">모델 매칭</h1>
-            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 — 규칙은 model_mapping.xlsx 의 '매칭규칙' 시트 한 장</p>
+            <p class="page-sub" data-i18n="matching.sub">SAM ↔ WINGS 모델 인식 — 규칙은 model_mapping.xlsx 의 '모델명변경' 시트 한 장</p>
           </div>
           <div class="page-actions">
             <!-- 매칭 결과 / 대조표를 한 화면에 쌓지 않고 서브탭으로 갈아 끼운다 -->
             <div class="mode-switch" id="matchPane">
               <button type="button" data-pane="problem" class="active"><span data-i18n="matching.paneProblem">문제</span><span id="matchPaneBadge" class="pane-badge hidden"></span></button>
               <button type="button" data-pane="result" data-i18n="matching.paneResult">매칭 결과</button>
-              <button type="button" data-pane="rules" data-i18n="matching.paneRules">매칭 규칙</button>
+              <button type="button" data-pane="rules" data-i18n="matching.paneRules">모델명 변경</button>
             </div>
             <a id="matchFolderLink" class="icon-btn" target="_blank" rel="noopener" data-i18n="btn.openFolder">📂 SharePoint 폴더 열기</a>
           </div>
@@ -299,10 +299,8 @@
 
         <div class="code-editor hidden" id="matchEditor">
           <div class="rule-legend" data-i18n-html="matching.legend">
-            <div><b>대체번호</b> WINGS 번호로 SAM 을 못 찾을 때 대신 찾을 SAM 번호 (생산월·이전 6개월을 정확한 번호로 다 찾아본 뒤에 사용)</div>
-            <div><b>SAM별칭</b> SAM 문서 번호를 처음부터 WINGS 번호로도 인식 (같은 달이면 제 번호처럼 붙음)</div>
-            <div><b>표시치환</b> WINGS 표기가 달라 같은 차가 두 모델로 갈라지지 않게 표시를 통일</div>
-            <div><b>차종</b> 번호로 차종(Actros·Arocs…)을 정함 · <b>옵션</b> normalize_28xx_to_26xx = 28xx↔26xx 자동 연결</div>
+            <div><b>모델명 변경</b> WINGS 모델명이 <b>From</b> 과 같으면 <b>To</b> 로 바꿉니다(한 방향). 바뀐 이름이 대시보드 Type 이자 SAM 을 찾는 번호입니다.</div>
+            <div>From 은 축(8x4)을 뺀 WINGS 표기 그대로(예: <code>2651 LS</code>), To 는 SAM 문서의 파일명 또는 본문 Vehicle type 번호와 같게(예: <code>2851 LS</code>).</div>
             <div class="rl-foot">고친 뒤 <b>SharePoint에 저장</b>하면 다음 <b>데이터 다시 계산</b> 때 적용됩니다.</div>
           </div>
           <div class="editor-empty" id="matchEmpty" data-i18n="matching.loading">model_mapping.xlsx 를 불러오는 중…</div>
@@ -823,8 +821,8 @@
             <tbody>
               <tr><td><b>SAM 못 찾음</b></td><td>SAM 을 못 찾은 WINGS 주문(모델·캡·PTO·생산월로 묶음). 원인 칸이
                 “생산월 폴더가 없음”인지 “그 달 SAM 에 이 번호가 없음”인지 알려 주고, <b>그 달 비슷한 번호</b>도 함께 보여 줍니다.
-                같은 차의 다른 번호라면 <b>규칙 추가</b>로 대체번호를 등록합니다. 대수를 누르면 그 차량 상세가 열립니다</td></tr>
-              <tr><td><b>안 붙은 SAM</b></td><td>잘 읽혔는데 어떤 주문에도 안 쓰인 SAM 문서. 그 달 주문이 0건이면 <b>참고</b>(아직 주문이 없음)로 분류됩니다</td></tr>
+                같은 차의 다른 이름이라면 <b>규칙 추가</b>로 모델명 변경(From → To)을 등록합니다. 대수를 누르면 그 차량 상세가 열립니다</td></tr>
+              <tr><td><b>안 붙은 SAM</b></td><td>잘 읽혔는데 어떤 주문에도 안 쓰인 SAM 문서. <b>Type</b> 칸의 번호는 <b>파일명 번호, 본문 Vehicle type 번호</b> 순입니다(마우스를 올리면 표시). 그 달 <b>같은 번호 주문</b>을 보고 원인을 가릅니다 — 그 번호 주문이 없음 · PTO판/비PTO판 중 주문이 없는 쪽 · 같은 조건 주문이 다른 견적서에 붙음은 <b>참고</b>(고칠 것 아님), 같은 번호 주문 중 SAM 을 못 찾은 것이 있으면 <b>고칠 것</b>입니다</td></tr>
               <tr><td><b>읽지 못한 파일</b></td><td>읽다가 건너뛴 SAM 파일과 이유</td></tr>
               <tr><td><b>생산월 폴더</b>(참고)</td><td>폴더별로 읽은 파일 수와 인식한 모델 번호, 그 달 주문 수</td></tr>
             </tbody>
@@ -841,12 +839,18 @@
             <li>모델별로 <b>비교에 쓰인 SAM 파일</b>, 대수, 상태를 보여 줍니다</li>
             <li>캡·PTO는 파일명이 아니라 <b>실제 코드</b>로 판정하며, WINGS와 SAM이 다르면 <span class="mchip ne">≠</span></li>
           </ul>
-          <h3>매칭 규칙</h3>
+          <h3>모델명 변경</h3>
           <p>
-            규칙은 <code>model_mapping.xlsx</code>의 <b><code>매칭규칙</code> 시트 한 장</b>(열: 종류 · 기준 · 값 · 메모)에 있습니다.
-            종류 드롭다운으로 좁혀 보고, 편집 방법은 코드 관리와 같습니다(→ 08장).
-            예전처럼 종류별 시트가 여러 장인 파일을 열면 <b>지금 적용되던 규칙 그대로</b> 한 장으로 합쳐 보여 주며, 저장하면 파일도 한 장으로 바뀝니다.
+            규칙은 <code>model_mapping.xlsx</code>의 <b><code>모델명변경</code> 시트 한 장</b>(From · To · 메모)뿐입니다.
+            WINGS 모델명이 <b>From</b> 과 같으면 <b>To</b> 로 바꾸고(한 방향), 바뀐 이름으로 SAM 을 찾고 대시보드 Type 에도 그 이름을 씁니다.
+            To 가 또 다른 From 이면 이어서 바꿉니다. 편집 방법은 코드 관리와 같습니다(→ 08장).
           </p>
+          <ul class="man-ul">
+            <li><b>SAM 못 찾음</b> 줄의 <b>규칙 추가</b>를 누르면 From 이 채워진 창이 열립니다. To 에는 원인 칸의 “그 달 비슷한 번호” 중 맞는 것을 적습니다</li>
+            <li>예전 규칙(대체번호·SAM별칭·옵션·차종)은 폐기했습니다. 예전 형식 파일을 처음 열거나 데이터를 다시 계산하면 표시치환은 그대로 옮기고,
+              예전 규칙 덕분에 붙어 있던 모델은 <b>지금 데이터에서 찾아 자동으로 추가</b>합니다(메모에 “자동 추가”)</li>
+            <li>차종(Actros·Arocs…)은 SAM 파일명에서 읽고, 없으면 같은 Baumuster → 같은 모델명 → 같은 번호의 다른 차에서 옮겨 채웁니다</li>
+          </ul>
           <div class="man-callout warn">
             규칙을 고쳐 저장해도 <b>화면은 바로 바뀌지 않습니다</b>. <b>⟳ 데이터 다시 계산</b>을 눌러야 반영됩니다.
           </div>
@@ -1093,18 +1097,8 @@
           <h4><code>mbtruck-spec-data.xlsx</code> — 코드 사전 <span class="man-sheet">시트: code_dict</span></h4>
           <p>B열 = 코드, C열 = 영문 설명. 화면의 코드 설명과 <b>숫자 없는 코드의 인식</b>에 함께 쓰입니다.</p>
 
-          <h4><code>model_mapping.xlsx</code> — 매칭 규칙 (<code>03. model_rules</code>) <span class="man-sheet">시트: 매칭규칙</span></h4>
-          <p>시트 한 장, <b>A=종류 · B=기준 · C=값 · D=메모</b>. 같은 종류·기준이 여러 줄이면 목록 종류(SAM별칭·차종)는 값을 합칩니다.</p>
-          <table class="man-tb">
-            <thead><tr><th>종류</th><th>기준 → 값</th><th>역할</th></tr></thead>
-            <tbody>
-              <tr><td><code>대체번호</code></td><td>WINGS 번호 → SAM 번호</td><td><b>매칭에 쓰임</b> — 정확한 번호로 생산월·이전 6개월을 다 찾아본 뒤에 대신 찾을 번호. 양방향 (예 <code>3253 ↔ 4153</code>)</td></tr>
-              <tr><td><code>SAM별칭</code></td><td>SAM 번호 → WINGS 번호들(쉼표)</td><td><b>매칭에 쓰임</b> — 그 SAM 문서를 처음부터 WINGS 번호로도 인식. 같은 달이면 제 번호처럼 붙습니다</td></tr>
-              <tr><td><code>옵션</code></td><td><code>normalize_28xx_to_26xx</code> → true/false</td><td><b>매칭에 쓰임</b> — true 면 28xx ↔ 26xx(DNA)를 같은 차로 봄</td></tr>
-              <tr><td><code>표시치환</code></td><td>WINGS 표기 → 통일할 표기</td><td>같은 차가 표기 차이로 두 모델처럼 갈라지는 걸 막습니다</td></tr>
-              <tr><td><code>차종</code></td><td>차종 → 번호들(쉼표)</td><td>파일명에 차종이 없을 때 번호로 차종을 정합니다</td></tr>
-            </tbody>
-          </table>
+          <h4><code>model_mapping.xlsx</code> — 모델명 변경 (<code>03. model_rules</code>) <span class="man-sheet">시트: 모델명변경</span></h4>
+          <p>시트 한 장, <b>A=From · B=To · C=메모</b>. From 은 축(8x4)·DNA 를 뺀 WINGS 모델명 그대로, To 는 SAM 문서 번호와 같은 이름. 같은 From 이 두 줄이면 아래 줄이 이깁니다.</p>
           <div class="man-callout warn">
             파일이 없거나 읽기에 실패하면 앱은 <b>내장 기본값으로 조용히 진행</b>합니다(빌드 로그에 경고만 남습니다).
             “고쳤는데 반영이 안 된다” 싶으면 <b>파일명·시트명·열 위치</b>부터 확인하세요.
@@ -1270,10 +1264,10 @@
 
   <!-- 비교 파이프라인 (브라우저에서 직접 빌드). 순서: 유틸 → 파서 → 비교 → 오케스트레이터 -->
   <script src="lib/unzip.js?v=20260724b"></script>
-  <script src="lib/samparse.js?v=20261116b"></script>
+  <script src="lib/samparse.js?v=20261116c"></script>
   <script src="lib/wingsparse.js?v=20260928a"></script>
-  <script src="lib/refdata.js?v=20261116a"></script>
-  <script src="lib/compare.js?v=20261116a"></script>
+  <script src="lib/refdata.js?v=20261116b"></script>
+  <script src="lib/compare.js?v=20261116b"></script>
   <script src="lib/pipeline.js?v=20261116c"></script>
 
   <!-- M365 (Entra ID) 로그인. MSAL 을 먼저 로드하고(로컬 self-host → 실패 시 외부 CDN 폴백),

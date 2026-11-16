@@ -1193,3 +1193,7 @@ body.exc-busy, body.exc-busy button { cursor: progress; }
 .mp-grid tr.mp-ignored td { color: var(--text-muted); background: var(--surface-2); }
 .mp-grid tr.mp-ignored .mp-kind { opacity: .55; }
 .mp-ig { margin-top: 3px; font-size: 11.5px; color: var(--text-3); }
+
+.mp-grid td.mp-keys { cursor: help; text-decoration: underline dotted var(--text-muted); text-underline-offset: 3px; }
+/* 매칭 규칙 — 시트 탭이 숨겨지면 검색·필터·등록을 왼쪽에 붙인다(오른쪽 끝으로 밀려 빈 줄처럼 보이던 것) */
+#view-matching .editor-bar .spacer { display: none; }

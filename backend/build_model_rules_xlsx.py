@@ -1,10 +1,10 @@
-"""Keep model_rules/model_mapping.xlsx as ONE sheet, '매칭규칙' (종류 | 기준 | 값 | 메모).
+"""Keep model_rules/model_mapping.xlsx as ONE sheet, '모델명변경' (From | To | 메모).
 
-All WINGS<->SAM matching rules live there (see rules.py for the kinds). The browser
-build (docs/app.js) does the same: an old workbook with one sheet per rule kind is
-rewritten as the single sheet, carrying over exactly the rules that were in effect
-(defaults included) so matching does not change. A workbook that already has only
-'매칭규칙' is left untouched (its 메모 column is kept).
+모델명 변경 is the only rule kind left (see rules.py). An older workbook is rewritten as
+the single sheet carrying over its display-replace rows. The browser build (docs/app.js)
+additionally adds the renames that the dropped fallback rules used to provide, found in
+the current data; this local tool has no such data and only carries rows over.
+A workbook that already has only '모델명변경' is left untouched (its 메모 column is kept).
 
 The auto-generated views that used to live here (인식모델_대조표 · 미매칭_진단) are now
 shown on the web page (모델 매칭 > 문제 / 매칭 결과) instead of in the workbook.
@@ -45,7 +45,7 @@ def _already_unified(path: Path) -> bool:
 def build():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     if _already_unified(OUT_PATH):
-        print(f'{OUT_PATH} already has the single {RULE_SHEET} sheet — unchanged')
+        print(f'{OUT_PATH} already has the single {RULE_SHEET} sheet - unchanged')
         return
     rows = rules_to_rows(load_rules(xlsx_path=OUT_PATH))
     wb = Workbook()
@@ -59,7 +59,7 @@ def build():
         cell.font = HEADER_FONT
         cell.alignment = Alignment(horizontal='center', vertical='center')
     ws.freeze_panes = 'A2'
-    for i, w in enumerate([12, 22, 60, 40], start=1):
+    for i, w in enumerate([24, 24, 50], start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     wb.save(OUT_PATH)
     print(f'Wrote {OUT_PATH}  ({RULE_SHEET}: {len(rows) - 1} rows)')

@@ -121,39 +121,35 @@
   }
 
   /**
-   * WINGS 모델키 하나로 SAM 쪽에서 찾아볼 키 후보들을 만든다.
-   * 첫 번째는 언제나 원래 키라, 규칙은 '원래 키로 못 찾았을 때만' 개입한다(기존 결과 보존).
-   * model_mapping.xlsx '매칭규칙' 시트의 대체번호 · SAM별칭 · 옵션이
-   * 여기서 처음으로 실제 매칭에 쓰인다 — 시트를 고치면 매칭이 바뀐다.
+   * 모델명 변경(model_mapping.xlsx '모델명변경' 시트) — From → To, 한 방향.
+   * To 가 또 다른 From 이면 이어서 바꾼다(최대 5번, 순환 방지). 비교는 지금까지의
+   * 표시치환과 같이 '축·DNA 를 뗀 WINGS 모델명' 문자열 그대로다.
    */
-  function modelKeyCandidates(modelNorm, rules) {
-    const [num, suf] = splitModel(modelNorm);
-    const out = [modelNorm];
-    if (!/^\d+$/.test(num)) return out;
-    const add = (n) => {
-      const k = String(n || '').toUpperCase().replace(/[^A-Z0-9]/g, '') + suf;
-      if (n && k !== suf && out.indexOf(k) === -1) out.push(k);
-    };
-    // 양방향으로 본다 — 규칙은 'A→B' 한 줄만 적어도 B→A 로도 찾아야 하기 때문.
-    const both = (obj) => {
-      const o = obj || {};
-      add(o[num]);
-      for (const k of Object.keys(o)) if (String(o[k]) === num) add(k);
-    };
-    // 같은 차를 가리키는 규칙만 쓴다. 세대 이웃(2853 과 2863 은 다른 차)을
-    // 키로 쓰면 엉뚱한 모델과 조용히 비교된다.
-    both(rules.normalize_historic);
-    const rev = rules.reverse_aliases || {};
-    for (const k of Object.keys(rev)) {
-      const list = rev[k] || [];
-      if (k === num) list.forEach(add);
-      else if (list.indexOf(num) !== -1) add(k);
+  function renameModel(name, map) {
+    let cur = name;
+    const seen = new Set();
+    for (let i = 0; i < 5; i++) {
+      if (!map || !Object.prototype.hasOwnProperty.call(map, cur) || !map[cur] || seen.has(cur)) break;
+      seen.add(cur);
+      cur = String(map[cur]);
     }
-    if (rules.normalize_28xx_to_26xx && num.length === 4) {
-      if (num.charAt(1) === '8') add(num.charAt(0) + '6' + num.slice(2));
-      if (num.charAt(1) === '6') add(num.charAt(0) + '8' + num.slice(2));
+    return cur;
+  }
+
+  /**
+   * WINGS 모델명 정리 — 축(8x4)·DNA 를 떼고 모델명 변경을 적용한다.
+   * 이 이름이 화면의 Type 이자 매칭 키다(표시와 매칭이 같은 이름을 쓴다).
+   * WINGS 는 같은 차를 '4153 K' 와 '4153 K 8x4' 로 섞어 쓰므로 축은 따로 돌려준다.
+   */
+  function wingsModelName(r, modelRaw, rules) {
+    let d = strip(('Model' in r) ? r['Model'] : modelRaw).replace(/DNA$/, '');
+    let axle = '';
+    const ia = /(?<![0-9])(\d+x\d+)(?![0-9])/i.exec(d);
+    if (ia) {
+      d = strip(d.replace(ia[0], '').replace(/\s{2,}/g, ' '));
+      axle = ia[1];
     }
-    return out;
+    return { display: renameModel(d, rules.model_rename || {}), axle: axle };
   }
 
   const setDiff = (a, b) => new Set([...a].filter((x) => !b.has(x)));
@@ -220,8 +216,9 @@
       const wingsCodes = canonCodes(wingsRaw);
       const wingsPaint = new Set(r['WINGS_paint'] || []);
       const wingsTyre = new Set(r['WINGS_tyre'] || []);
-      const modelNorm = normalizeModel(modelRaw);
-      const keyCands = modelKeyCandidates(modelNorm, rules);
+      const wm = wingsModelName(r, modelRaw, rules);
+      // 매칭 키는 (모델명 변경을 적용한) 이름 하나뿐이다 — 대체 번호를 더듬어 찾지 않는다.
+      const keyCands = [normalizeModel(wm.display || modelRaw)];
 
       const wingsBm = strip(r['Baumuster']);
       const wingsSub = strip(r['Subcategory (ID)']).toLowerCase();
@@ -358,13 +355,6 @@
       // 목록에 한 값만 보여야 하므로 WINGS 기준을 쓰고, WINGS 에 신호가 없으면 SAM 값을 쓴다.
       const cabCode = sortedArr(expectedCabs)[0] || sortedArr(samCabs)[0] || '';
       const ptoFlag = (isPto || samPto) ? 'PTO' : '';
-      if (!vehicle) {
-        const mu = s(modelRaw).toUpperCase();
-        const vk = rules.vehicle_keywords || {};
-        for (const veh of Object.keys(vk)) {
-          if ((vk[veh] || []).some((k) => mu.indexOf(k) !== -1)) { vehicle = veh; break; }
-        }
-      }
 
       // 상태는 항상 Match / Mismatch / No SAM 중 하나 → 전체 = 매치 + 미스매치 + No SAM.
       // 이전(≤6개월) 대체 SAM 으로 매칭된 경우도 그 대체본 기준으로 Match/Mismatch 를 계산하고,
@@ -393,17 +383,8 @@
 
       // WINGS 표기에 축이 섞여 들어오기도 한다('4153 K' 와 '4153 K 8x4' 가 같은 차).
       // 축은 축 칸으로 옮기고 표기는 통일해야 같은 모델이 두 줄로 갈라지지 않는다.
-      let modelDisplay = strip(('Model' in r) ? r['Model'] : modelRaw).replace(/DNA$/, '');
-      const inlineAxle = /(?<![0-9])(\d+x\d+)(?![0-9])/i.exec(modelDisplay);
-      if (inlineAxle) {
-        modelDisplay = strip(modelDisplay.replace(inlineAxle[0], '').replace(/\s{2,}/g, ' '));
-        if (!axleType) axleType = inlineAxle[1];
-      }
-      // WINGS표시치환 시트 — 같은 차가 WINGS 표기 차이로 두 모델처럼 갈라지는 걸 막는다.
-      const disp = rules.wings_display_replace || {};
-      if (Object.prototype.hasOwnProperty.call(disp, modelDisplay) && disp[modelDisplay]) {
-        modelDisplay = String(disp[modelDisplay]);
-      }
+      const modelDisplay = wm.display;
+      if (wm.axle && !axleType) axleType = wm.axle;
 
       const rowDict = {
         'Commission no.': com,
@@ -465,11 +446,30 @@
       }
       out.push(rowDict);
     }
-    // 축·차종은 SAM 파일명(또는 차종키워드)에서만 나오므로 매칭이 없는 행에서는 비어 버린다.
+    // 축·차종은 SAM 파일명에서만 나오므로 매칭이 없는 행에서는 비어 버린다.
     // 같은 Baumuster(공장코드)는 같은 사양이니, 그 값을 아는 다른 행에서 옮겨 채운다.
+    // 차종은 그래도 비면 같은 모델명(4153 K) → 같은 번호(4153) 순으로 한 번 더 채운다.
     fillFromBaumuster(out, 'Type');
     fillFromBaumuster(out, 'Vehicle');
+    fillBy(out, 'Vehicle', (r) => normalizeModel(r['Model(WINGS)']));
+    fillBy(out, 'Vehicle', (r) => (/^(\d{4})/.exec(normalizeModel(r['Model(WINGS)'])) || [])[1] || '');
     return out;
+  }
+
+  // keyOf 가 같은 행들 안에서 값이 하나로 모일 때만 채운다(갈리면 그대로 비워 둔다).
+  function fillBy(rows, col, keyOf) {
+    const known = new Map();
+    for (const r of rows) {
+      const k = keyOf(r), v = strip(r[col]);
+      if (!k || !v) continue;
+      if (!known.has(k)) known.set(k, v);
+      else if (known.get(k) !== v) known.set(k, '');
+    }
+    for (const r of rows) {
+      if (strip(r[col])) continue;
+      const v = known.get(keyOf(r));
+      if (v) r[col] = v;
+    }
   }
 
   // 같은 Baumuster 안에서 값이 하나로 모일 때만 채운다(갈리면 그대로 비워 둔다).
@@ -489,7 +489,7 @@
   }
 
   const api = { compare: compare, _toDate: toDate, _fmtDate: fmtDate, _canonCode: canonCode,
-                _modelKeyCandidates: modelKeyCandidates };
+                _renameModel: renameModel, _wingsModelName: wingsModelName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Compare = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

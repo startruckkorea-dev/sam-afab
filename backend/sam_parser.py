@@ -258,19 +258,8 @@ def load_sam_from_folder(folder: Path, log_fn=None) -> dict:
         with open(fpath, 'rb') as fobj:
             parse_single_sam_file(fobj, fpath.name, mapping, log_fn=log_fn)
 
-    # Auto-generate aliases so WINGS (newer numbering) can find SAM (older numbering).
-    _reverse_prefixes = RULES.get('reverse_aliases', {})
-    for key in list(mapping.keys()):
-        m = re.match(r'^(\d+)([A-Z]*)$', key)
-        if not m:
-            continue
-        num, suffix = m.group(1), m.group(2)
-        for src_prefix, alias_prefixes in _reverse_prefixes.items():
-            if num == src_prefix:
-                for ap in alias_prefixes:
-                    alias_key = ap + suffix
-                    if alias_key not in mapping:
-                        mapping[alias_key] = mapping[key]
+    # Each SAM document is keyed by both its numbers (filename = SAM now, body Vehicle type =
+    # SAM Baumuster). Other spellings are handled on the WINGS side by 모델명 변경.
     return mapping
 
 

@@ -252,10 +252,9 @@
   }
 
   /**
-   * load_sam_from_folder 포팅: 파싱 결과들을 모델키별 매핑으로 모으고
-   * reverse_aliases 로 별칭 키를 확장한다.
+   * load_sam_from_folder 포팅: 파싱 결과들을 모델키별 매핑으로 모은다.
    * @param {Array} parsed  parseSamDocx 결과 배열
-   * @param {object} rules  { reverse_aliases: {num: [alias,...]} }
+   * @param {object} rules  (지금은 쓰지 않음 — 호출부 호환용)
    * @returns {Map} key -> { true/false(PTO) -> [data, ...] }
    */
   function buildSamMapping(parsed, rules) {
@@ -273,21 +272,8 @@
         byPto[flag].push(d);
       }
     }
-    // 별칭 확장 (WINGS 신형 번호 → SAM 구형 번호)
-    const rev = (rules && rules.reverse_aliases) || {};
-    for (const key of Array.from(mapping.keys())) {
-      const m = /^(\d+)([A-Z]*)$/.exec(key);
-      if (!m) continue;
-      const num = m[1], suffix = m[2];
-      for (const srcPrefix of Object.keys(rev)) {
-        if (num !== srcPrefix) continue;
-        const aliases = rev[srcPrefix] || [];
-        for (const ap of aliases) {
-          const aliasKey = ap + suffix;
-          if (!mapping.has(aliasKey)) mapping.set(aliasKey, mapping.get(key));
-        }
-      }
-    }
+    // 문서마다 두 번호(파일명 = SAM now, 본문 Vehicle type = SAM Baumuster)로 등록된다.
+    // 다른 표기는 WINGS 쪽 '모델명 변경'으로 맞춘다(SAM 쪽 별칭 확장은 폐기).
     return mapping;
   }
 

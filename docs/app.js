@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116f';
+const I18N_VER = '20261116h';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -2915,8 +2915,9 @@ function makeSheetEditor(cfg) {
       for (const n of S.order)
         S.sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
       S.sheet = S.order[0] || null;
-      const changed = cfg.onLoaded ? !!cfg.onLoaded(S) : false;
-      setDirty(changed);
+      // onLoaded 가 워크북을 바꿨으면(예: 예전 형식 정리) true 또는 안내 문구를 돌려준다.
+      const changed = cfg.onLoaded ? cfg.onLoaded(S) : false;
+      setDirty(!!changed);
       const emp = el('empty'); if (emp) emp.classList.add('hidden');
       const mn = el('main'); if (mn) mn.classList.remove('hidden');
       const sb = el('search'); if (sb) sb.value = '';
@@ -2924,7 +2925,7 @@ function makeSheetEditor(cfg) {
       S.cols = inferCols(curAoa());
       S.page = 1;
       setMode(S.mode);
-      if (changed) setStatus(stSel, t(cfg.changedMsg || 'matching.migrated'), 'info');
+      if (changed) setStatus(stSel, typeof changed === 'string' ? changed : t('op.loaded'), 'info');
       else setStatus(stSel, isRevert ? t('op.loaded') : '', isRevert ? 'ok' : 'info');
     } catch (e) { setStatus(stSel, t('op.fail', { err: e.message }), 'err'); }
   }
@@ -3003,6 +3004,44 @@ function folderMy(name) {
   const m = /(?:^|\/)MY(\d{2})(?![0-9])/i.exec(String(name || ''));
   return m ? '20' + m[1] : '';
 }
+// 안 붙은 SAM 문서가 '왜' 안 붙었는지 — 그 생산월 주문 중 같은 번호(번호+끝글자) 주문을 본다.
+//   none   그 번호 주문이 그 달에 없음 → 고칠 것 아님(참고)
+//   pto    같은 번호 주문은 있지만 PTO 여부가 전부 다름 → 그 주문들이 다른 견적서에 붙었으면 참고, 아니면 확인
+//   other  같은 번호·같은 PTO 주문이 모두 다른 문서에 붙음(캡·Baumuster 가 더 맞음) → 참고
+//   nosam  같은 조건 주문인데 SAM 을 못 찾은 것이 있음 → 확인 필요
+// 예전처럼 '그 달 전체 주문 수'를 쓰면 모든 문서가 같은 숫자로 보여 원인을 가를 수 없었다.
+function unusedCause(u) {
+  const norm = (window.SamParse && SamParse.normalizeModel)
+    || ((x) => String(x || '').toUpperCase().replace(/\d[X]\d/g, '').replace(/DNA/g, '').replace(/[^A-Z0-9]/g, ''));
+  const prod = folderProd(u.month);
+  const keys = new Set(u.keys || []);
+  const nums = new Set([...keys].map((k) => k.slice(0, 4)));
+  const inMonth = (DATA.rows || []).filter((r) => prodMonth(r) === prod);
+  const same = inMonth.filter((r) => keys.has(norm(r['Model(WINGS)'])));
+  if (!same.length) {
+    const near = [...new Set(inMonth.map((r) => norm(r['Model(WINGS)']))
+      .filter((k) => nums.has(k.slice(0, 4)) && !keys.has(k)))];
+    return { cause: 'none', sev: 'info', n: 0,
+      why: near.length ? t('mp.un.noneNear', { near: near.join(', ') }) : t('mp.un.none') };
+  }
+  const samePto = same.filter((r) => (String(r.PTO || '') === 'PTO') === !!u.pto);
+  if (!samePto.length) {
+    // 그 달 PTO판·비PTO판이 같이 있고 주문이 한쪽뿐이면, 다른 쪽 문서가 남는 건 정상이다.
+    // 주문이 모두 (다른 견적서에) 붙었으면 참고, 못 붙은 주문이 있으면 확인 필요.
+    const allMatched = same.every((r) => r['Compared SAM file name']);
+    return { cause: 'pto', sev: allMatched ? 'info' : 'problem', n: same.length,
+      why: t((u.pto ? 'mp.un.ptoDocPto' : 'mp.un.ptoDocNon') + (allMatched ? 'Ok' : ''), { n: same.length }) };
+  }
+  const noSam = samePto.filter((r) => !r['Compared SAM file name']);
+  if (noSam.length) {
+    return { cause: 'nosam', sev: 'problem', n: samePto.length,
+      why: t('mp.un.nosam', { n: noSam.length }) };
+  }
+  const files = [...new Set(samePto.map((r) => r['Compared SAM file name']))];
+  return { cause: 'other', sev: 'info', n: samePto.length,
+    why: t('mp.un.other', { n: samePto.length, files: files.slice(0, 3).join(', ') + (files.length > 3 ? ' …' : '') }) };
+}
+
 function matchProblems() {
   const g = (DATA && DATA.diagnostics) || null;
   const months = (g && g.sam_months) || [];
@@ -3046,10 +3085,14 @@ function matchProblems() {
       sample: gg.r });
   }
   for (const u of ((g && g.sam_unused) || [])) {
+    const c = unusedCause(u);
+    const keys = u.keys || [];
     out.push({ key: ['unused', u.month, u.file].join('|'),
-      kind: 'unused', sev: u.orders ? 'problem' : 'info', model: (u.keys || []).join(', '),
-      cab: '', pto: u.pto ? 'PTO' : '', ym: folderProd(u.month), my: folderMy(u.month), n: u.orders, file: u.file,
-      why: u.orders === 0 ? t('match.diagNoOrders') : t('match.diagNotPicked', { n: u.orders }) });
+      kind: 'unused', sev: c.sev, cause: c.cause, model: keys.join(', '),
+      modelTitle: keys.length > 1 ? t('mp.keysTitle2', { a: keys[0], b: keys[1] })
+        : (keys.length ? t('mp.keysTitle1', { a: keys[0] }) : ''),
+      cab: '', pto: u.pto ? 'PTO' : '', ym: folderProd(u.month), my: folderMy(u.month), n: c.n, file: u.file,
+      why: c.why });
   }
   for (const sk of ((g && g.sam_skipped) || [])) {
     out.push({ key: ['skipped', sk.month, sk.file].join('|'),
@@ -3129,21 +3172,70 @@ async function miMutate(action, probs, note) {
   return 0;
 }
 
-// ---- 예전 워크북(종류별 시트 9장) → '매칭규칙' 시트 한 장 ----
-// 지금 실제로 적용되던 규칙(기본값 포함)을 그대로 옮기므로 매칭 결과는 바뀌지 않는다.
-// 자동 생성 시트(인식모델_대조표·미매칭_진단)와 쓰이지 않던 이전모델·현재모델은 버린다.
-// 바뀐 게 있으면 true — 편집기는 '저장 안 한 변경'으로 표시한다.
+// ---- 예전 워크북 → '모델명변경' 시트 한 장 ----
+// 규칙은 '모델명 변경'(From → To) 한 가지만 남았다. 예전 워크북의 표시치환은 그대로 옮기고,
+// 폐기한 대체번호·SAM별칭·옵션 덕분에 매칭되던 모델은 지금 데이터에서 찾아 자동으로 추가한다
+// — 그래야 규칙을 지워도 지금 붙어 있는 차가 No SAM 으로 떨어지지 않는다.
+// 지금 데이터는 예전 규칙으로 계산된 것이어야 한다: 그래서 이 정리는 빌드 '전에' 한다.
+function prettyModel(v) {
+  const s = String(v || '').trim();
+  const m = /^(\d{4})\s*([A-Z]+)$/i.exec(s);
+  return m ? `${m[1]} ${m[2].toUpperCase()}` : s;
+}
+// 매칭된 차 중 WINGS 모델명이 붙은 SAM 문서의 두 번호(파일명·본문)와 다른 것 → From → To(SAM now).
+function neededRenames() {
+  const norm = (window.SamParse && SamParse.normalizeModel) || ((x) => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  const tally = new Map();
+  for (const r of DATA.rows || []) {
+    if (!r['Compared SAM file name']) continue;
+    const from = String(r['Model(WINGS)'] || '').trim();
+    if (!from) continue;
+    const docKeys = new Set([norm(r['SAM now']), norm(r['SAM Baumuster'])].filter(Boolean));
+    if (!docKeys.size || docKeys.has(norm(from))) continue;
+    const to = prettyModel(r['SAM now'] || r['SAM Baumuster']);
+    if (!tally.has(from)) tally.set(from, new Map());
+    const m = tally.get(from);
+    m.set(to, (m.get(to) || 0) + 1);
+  }
+  const out = [];
+  for (const [from, m] of tally) {
+    const tos = [...m.entries()].sort((a, b) => b[1] - a[1]);
+    out.push({ from, to: tos[0][0], n: tos[0][1], alt: tos.slice(1).map(([to, n]) => `${to}(${n})`) });
+  }
+  return out.sort((a, b) => b.n - a.n);
+}
+// 예전 규칙(시트들) → 모델명 변경 AOA + 무엇을 더하고 뺐는지.
+function migrateRules(names, getAoa) {
+  const rules = RefData.rulesFromSheets(names, getAoa);
+  const map = rules.model_rename || {};
+  const notes = {};
+  const added = [], removed = [];
+  for (const nd of neededRenames()) {
+    // 표시치환 X→From 이 매칭을 깨던 경우(필요한 것이 From→X): 그 표시치환을 지운다.
+    const back = Object.keys(map).find((x) => map[x] === nd.from && x === nd.to);
+    if (back) { delete map[back]; removed.push(`${back} → ${nd.from}`); continue; }
+    if (map[nd.from] === nd.to) continue;
+    map[nd.from] = nd.to;
+    notes[nd.from] = t('matching.autoNote', { n: nd.n }) + (nd.alt.length ? ' · ' + nd.alt.join(', ') : '');
+    added.push(`${nd.from} → ${nd.to} (${nd.n})`);
+  }
+  return { aoa: RefData.rulesToAoa({ model_rename: map }, notes), added, removed };
+}
+function migrationMsg(r) {
+  return t('matching.migrated', { n: r.aoa.length - 1, added: r.added.length, removed: r.removed.length })
+    + (r.added.length ? ' ' + t('matching.migAdded', { list: r.added.slice(0, 8).join(', ') + (r.added.length > 8 ? ' …' : '') }) : '')
+    + (r.removed.length ? ' ' + t('matching.migRemoved', { list: r.removed.join(', ') }) : '');
+}
+// 편집기에서 예전 워크북을 열면 한 장으로 바꿔 보여 준다(저장해야 파일에 반영). 안내 문구를 돌려준다.
 function unifyRuleSheets(S) {
   const RS = RefData.RULE_SHEET;
-  const others = S.order.filter((n) => n !== RS);
-  if (S.sheets[RS] && !others.length) return false;
-  if (!S.sheets[RS]) {
-    S.sheets[RS] = RefData.rulesToAoa(RefData.rulesFromSheets(S.order, (n) => S.sheets[n]));
-  }
-  for (const n of others) delete S.sheets[n];
+  if (S.order.length === 1 && S.order[0] === RS) return false;
+  const r = S.sheets[RS] ? { aoa: S.sheets[RS], added: [], removed: [] }
+    : migrateRules(S.order, (n) => S.sheets[n]);
+  S.sheets = { [RS]: r.aoa };
   S.order = [RS];
   S.sheet = RS;
-  return true;
+  return migrationMsg(r);
 }
 
 // ---- pto-codes.xlsx 가 없으면 기본값으로 만들어 둔다 ----
@@ -3191,31 +3283,32 @@ async function ensurePtoCodesWorkbook() {
     review: Math.max(0, ref.length - 3 - listed.size) };
 }
 
-// ---- 빌드 때 model_mapping.xlsx 를 '매칭규칙' 한 장짜리로 정리한다 ----
-// 이미 한 장짜리면 손대지 않는다. 예전 워크북이면 지금 적용되던 규칙 그대로 옮겨 저장한다.
-async function saveModelMappingWorkbook() {
+// ---- 빌드 직전에 model_mapping.xlsx 를 '모델명변경' 한 장짜리로 정리한다 ----
+// 이미 한 장짜리면 손대지 않는다. 예전 워크북이면 지금 데이터(예전 규칙으로 계산된 결과)로
+// 필요한 모델명 변경을 더해 저장한다 — 그 뒤에 도는 빌드가 새 규칙을 읽는다.
+async function migrateModelMapping() {
   const RS = RefData.RULE_SHEET;
   const items = await Graph.list('model_rules');
   const found = items.find((it) => !it.isFolder
     && it.name.toLowerCase() === MODEL_MAPPING_FILE.toLowerCase());
   const name = found ? found.name : MODEL_MAPPING_FILE;
-  let aoa;
+  let r;
   if (found) {
     const wb = XLSX.read(new Uint8Array(await Graph.download('model_rules', name)), { type: 'array' });
     if (wb.SheetNames.length === 1 && wb.SheetNames[0] === RS) return { name, changed: false };
     const get = (n) => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, defval: '' });
-    aoa = wb.SheetNames.indexOf(RS) !== -1 ? get(RS)
-      : RefData.rulesToAoa(RefData.rulesFromSheets(wb.SheetNames, get));
+    r = wb.SheetNames.indexOf(RS) !== -1 ? { aoa: get(RS), added: [], removed: [] }
+      : migrateRules(wb.SheetNames, get);
   } else {
-    aoa = RefData.rulesToAoa(RefData.loadRules(null));
+    r = { aoa: RefData.rulesToAoa(RefData.loadRules(null)), added: [], removed: [] };
   }
   const out = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(out, XLSX.utils.aoa_to_sheet(aoa), RS);
+  XLSX.utils.book_append_sheet(out, XLSX.utils.aoa_to_sheet(r.aoa), RS);
   await Graph.upload('model_rules', name, XLSX.write(out, { bookType: 'xlsx', type: 'array' }));
-  return { name, changed: true, n: aoa.length - 1 };
+  return { name, changed: true, msg: migrationMsg(r) };
 }
 
-// ---- 모델 매칭: model_mapping.xlsx 의 '매칭규칙' 시트 편집 ----
+// ---- 모델 매칭: model_mapping.xlsx 의 '모델명변경' 시트 편집 ----
 const matchEditor = makeSheetEditor({
   folderKey: 'model_rules', fixedFile: MODEL_MAPPING_FILE,
   // 예전 워크북이면 열면서 한 장으로 합친다(저장해야 파일에 반영).
@@ -3297,11 +3390,11 @@ function showMatchPane(name) {
   }
 }
 
-// 문제 줄의 '규칙 추가' — 규칙 탭으로 넘어가 '대체번호' 한 줄을 미리 채운 편집 창을 연다.
-function addRuleFor(num) {
+// 문제 줄의 '규칙 추가' — 규칙 탭으로 넘어가 From(WINGS 모델명)을 미리 채운 편집 창을 연다.
+function addRuleFor(model) {
   showMatchPane('rules');
   if (!matchEditor.S.file || !matchEditor.S.sheet) { alert(t('matching.loading')); return; }
-  matchEditor.addRecord(['대체번호', num || '', '', '']);
+  matchEditor.addRecord([model || '', '', '']);
 }
 
 // ---- 매칭 결과: 지금 데이터의 '모델 → 실제로 비교된 SAM 파일' ----
@@ -3566,7 +3659,7 @@ function renderMatchProblems() {
         ? `<button type="button" class="link-btn" data-open="${esc(first)}" title="${esc(p.comms.join(', '))}">${esc(fmtNum(p.n))}</button>`
         : esc(String(p.n));
       const act = p.kind === 'nosam' && IS_ADMIN && !p.ignored
-        ? `<button type="button" class="btn xs" data-add-rule="${esc(p.num)}">${esc(t('mp.addRule'))}</button>` : '';
+        ? `<button type="button" class="btn xs" data-add-rule="${esc(p.model)}">${esc(t('mp.addRule'))}</button>` : '';
       const ig = p.ignored ? miItem(p) : null;
       const why = esc(p.why) + (ig ? `<div class="mp-ig">${esc(t('mp.ignoredBy', { who: excWho(ig.by_name, ig.at) }))}`
         + (ig.note ? ` — “${esc(ig.note)}”` : '') + `</div>` : '');
@@ -3574,7 +3667,7 @@ function renderMatchProblems() {
       return `<tr class="mp-${p.sev}${p.ignored ? ' mp-ignored' : ''}">`
         + `<td class="mp-ck">${canSel ? `<input type="checkbox" data-sel="${esc(p.key)}"${MP_SEL.has(p.key) ? ' checked' : ''} />` : ''}</td>`
         + `<td class="nowrap"><span class="mp-kind ${p.kind}">${esc(t('mp.kind.' + p.kind))}</span></td>`
-        + `<td>${esc(p.model)}</td><td>${esc(p.cab)}</td><td>${esc(p.pto)}</td>`
+        + `<td${p.modelTitle ? ` title="${esc(p.modelTitle)}" class="mp-keys"` : ''}>${esc(p.model)}</td><td>${esc(p.cab)}</td><td>${esc(p.pto)}</td>`
         + `<td class="nowrap">${esc(p.ym || '—')}</td><td class="nowrap">${esc(p.my || '—')}</td><td class="num">${units2}</td>`
         + `<td class="ms-file"><span title="${esc(p.file)}">${esc(p.file)}</span></td>`
         + `<td class="mp-why">${why}</td><td class="nowrap">${act}</td></tr>`;
@@ -3936,7 +4029,17 @@ async function runBuild() {
   const log = buildLog();
   log.line(t('build.step.ref'));
   try {
-    const { data, codes, diag } = await Pipeline.build(GRAPH_SOURCE, { log: (m) => log.line(m) });
+    // 예전 규칙 워크북이면 먼저 '모델명변경' 한 장으로 정리한다 — 지금 데이터(예전 규칙의 결과)로
+    // 필요한 모델명 변경을 찾아야 하므로 반드시 빌드 전에.
+    log.line(t('build.step.mapping'));
+    try {
+      const mm = await migrateModelMapping();
+      log.line(mm.changed ? t('build.mapping.done', { file: mm.name }) + ' ' + mm.msg : t('build.mapping.same', { file: mm.name }), 'ok');
+    } catch (e) {
+      console.error(e);
+      log.line(t('build.mapping.fail', { err: e.message }), 'err');
+    }
+    const { data, codes } = await Pipeline.build(GRAPH_SOURCE, { log: (m) => log.line(m) });
 
     log.line(t('build.step.upload'));
     await Graph.ensureFolder('output');
@@ -3956,15 +4059,7 @@ async function runBuild() {
       log.line(t('build.pto.fail', { err: e.message }), 'err');
     }
 
-    log.line(t('build.step.mapping'));
-    try {
-      const r = await saveModelMappingWorkbook();
-      log.line(r.changed ? t('build.mapping.done', { file: r.name, n: r.n }) : t('build.mapping.same', { file: r.name }), 'ok');
-      if (matchEditor.S.file && !matchEditor.S.dirty) matchEditor.open(MODEL_MAPPING_FILE);
-    } catch (e) {
-      console.error(e);
-      log.line(t('build.mapping.fail', { err: e.message }), 'err');
-    }
+    if (matchEditor.S.file && !matchEditor.S.dirty) matchEditor.open(MODEL_MAPPING_FILE);
 
     const msg = t('build.done', {
       rows: data.summary.total, match: data.summary.matched, mismatch: data.summary.mismatched });
