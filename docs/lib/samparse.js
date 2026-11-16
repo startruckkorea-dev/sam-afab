@@ -75,6 +75,10 @@
 
   function hasDigit(s) { return /\d/.test(s); }
 
+  // SA 코드 모양: 3~4자리 영문/숫자 조합, 또는 AJ 로 시작하는 5자리(AJQQA, AJD2J).
+  // 5자리 코드는 반드시 AJ 로 시작한다.
+  const CODE_SHAPE = /^(?:AJ[A-Z0-9]{3}|[A-Z][A-Z0-9]{2,3})$/;
+
   /**
    * SAM .docx 한 개 파싱.
    * @param {ArrayBuffer|Uint8Array} buf  .docx 바이트
@@ -114,13 +118,26 @@
         if (EQ_HEADERS.has(up)) { section = up; continue; }
         if (!paraText || section === null) continue;
         if (section === 'STANDARD EQUIPMENT' || section === 'SPECIAL EQUIPMENT') {
-          const re = /\b([A-Z][A-Z0-9]{2,3})\b/g;
+          // 코드 모양: 3~4자리 영문/숫자, 또는 AJ 로 시작하는 5자리(AJQQA, AJD2J).
+          const re = /\b(AJ[A-Z0-9]{3}|[A-Z][A-Z0-9]{2,3})\b/g;
           let m;
           while ((m = re.exec(up)) !== null) codes.add(m[1]);
+          // ';'/',' 로 구분된 순수 코드 목록 문단은 산문이 없으므로 모든 토큰이 코드다.
+          // 코드 DB 에 없는 숫자 없는 SA 코드(JAAK, JCHA …)가 아래 필터에 걸려 사라지지
+          // 않도록 신뢰한다. 'K1E Tank, 390 l, left' 같은 산문 줄은 조건(5개 이상,
+          // 80% 이상이 코드 모양)을 못 넘으므로 여전히 필터를 거친다. (sam_parser.py 동일)
+          const segs = up.split(/[;,]/).map(function (s) { return s.trim(); })
+            .filter(function (s) { return s; });
+          const hits = segs.filter(function (s) { return CODE_SHAPE.test(s); });
+          if (segs.length >= 5 && hits.length >= 0.8 * segs.length) {
+            for (const h of hits) { codes.add(h); trusted.add(h); }
+          }
         } else if (section === 'ADDITIONAL EQUIPMENT') {
-          // WINGS 'Offer code' 의 AJ+3자리 코드(AJKLM)도 이 줄 맨 앞에 온다.
-          const m = /^(AJ[A-Z0-9]{3}|[A-Z][A-Z0-9]{2,3})\b/.exec(up);
-          if (m) { codes.add(m[1]); if (/^AJ/.test(m[1])) trusted.add(m[1]); }
+          // '<코드> <설명>' 형식 — 첫 토큰이 곧 코드(D2J, JDAP, JK6G, AJKLM 등).
+          // 구조상 코드 자리이므로 신뢰한다. 'CTT-Proposal Code' 같은 라벨 줄은
+          // 첫 토큰이 'CTT-PROPOSAL' 이라 모양 검사에서 걸러진다.
+          const first = up.split(/\s+/)[0] || '';
+          if (CODE_SHAPE.test(first)) { codes.add(first); trusted.add(first); }
         }
       }
     }

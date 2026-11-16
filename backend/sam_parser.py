@@ -101,7 +101,9 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                     if not para_text or section is None:
                         continue
                     if section in ('STANDARD EQUIPMENT', 'SPECIAL EQUIPMENT'):
-                        codes |= set(re.findall(r'\b([A-Z][A-Z0-9]{2,3})\b', para_upper))
+                        # 3-4 char codes, or 5-char codes that always start with AJ
+                        # (AJQQA, AJD2J).
+                        codes |= set(re.findall(r'\b(AJ[A-Z0-9]{3}|[A-Z][A-Z0-9]{2,3})\b', para_upper))
                         # A ';'/','-delimited list of bare code tokens carries no
                         # prose: every segment IS a code. Trust those tokens so an
                         # all-letter SA code missing from the option-code DB (e.g.
@@ -112,7 +114,7 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                         # like 'K1E Tank, 390 l, left' can't leak 'LEFT' as a code.
                         _segs = [s.strip() for s in re.split(r'[;,]', para_upper)]
                         _segs = [s for s in _segs if s]
-                        _hits = [s for s in _segs if re.fullmatch(r'[A-Z][A-Z0-9]{2,3}', s)]
+                        _hits = [s for s in _segs if re.fullmatch(r'AJ[A-Z0-9]{3}|[A-Z][A-Z0-9]{2,3}', s)]
                         if len(_segs) >= 5 and len(_hits) >= 0.8 * len(_segs):
                             trusted_codes.update(_hits)
                     elif section == 'ADDITIONAL EQUIPMENT':
@@ -124,7 +126,7 @@ def parse_single_sam_file(file_obj, name: str, mapping: dict, log_fn=None):
                         # lines such as 'CTT-Proposal Code' (first token 'CTT-PROPOSAL').
                         _parts = para_upper.split(None, 1)
                         _first = _parts[0] if _parts else ''
-                        if re.fullmatch(r'[A-Z][A-Z0-9]{2,4}', _first):
+                        if re.fullmatch(r'AJ[A-Z0-9]{3}|[A-Z][A-Z0-9]{2,3}', _first):
                             trusted_codes.add(_first)
 
             # Paint + Tyre (CTT) codes, from the document's 'Paint' / 'Tyres' sections
