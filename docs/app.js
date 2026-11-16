@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261018a';
+const I18N_VER = '20261116a';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -1663,6 +1663,44 @@ function histBuild() {
     byMonth.get(month).push(r);
   }
 
+  // 두 소스 × 세 갈래(코드·도색·타이어)를 늘 함께 계산해 둔다 — 화면이 줄로 나눠 쓴다.
+  const aggregate = (rs) => {
+    const per = {};
+    for (const src of HIST_SRCS) {
+      per[src] = {};
+      for (const kind of HIST_KINDS) {
+        const sets = rs.map((r) => new Set(histCodes(r, src, kind.key)));
+        const codes = new Set();
+        sets.forEach((st) => st.forEach((c) => codes.add(c)));
+        per[src][kind.key] = {
+          codes,
+          varied: [...codes].filter((c) => !sets.every((st) => st.has(c))).sort(),
+        };
+      }
+    }
+    return per;
+  };
+
+  // 이전 연식(지금 MY 보다 앞선 가장 가까운 MY)의 같은 모델 — 그 연식의 마지막 생산월.
+  // 연식만 바뀌어 넘어온 모델의 기준월을 이 달과 비교한다. 검색어와 무관하게 찾는다.
+  const prevMy = new Map();
+  if (HIST.my !== HIST_NO_MY && models.size) {
+    const found = new Map(); // key → { my, month, rows }
+    for (const r of DATA.rows) {
+      const my = histMyOf(r);
+      if (my === HIST_NO_MY || !(my < HIST.my)) continue;
+      const key = histModelKey(r);
+      const month = prodMonth(r);
+      if (!month || !models.has(key)) continue;
+      const f = found.get(key);
+      if (!f || my > f.my || (my === f.my && month > f.month)) found.set(key, { my, month, rows: [r] });
+      else if (my === f.my && month === f.month) f.rows.push(r);
+    }
+    for (const [key, f] of found) {
+      prevMy.set(key, { my: f.my, month: f.month, cell: aggregate(f.rows) });
+    }
+  }
+
   const out = [];
   let total = 0;
   for (const [key, byMonth] of models) {
@@ -1671,20 +1709,7 @@ function histBuild() {
     for (const m of seq) {
       const rs = byMonth.get(m);
       total += rs.length;
-      // 두 소스 × 세 갈래(코드·도색·타이어)를 늘 함께 계산해 둔다 — 화면이 줄로 나눠 쓴다.
-      const per = {};
-      for (const src of HIST_SRCS) {
-        per[src] = {};
-        for (const kind of HIST_KINDS) {
-          const sets = rs.map((r) => new Set(histCodes(r, src, kind.key)));
-          const codes = new Set();
-          sets.forEach((st) => st.forEach((c) => codes.add(c)));
-          per[src][kind.key] = {
-            codes,
-            varied: [...codes].filter((c) => !sets.every((st) => st.has(c))).sort(),
-          };
-        }
-      }
+      const per = aggregate(rs);
       // 그 달의 WINGS↔SAM 차이는 compare 가 이미 정리해 둔 Only_in_* 를 쓴다
       // (Factory Control·필수코드는 빠져 있어 대시보드의 미스매치 기준과 같다).
       const onlyW = new Set(), onlyS = new Set();
@@ -1699,19 +1724,36 @@ function histBuild() {
         onlyW: [...onlyW].sort(), onlyS: [...onlyS].sort(),
       });
     }
-    seq.forEach((m, i) => {
-      const cell = cells.get(m);
-      if (i === 0) { cell.base = true; return; }
-      const refMonth = HIST.basis === 'first' ? seq[0] : seq[i - 1];
-      cell.ref = refMonth;
+    const diff = (cell, refCell) => {
       for (const src of HIST_SRCS) {
         for (const kind of HIST_KINDS) {
-          const ref = cells.get(refMonth)[src][kind.key].codes;
+          const ref = refCell[src][kind.key].codes;
           const cur = cell[src][kind.key];
           cur.added = [...cur.codes].filter((c) => !ref.has(c)).sort();
           cur.removed = [...ref].filter((c) => !cur.codes.has(c)).sort();
         }
       }
+    };
+    seq.forEach((m, i) => {
+      const cell = cells.get(m);
+      if (i === 0) {
+        // 기준월은 '기준'으로 두되, 같은 모델이 이전 연식에 있었다면 그 연식의
+        // 마지막 생산월과 비교한 변경(연식 변경분)을 함께 보여 준다.
+        cell.base = true;
+        const prev = prevMy.get(key);
+        if (prev) {
+          cell.prevMy = { my: prev.my, month: prev.month };
+          diff(cell, prev.cell);
+        } else {
+          for (const src of HIST_SRCS) {
+            for (const kind of HIST_KINDS) { cell[src][kind.key].added = []; cell[src][kind.key].removed = []; }
+          }
+        }
+        return;
+      }
+      const refMonth = HIST.basis === 'first' ? seq[0] : seq[i - 1];
+      cell.ref = refMonth;
+      diff(cell, cells.get(refMonth));
     });
     // 모델 표(대시보드와 같은 항목)를 그릴 때 쓰는 대표 행 — 같은 키면 항목 값이 같다.
     out.push({ key, months: seq, cells, sample: cells.get(seq[0]).rows[0] });
@@ -1731,7 +1773,7 @@ function histXOf(cell, kinds) {
     return a.concat(d.added.map((c) => '＋' + p + c), d.removed.map((c) => '−' + p + c));
   }, []);
   let same, first;
-  if (cell.base) {
+  if (cell.base && !cell.prevMy) {
     same = true;
     first = t('hist.xBase');
   } else {
@@ -1770,7 +1812,7 @@ function histXHeadHtml(cell, kinds) {
 function histShownSrcs() { return HIST_SRCS.filter((src) => HIST.src === 'both' || HIST.src === src); }
 function histCellDelta(cell) {
   const out = { add: 0, del: 0 };
-  if (!cell || cell.base) return out;
+  if (!cell || (cell.base && !cell.prevMy)) return out;
   for (const src of histShownSrcs()) {
     for (const k of HIST_KINDS) {
       out.add += cell[src][k.key].added.length;
@@ -1849,22 +1891,30 @@ function histUnitsCellHtml(cell, month) {
 function histSrcCellHtml(cell, month, src, kindKey) {
   if (!cell) return histGapCellHtml();
   const d = cell[src][kindKey];
+  const desc = (c) => kindKey === 'paint' ? 'MB ' + c
+    : (kindKey === 'tyre' ? c : (describe(c) || c));
+  const line = (c, kind) =>
+    `<span class="hcode ${kind}" title="${esc(desc(c))}">` +
+    `${kind === 'add' ? '+' : '−'}${esc(c)}</span>`;
+  const deltaHtml = () => {
+    const lines = d.added.map((c) => line(c, 'add'))
+      .concat(d.removed.map((c) => line(c, 'del')));
+    return lines.length
+      ? `<div class="hist-codes">${lines.join('')}</div>`
+      : `<span class="hist-dash" role="img" aria-label="${esc(t('hist.same'))}">—</span>`;
+  };
   let body, title;
   if (cell.base) {
     title = t('hist.baseTitle', { m: month });
     body = `<div class="hist-base">${esc(t('hist.base'))}</div>`;
+    if (cell.prevMy) {
+      const ref = histMyLabel(cell.prevMy.my) + ' ' + cell.prevMy.month;
+      title += '\n' + t('hist.cellTitle', { ref, cur: month });
+      body += `<div class="hist-prevmy">${esc(t('hist.vsPrevMy', { ref }))}</div>` + deltaHtml();
+    }
   } else {
     title = t('hist.cellTitle', { ref: cell.ref, cur: month });
-    const desc = (c) => kindKey === 'paint' ? 'MB ' + c
-      : (kindKey === 'tyre' ? c : (describe(c) || c));
-    const line = (c, kind) =>
-      `<span class="hcode ${kind}" title="${esc(desc(c))}">` +
-      `${kind === 'add' ? '+' : '−'}${esc(c)}</span>`;
-    const lines = d.added.map((c) => line(c, 'add'))
-      .concat(d.removed.map((c) => line(c, 'del')));
-    body = lines.length
-      ? `<div class="hist-codes">${lines.join('')}</div>`
-      : `<span class="hist-dash" role="img" aria-label="${esc(t('hist.same'))}">—</span>`;
+    body = deltaHtml();
   }
   // 같은 달 commission 끼리 갈린 코드
   const warn = d.varied.length
@@ -1911,7 +1961,9 @@ function histDetailHtml(g, months) {
     const cell = g.cells.get(m);
     const d = histCellDelta(cell);
     const tag = cell && cell.base
-      ? `<span class="hm-tag base">${esc(t('hist.base'))}</span>`
+      ? `<span class="hm-tag base">${esc(t('hist.base'))}` +
+        (d.add + d.del ? ` <span class="chg" title="${esc(t('hist.monthChgPrevMy', { my: histMyLabel(cell.prevMy.my), n: d.add + d.del }))}">● ${d.add + d.del}</span>` : '') +
+        `</span>`
       : (d.add + d.del ? `<span class="hm-tag chg" title="${esc(t('hist.monthChg', { n: d.add + d.del }))}">● ${d.add + d.del}</span>`
         : `<span class="hm-tag"></span>`);
     return `<th scope="col" class="${histColCls(cell).trim()}" title="${esc(m)}">` +
@@ -2090,7 +2142,10 @@ function histExportXlsx() {
       const kinds = histKindsOf(g);
       const lines = cell.rows.map((r) => 'Commission ' + r['Commission no.']);
       if (cell.base) lines.push(t('hist.base'));
-      else {
+      if (cell.base && cell.prevMy) {
+        lines.push(t('hist.vsPrevMy', { ref: histMyLabel(cell.prevMy.my) + ' ' + cell.prevMy.month }));
+      }
+      if (!cell.base || cell.prevMy) {
         for (const k of kinds) {
           for (const src of srcs) {
             const tag = (kinds.length > 1 ? t('hist.kind.' + k.key) + ' ' : '')

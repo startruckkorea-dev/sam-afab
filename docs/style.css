@@ -927,6 +927,9 @@ body.lang-en .man-lang-note { display: block; margin: 0 0 18px; padding: 10px 14
 .hcode.add { background: #E3F5EA; color: #1A7F4B; }
 .hcode.del { background: #FDE3E3; color: #B42318; }
 .hist-base { font-weight: 600; color: var(--accent); font-size: 12px; }
+/* 이전 연식 마지막 생산월 대비 — 기준월 칸 안에서 기준 표기 밑에 작게. */
+.hist-prevmy { margin: 3px 0 5px; font-size: 11px; color: var(--muted, #6B7280); }
+.hm-tag.base .chg { color: #B26A00; margin-left: 4px; }
 .hist-dash { color: #C3C8CF; font-size: 13px; }
 .hist-none { color: var(--border-strong); }
 .hist-warn { margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--warn); cursor: help; }

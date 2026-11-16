@@ -79,6 +79,8 @@
   "hist.varied": "⚠ {n} code(s) differ between commissions of this month: {codes}",
   "hist.cellTitle": "Compared {ref} → {cur}",
   "hist.baseTitle": "{m} — first production month of this model (baseline)",
+  "hist.vsPrevMy": "vs {ref}",
+  "hist.monthChgPrevMy": "{n} changes vs the last production month of {my}",
   "hist.gapTitle": "No production in this month.",
   "hist.exportTitleRow": "Code history — {my} · {src} · {basis}",
   "matching.title": "Model Matching",

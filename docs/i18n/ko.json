@@ -79,6 +79,8 @@
   "hist.varied": "⚠ 같은 달 commission 간 코드 차이 {n}개: {codes}",
   "hist.cellTitle": "{ref} → {cur} 비교",
   "hist.baseTitle": "{m} — 이 모델의 첫 생산월(기준)",
+  "hist.vsPrevMy": "{ref} 대비",
+  "hist.monthChgPrevMy": "이전 연식({my}) 마지막 생산월 대비 변경 {n}건",
   "hist.gapTitle": "이 달에는 생산이 없습니다.",
   "hist.exportTitleRow": "코드 히스토리 — {my} · {src} · {basis}",
   "matching.title": "모델 매칭",
