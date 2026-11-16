@@ -1,6 +1,6 @@
 {
   "nav.dashboard": "Dashboard",
-  "nav.history": "Month History",
+  "nav.history": "History",
   "nav.matching": "Model Matching",
   "nav.codes": "Code Manager",
   "nav.manual": "User manual",
@@ -425,5 +425,15 @@
   "scmp.remove": "Close this comparison",
   "scmp.pickHint": "Select at least two SAM files to compare.",
   "scmp.x.only": "Only {s}",
-  "scmp.swap": "Swap A ↔ B"
+  "scmp.swap": "Swap A ↔ B",
+  "nav.histMonth": "Production-month history",
+  "hist.filesN": "{n} files",
+  "hist.filesN.one": "{n} file",
+  "hist.filesOf": "{n} files",
+  "hist.filesOf.one": "{n} file",
+  "hist.st.files": "SAM files",
+  "hist.countFiles": "{models} models · {months} months · {n} SAM files",
+  "hist.popFiles": "{m} · {n} SAM files",
+  "hist.popCompare": "Open in SAM Compare (against the previous month's file)",
+  "hist.footFiles": "Click a file to open it in SAM Compare against the previous month's file."
 }

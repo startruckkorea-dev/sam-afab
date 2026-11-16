@@ -1237,3 +1237,14 @@ body.exc-busy, body.exc-busy button { cursor: progress; }
   .scmp-side { flex: none; }
   .scmp-swap, .scmp-add { align-self: center; }
 }
+
+/* ===================== 상단 하위 메뉴 (이력관리) ===================== */
+.nav-group { display: inline-flex; align-items: center; gap: 4px; }
+.nav-caret { width: 14px; height: 14px; opacity: .7; transition: transform .12s; }
+.nav-group[aria-expanded="true"] .nav-caret { transform: rotate(180deg); }
+.nav-menu { position: fixed; z-index: 80; min-width: 180px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.nav-menu-item { display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer;
+  padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13.5px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.nav-menu-item:hover, .nav-menu-item:focus-visible { background: var(--surface-2); outline: none; }
+.nav-menu-item.sel { background: var(--accent-bg); color: var(--accent); font-weight: 600; }

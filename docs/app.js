@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116j';
+const I18N_VER = '20261116k';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -169,6 +169,27 @@ function esc(s) {
 
 // ====================== 뷰 전환 (대시보드 / 생산월 이력관리 / 모델 매칭 / 코드 관리) ======================
 let CUR_VIEW = 'dashboard';
+// 상단 메뉴의 하위 메뉴 묶음 — 묶음 버튼은 그 안의 뷰 중 하나가 열려 있으면 켜진다.
+const NAV_GROUPS = { history: ['history', 'samcmp'] };
+function navMenuClose() {
+  const m = $('#navHistoryMenu');
+  if (m) m.classList.add('hidden');
+  const b = $('#navHistory');
+  if (b) b.setAttribute('aria-expanded', 'false');
+}
+// nav 는 가로 스크롤 영역이라 메뉴판을 그 안에 두면 잘린다 — 바깥에 두고 버튼 바로 아래에 띄운다.
+function navMenuToggle() {
+  const m = $('#navHistoryMenu'), b = $('#navHistory');
+  if (!m || !b) return;
+  if (!m.classList.contains('hidden')) { navMenuClose(); return; }
+  const rc = b.getBoundingClientRect();
+  m.style.left = Math.max(8, rc.left) + 'px';
+  m.style.top = (rc.bottom + 6) + 'px';
+  m.classList.remove('hidden');
+  b.setAttribute('aria-expanded', 'true');
+  const first = m.querySelector('.nav-menu-item.sel') || m.querySelector('.nav-menu-item');
+  if (first) first.focus();
+}
 const VIEW_INIT = { history: false, samcmp: false, exceptions: false, matching: false, codes: false, manual: false };
 
 function switchView(view) {
@@ -186,10 +207,13 @@ function switchView(view) {
   document.querySelectorAll('.view').forEach((el) =>
     el.classList.toggle('active', el.id === 'view-' + view));
   document.querySelectorAll('.nav-link').forEach((el) => {
-    el.classList.toggle('active', el.dataset.view === view);
-    if (el.dataset.view === view) el.setAttribute('aria-current', 'page');
+    const on = el.dataset.view === view || (NAV_GROUPS[el.dataset.group] || []).includes(view);
+    el.classList.toggle('active', on);
+    if (on) el.setAttribute('aria-current', 'page');
     else el.removeAttribute('aria-current');
   });
+  document.querySelectorAll('.nav-menu-item').forEach((el) => el.classList.toggle('sel', el.dataset.view === view));
+  navMenuClose();
   // Export 는 대시보드 필터에 대한 기능이라 다른 뷰에서는 숨긴다.
   const exportBtn = $('#exportBtn');
   if (exportBtn) exportBtn.classList.toggle('hidden', view !== 'dashboard');
@@ -1903,6 +1927,7 @@ function colLabel(key) {
   return c ? c.label : key;
 }
 function histModelKey(r) {
+  if (r._histKey) return r._histKey;   // SAM 파일 행 — 파일명에서 뽑은 모델 이름
   return HIST_COLS.filter((k) => k !== 'MY')
     .map((k) => String(r[k] ?? '').trim()).filter(Boolean).join(' ');
 }
@@ -1923,6 +1948,32 @@ function histCodes(r, src, kind) {
   const k = HIST_KINDS.find((x) => x.key === (kind || 'code'));
   return splitCodes(r[k.field[(src || HIST.src) === 'sam' ? 'sam' : 'wings']]);
 }
+// 'SAM 코드'로 볼 때는 WINGS 주문이 아니라 SAM 폴더의 문서 하나하나가 행이 된다 — 주문이 안 붙은
+// 문서까지 모든 모델의 월별 이력이 나오게. 생산월 = SAM 생산월 폴더, MY = MY 폴더(없으면 코드).
+// 나머지 화면 로직(합집합·기준월·이전 MY 비교)은 행 모양만 맞추면 그대로 쓴다.
+function histIsSam() { return HIST.src === 'sam'; }
+function histSamCat(label) {
+  if (/\d{4}\s?(LS|S)(?![A-Za-z])/i.test(label)) return 'tractor';
+  if (/\d{4}\s?K(?![A-Za-z])/i.test(label)) return 'tipper';
+  return 'rigid';
+}
+function histSamRows() {
+  if (HIST._samFor === DATA && HIST._samRows) return HIST._samRows;
+  const join = (st) => [...st].sort().join(',');
+  HIST._samRows = scmpCatalog().map((e) => ({
+    _histKey: e.label, _samDoc: e,
+    'Commission no.': e.file.split(/[\\/]/).pop(),
+    MY: e.my === HIST_NO_MY ? '' : e.my,
+    'Production date': e.month ? e.month + '-01' : '',
+    Category: histSamCat(e.label),
+    'Model(WINGS)': e.now,
+    '_all_sam_codes': join(e.codes), '_paint_sam': join(e.paint), '_tyre_sam': join(e.tyre),
+  }));
+  HIST._samFor = DATA;
+  return HIST._samRows;
+}
+function histSourceRows() { return histIsSam() ? histSamRows() : DATA.rows; }
+
 function histBasisLabel() { return t('hist.basis.' + HIST.basis); }
 function histSrcLabel() { return t('hist.src.' + HIST.src); }
 
@@ -1931,7 +1982,7 @@ function histFillMy() {
   const sel = $('#histMy');
   if (!sel) return;
   const set = new Set();
-  for (const r of DATA.rows) if (prodMonth(r) && histModelKey(r)) set.add(histMyOf(r));
+  for (const r of histSourceRows()) if (prodMonth(r) && histModelKey(r)) set.add(histMyOf(r));
   const list = [...set].filter((v) => v !== HIST_NO_MY).sort().reverse();
   if (set.has(HIST_NO_MY)) list.push(HIST_NO_MY);
   if (!list.includes(HIST.my)) HIST.my = list[0] || '';
@@ -1961,7 +2012,7 @@ function histBuild() {
   const models = new Map();
   const monthSet = new Set();
   HIST.rows = [];
-  for (const r of DATA.rows) {
+  for (const r of histSourceRows()) {
     const month = prodMonth(r);
     const key = histModelKey(r);
     if (!month || !key || histMyOf(r) !== HIST.my) continue;
@@ -1997,7 +2048,7 @@ function histBuild() {
   const prevMy = new Map();
   if (HIST.my !== HIST_NO_MY && models.size) {
     const found = new Map(); // key → { my, month, rows }
-    for (const r of DATA.rows) {
+    for (const r of histSourceRows()) {
       const my = histMyOf(r);
       if (my === HIST_NO_MY || !(my < HIST.my)) continue;
       const key = histModelKey(r);
@@ -2135,6 +2186,8 @@ function histCellDelta(cell) {
 function histChangedMonths(g) {
   return g.months.filter((m) => { const d = histCellDelta(g.cells.get(m)); return d.add + d.del > 0; }).length;
 }
+// 대수 문구 — SAM 파일 행이면 '대' 대신 '파일'.
+function histUnitsText(n) { return tn(histIsSam() ? 'hist.filesN' : 'hist.unitsN', Number(String(n).replace(/,/g, '')), { n }); }
 function histUnits(g) { return g.months.reduce((s, m) => s + g.cells.get(m).rows.length, 0); }
 
 // 차종 구분(Tractor / Rigid / Tipper) — 상세 창의 Category 와 같은 필드.
@@ -2165,7 +2218,7 @@ function histModelListHtml(list) {
       `data-key="${esc(g.key)}" title="${esc(g.key)}">` +
       `<span class="hm-line"><span class="hm-name">${esc(g.key)}</span>${badge}</span>` +
       `<span class="hm-sub">${esc(t('hist.modelSub', {
-        n: tn('hist.unitsOf', histUnits(g), { n: histUnits(g) }),
+        n: tn(histIsSam() ? 'hist.filesOf' : 'hist.unitsOf', histUnits(g), { n: histUnits(g) }),
         m: tn('hist.monthsOf', g.months.length, { n: g.months.length }) }))}</span></button>`;
   }).join('');
 }
@@ -2192,9 +2245,10 @@ function histUnitsCellHtml(cell, month) {
   if (!cell) return histGapCellHtml();
   const n = cell.rows.length;
   const first = cell.rows[0]['Commission no.'];
-  const tip = n > 1 ? t('hist.unitsTitle', { first, n: n - 1 }) : String(first);
+  const tip = histIsSam() ? cell.rows.map((r) => r['Commission no.']).join('\n')
+    : (n > 1 ? t('hist.unitsTitle', { first, n: n - 1 }) : String(first));
   return `<td class="hist-cell units${histColCls(cell)}"><button type="button" class="units-pill" ` +
-    `data-m="${esc(month)}" aria-haspopup="true" title="${esc(tip)}">${esc(t('hist.unitsN', { n }))}</button></td>`;
+    `data-m="${esc(month)}" aria-haspopup="true" title="${esc(tip)}">${esc(histUnitsText(n))}</button></td>`;
 }
 
 // 한 소스(WINGS 또는 SAM)의 그 달 칸 — 갈래(코드·도색·타이어)별로 한 칸씩.
@@ -2246,7 +2300,7 @@ function histSummaryHtml(g) {
   const note = HIST.basis === 'first'
     ? t('hist.note.first', { m: g.months[0] }) : t('hist.note.prev');
   return `<div class="hist-sum">` +
-    stat(t('hist.st.units'), esc(t('hist.unitsN', { n: fmtNum(histUnits(g)) }))) +
+    stat(t(histIsSam() ? 'hist.st.files' : 'hist.st.units'), esc(histUnitsText(fmtNum(histUnits(g))))) +
     stat(t('hist.st.months'), esc(t('hist.st.monthsV', { n: g.months.length }))) +
     stat(t('hist.st.chg'), esc(t('hist.st.monthsV', { n: chg })), chg ? 'warn' : '') +
     stat(t('hist.st.items'), `<span class="hs-add">+${tot.add}</span> <span class="hs-sep">/</span> <span class="hs-del">−${tot.del}</span>`) +
@@ -2285,7 +2339,7 @@ function histDetailHtml(g, months) {
     head += `<tr class="hist-xrow"><td class="hist-rowhead corner"></td>` +
       months.map((m) => histXHeadHtml(g.cells.get(m), ks)).join('') + `</tr>`;
   }
-  let body = `<tr class="r-units"><th scope="row" class="hist-rowhead"><span class="hkind">${esc(t('hist.units'))}</span></th>` +
+  let body = `<tr class="r-units"><th scope="row" class="hist-rowhead"><span class="hkind">${esc(t(histIsSam() ? 'hist.st.files' : 'hist.units'))}</span></th>` +
     months.map((m) => histUnitsCellHtml(g.cells.get(m), m)).join('') + `</tr>`;
   // 갈래를 먼저 묶고 그 안에서 WINGS·SAM 을 위아래로 — 같은 성격의 코드끼리 맞대어 보게.
   body += kinds.map((k) => srcs.map((src, si) =>
@@ -2298,7 +2352,7 @@ function histDetailHtml(g, months) {
   return histSummaryHtml(g) +
     `<div class="hist-scroll"><table class="hist-grid">` +
     `<thead>${head}</thead><tbody>${body}</tbody></table></div>` +
-    `<div class="hist-foot"><span>${esc(t('hist.foot'))}</span><span>${esc(t('hist.footSrc', { src: srcName }))}</span></div>`;
+    `<div class="hist-foot"><span>${esc(t(histIsSam() ? 'hist.footFiles' : 'hist.foot'))}</span><span>${esc(t('hist.footSrc', { src: srcName }))}</span></div>`;
 }
 
 // 대수 알약을 누르면 뜨는 그 달 Commission 목록 — 번호를 누르면 상세 창.
@@ -2309,11 +2363,14 @@ function histOpenPopover(btn, g) {
   const pop = document.createElement('div');
   pop.className = 'hist-pop';
   pop.setAttribute('role', 'dialog');
-  pop.setAttribute('aria-label', t('hist.popTitle', { m: btn.dataset.m, n: cell.rows.length }));
-  pop.innerHTML = `<div class="hp-head">${esc(t('hist.popTitle', { m: btn.dataset.m, n: cell.rows.length }))}</div>` +
-    `<div class="hp-list">` + cell.rows.map((r, i) =>
-      `<button type="button" class="hp-item" data-i="${i}"><span class="mono">${esc(r['Commission no.'])}</span>` +
-      `${statusBadge(String(r['SAM Status'] || ''))}</button>`).join('') + `</div>`;
+  const sam = histIsSam();
+  const title = t(sam ? 'hist.popFiles' : 'hist.popTitle', { m: btn.dataset.m, n: cell.rows.length });
+  pop.setAttribute('aria-label', title);
+  pop.innerHTML = `<div class="hp-head">${esc(title)}</div>` +
+    `<div class="hp-list">` + cell.rows.map((r, i) => sam
+      ? `<button type="button" class="hp-item" data-i="${i}" title="${esc(t('hist.popCompare'))}"><span>${esc(r['Commission no.'])}</span></button>`
+      : `<button type="button" class="hp-item" data-i="${i}"><span class="mono">${esc(r['Commission no.'])}</span>` +
+        `${statusBadge(String(r['SAM Status'] || ''))}</button>`).join('') + `</div>`;
   document.body.appendChild(pop);
   const rc = btn.getBoundingClientRect();
   const w = pop.offsetWidth, h = pop.offsetHeight;
@@ -2321,12 +2378,27 @@ function histOpenPopover(btn, g) {
   pop.style.top = (rc.bottom + h + 8 > window.innerHeight ? Math.max(8, rc.top - h - 6) : rc.bottom + 6) + 'px';
   pop.querySelectorAll('.hp-item').forEach((b) => b.addEventListener('click', () => {
     histClosePopover();
-    openDrawer(cell.rows[Number(b.dataset.i)]);
+    const r = cell.rows[Number(b.dataset.i)];
+    if (r._samDoc) histOpenCompare(r._samDoc);
+    else openDrawer(r);
   }));
   HIST.pop = { el: pop, btn };
   btn.setAttribute('aria-expanded', 'true');
   const firstItem = pop.querySelector('.hp-item');
   if (firstItem) firstItem.focus();
+}
+// SAM 파일을 누르면 'SAM 파일 비교'로 — A = 같은 모델의 바로 앞 생산월 문서, B = 누른 문서.
+function histOpenCompare(doc) {
+  const list = scmpCatalog();
+  const prev = list.filter((e) => e.key === doc.key && e.id !== doc.id
+    && (e.month < doc.month || (e.month === doc.month && e.my < doc.my)))
+    .sort((x, y) => (y.month + y.my).localeCompare(x.month + x.my))[0];
+  const side = (e) => (e ? { my: e.my, month: e.month, id: e.id, key: e.key } : scmpBlankSide());
+  SCMP.sides = [side(prev), side(doc), scmpBlankSide()];
+  SCMP.open = 2;
+  const inited = VIEW_INIT.samcmp;
+  switchView('samcmp');
+  if (inited) scmpUpdate();
 }
 function histClosePopover(restore) {
   if (!HIST.pop) return;
@@ -2361,7 +2433,7 @@ function histRender() {
   const b = histBuild();
   HIST.last = b;
   if (countEl) {
-    countEl.textContent = t('hist.count',
+    countEl.textContent = t(histIsSam() ? 'hist.countFiles' : 'hist.count',
       { models: b.models.length, months: b.months.length, n: fmtNum(b.total) });
   }
   if (!b.models.length) { empty(t('hist.emptyMy')); return; }
@@ -2451,7 +2523,7 @@ function histExportXlsx() {
       const both = HIST.src === 'both';
       const srcs = both ? HIST_SRCS : [HIST.src === 'sam' ? 'sam' : 'wings'];
       const kinds = histKindsOf(g);
-      const lines = cell.rows.map((r) => 'Commission ' + r['Commission no.']);
+      const lines = cell.rows.map((r) => (r._samDoc ? 'SAM ' : 'Commission ') + r['Commission no.']);
       if (cell.base) lines.push(t('hist.base'));
       if (cell.base && cell.prevMy) {
         lines.push(t('hist.vsPrevMy', { ref: histMyLabel(cell.prevMy.my) + ' ' + cell.prevMy.month }));
@@ -2496,7 +2568,7 @@ function initHistory() {
   if (src) { src.value = HIST.src; enhanceSelect(src); }
 
   $('#histMy').addEventListener('input', (e) => { HIST.my = e.target.value; histRender(); });
-  if (src) src.addEventListener('input', (e) => { HIST.src = e.target.value; histRender(); });
+  if (src) src.addEventListener('input', (e) => { HIST.src = e.target.value; histFillMy(); histRender(); });
   $('#histSearch').addEventListener('input', (e) => { HIST.q = e.target.value; histRender(); });
   $('#histBasis').querySelectorAll('button[data-basis]').forEach((btn) =>
     btn.addEventListener('click', () => {
@@ -2530,16 +2602,17 @@ for (let i = 0; i < SCMP_MAX; i++) SCMP.sides.push(scmpBlankSide());
 //   → label 'Actros-L 2863 LS 6x2 G5F', tag 'TR01-1'
 function scmpLabelOf(file) {
   let s = String(file || '').split(/[\\/]/).pop().replace(/\.docx$/i, '');
-  s = s.replace(/^Internal[\s_]*quotation[\s_]*/i, '');
+  s = s.replace(/^Internal[\s_]*quotation[\s_]*/i, '').replace(/^stk[\s_]+/i, '');
   let tag = '';
   const m = /^([A-Z]{2}\d{2}(?:-\d+)?)[\s_]+/.exec(s);
   if (m) { tag = m[1]; s = s.slice(m[0].length); }
-  s = s.replace(/[\s_]*\(\d+\)\s*$/, '').replace(/[\s_]+\d{4}-\d{2}(?:-\d{2})?\s*$/, '');
+  // 뒤꼬리: '_(1)' 사본 번호, '2026-11' 생산월, 그 뒤 '_15668' 같은 문서 번호.
+  s = s.replace(/[\s_]*\(\d+\)\s*$/, '').replace(/[\s_]+\d{4}-\d{2}(?:-\d{2})?(?:[\s_]+\d+)?\s*$/, '');
   s = s.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
   return { label: s || String(file || ''), tag };
 }
 // 같은 모델인지 — 생산월을 바꿔도 같은 모델을 계속 고르게 하는 키.
-function scmpModelKey(e) { return e.label.toLowerCase().replace(/[\s-]+/g, '') + (e.pto ? '|pto' : ''); }
+function scmpModelKey(e) { return e.label.toLowerCase().replace(/[\s-]+/g, ''); }
 
 function scmpCatalog() {
   const out = [];
@@ -4393,9 +4466,22 @@ $('#drawerXls').addEventListener('click', () => { if (DRAWER_ROW) exportRowXls(D
 document.querySelectorAll('.lang-toggle button[data-lang]').forEach((b) =>
   b.addEventListener('click', () => setLang(b.dataset.lang)));
 
-// 뷰 전환 (네비 + 브랜드)
+// 뷰 전환 (네비 + 브랜드 + 하위 메뉴)
 document.querySelectorAll('[data-view]').forEach((el) =>
   el.addEventListener('click', (e) => { e.preventDefault(); switchView(el.dataset.view); }));
+const _navHistory = $('#navHistory');
+if (_navHistory) _navHistory.addEventListener('click', (e) => { e.stopPropagation(); navMenuToggle(); });
+document.addEventListener('click', (e) => {
+  const m = $('#navHistoryMenu');
+  if (m && !m.classList.contains('hidden') && !m.contains(e.target)) navMenuClose();
+});
+document.addEventListener('keydown', (e) => {
+  const m = $('#navHistoryMenu');
+  if (e.key === 'Escape' && m && !m.classList.contains('hidden')) { navMenuClose(); if (_navHistory) _navHistory.focus(); }
+});
+window.addEventListener('resize', navMenuClose);
+const _navEl = $('#nav');
+if (_navEl) _navEl.addEventListener('scroll', navMenuClose);
 
 // 데이터 빌드 (관리자) — 이 브라우저에서 계산 후 SharePoint 에 저장
 const _buildBtn = $('#buildBtn');

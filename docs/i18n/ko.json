@@ -1,6 +1,6 @@
 {
   "nav.dashboard": "대시보드",
-  "nav.history": "생산월 이력관리",
+  "nav.history": "이력관리",
   "nav.matching": "모델 매칭",
   "nav.codes": "코드 관리",
   "nav.manual": "사용자 매뉴얼",
@@ -421,5 +421,13 @@
   "scmp.remove": "이 비교 닫기",
   "scmp.pickHint": "비교할 SAM 파일을 2개 이상 선택하세요.",
   "scmp.x.only": "{s} 에만",
-  "scmp.swap": "A ↔ B 바꾸기"
+  "scmp.swap": "A ↔ B 바꾸기",
+  "nav.histMonth": "생산월 이력",
+  "hist.filesN": "파일 {n}개",
+  "hist.filesOf": "파일 {n}개",
+  "hist.st.files": "SAM 파일",
+  "hist.countFiles": "{models}개 모델 · {months}개월 · SAM 파일 {n}개",
+  "hist.popFiles": "{m} · SAM 파일 {n}개",
+  "hist.popCompare": "SAM 파일 비교에서 열기 (직전 생산월 파일과 비교)",
+  "hist.footFiles": "파일을 누르면 SAM 파일 비교에서 직전 생산월 파일과 맞대어 봅니다."
 }
