@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116b';
+const I18N_VER = '20261116c';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -293,7 +293,6 @@ function applyData(d, c) {
   render();
   if (VIEW_INIT.history) { histFillMy(); histRender(); }
   if (VIEW_INIT.exceptions) excRender();
-  excNavBadge();
   if (VIEW_INIT.matching) {
     renderMatchSummary();
     renderMatchDiag();
@@ -1019,16 +1018,16 @@ function diffCodes(r, kind) {
 function diffCount(r, kind) { return diffCodes(r, kind).length; }
 
 // ====================== Mismatch 예외 (문제없는 차이) ======================
-// 담당자가 '문제없음'으로 요청한 차이 코드를 관리자가 코드 하나씩 승인하면, 그 코드는
-// 더 이상 차이로 세지 않는다. 한 차량의 차이 코드가 모두 승인되면 대시보드에서 Match 로
-// 분류된다. 원래 판정은 r._orig_status 에 남기고, 요청·승인·반려·해제는 전부
-// SharePoint '06. exceptions/exceptions.json' 의 log 에 쌓는다(지우지 않는다).
+// Admin 이 '문제없음'으로 표시한 차이 코드는 더 이상 차이로 세지 않는다. 한 차량의 차이
+// 코드가 모두 표시되면 대시보드에서 Match 로 분류된다. 별도 승인 단계는 없다 — 등록·노트
+// 수정·해제는 Admin 만 할 수 있고, 모든 변경은 SharePoint
+// '06. exceptions/exceptions.json' 의 log 에 쌓인다(지우지 않는다). 원래 판정은 r._orig_status.
 //
 //   단위(key) = Commission | 구분(sam = SAM에만, win = WINGS에만) | 코드
-//   상태      = pending(승인 대기) → approved(승인) | rejected(반려) | cancelled(요청 취소)
-//               approved → revoked(승인 해제).  rejected/cancelled/revoked 는 다시 요청할 수 있다.
+//   상태      = approved(문제없음) ⇄ revoked(해제)
+//   (예전 승인 절차 시절의 pending/rejected/cancelled 기록은 '미반영'으로만 보여 준다.)
 //
-// 빌드 결과(data.json)는 건드리지 않는다 — 승인은 다시 계산 없이 화면을 여는 순간 반영된다.
+// 빌드 결과(data.json)는 건드리지 않는다 — 다시 계산 없이 화면을 여는 순간 반영된다.
 const EXC_FILE = 'exceptions.json';
 const EXC_LOCAL_KEY = 'sam-afab-exceptions';   // 로그인 없는 로컬 개발용 저장소
 let EXC = { version: 1, items: {}, log: [], updated_at: '' };
@@ -1078,7 +1077,7 @@ async function loadExceptions() {
   }
 }
 
-// 차량별 상태를 예외 승인 기준으로 다시 매긴다. 원래 판정은 _orig_status 에 보존.
+// 차량별 상태를 예외 기준으로 다시 매긴다. 원래 판정은 _orig_status 에 보존.
 function excRowCodes(r) {
   return [...rawDiffCodes(r, 'sam').map((c) => ['sam', c]), ...rawDiffCodes(r, 'win').map((c) => ['win', c])];
 }
@@ -1095,17 +1094,18 @@ function applyExceptions() {
   }
 }
 
-// 누가 무엇을 할 수 있나 — 화면 버튼 표시와 저장 직전 재검사에 같이 쓴다.
-const EXC_NEXT = { request: 'pending', cancel: 'cancelled', approve: 'approved', reject: 'rejected', revoke: 'revoked' };
-function excCan(action, it, u) {
-  u = u || excUser();
+// 모든 변경은 Admin 만. accept = 문제없음 등록(해제됐거나 예전 요청이던 것도 다시 등록),
+// edit = 노트 수정, revoke = 해제.
+const EXC_STATUS_OF = { accept: 'approved', edit: 'approved', revoke: 'revoked',
+  // 예전 승인 절차 기록(변경 이력 표시용)
+  request: 'pending', approve: 'approved', reject: 'rejected', cancel: 'cancelled' };
+function excCan(action, it) {
+  if (!IS_ADMIN) return false;
   const st = it ? it.status : '';
   switch (action) {
-    case 'request': return !it || ['rejected', 'cancelled', 'revoked'].includes(st);
-    case 'cancel':  return st === 'pending' && (IS_ADMIN || it.requested_by === u.id);
-    case 'approve':
-    case 'reject':  return IS_ADMIN && st === 'pending';
-    case 'revoke':  return IS_ADMIN && st === 'approved';
+    case 'accept': return st !== 'approved';
+    case 'edit':
+    case 'revoke': return st === 'approved';
     default: return false;
   }
 }
@@ -1127,20 +1127,24 @@ async function excMutate(action, targets, text) {
     for (const tg of targets) {
       const key = excKey(tg.comm, tg.side, tg.code);
       const it = doc.items[key];
-      if (!excCan(action, it, u)) continue;
-      if (action === 'request') {
+      if (!excCan(action, it)) continue;
+      if (action === 'accept') {
         const r = rowByComm(tg.comm) || {};
         doc.items[key] = {
-          commission: String(tg.comm).trim(), side: tg.side, code: tg.code, status: 'pending',
-          reason: text || '', requested_by: u.id, requested_by_name: u.name, requested_at: now,
-          decided_by: '', decided_by_name: '', decided_at: '', note: '',
-          // 그 차량이 다음 빌드에서 빠져도 무엇에 대한 요청이었는지 알 수 있게 남긴다.
-          vehicle: r['Vehicle'] || '', type: r['Model(WINGS)'] || '', axle: r['Type'] || '',
-          production: r['Production date'] || '', sam_file: r['Compared SAM file name'] || '',
+          commission: String(tg.comm).trim(), side: tg.side, code: tg.code, status: 'approved',
+          note: text || '', by: u.id, by_name: u.name, at: now, revoke_note: '',
+          // 그 차량이 다음 빌드에서 빠져도 무엇에 대한 예외였는지 알 수 있게 남긴다.
+          vehicle: r['Vehicle'] || (it && it.vehicle) || '', type: r['Model(WINGS)'] || (it && it.type) || '',
+          axle: r['Type'] || (it && it.axle) || '', production: r['Production date'] || (it && it.production) || '',
+          sam_file: r['Compared SAM file name'] || (it && it.sam_file) || '',
         };
-      } else {
-        it.status = EXC_NEXT[action];
-        it.decided_by = u.id; it.decided_by_name = u.name; it.decided_at = now; it.note = text || '';
+      } else if (action === 'edit') {
+        it.note = text || '';
+        it.by = u.id; it.by_name = u.name; it.at = now;
+      } else if (action === 'revoke') {
+        it.status = 'revoked';
+        it.revoke_note = text || '';
+        it.by = u.id; it.by_name = u.name; it.at = now;
       }
       doc.log.push({ at: now, by: u.id, by_name: u.name, action, key,
         commission: String(tg.comm).trim(), side: tg.side, code: tg.code, text: text || '' });
@@ -1167,27 +1171,26 @@ async function excMutate(action, targets, text) {
   return 0;
 }
 
-// 버튼 동작 공통 — 사유/메모 입력 → 저장 → 화면 전체 갱신.
+// 노트 기본값 — 노트 수정이면 지금 노트, 예전 요청이 있던 코드면 그 사유를 미리 채운다.
+function excNoteDefault(action, targets) {
+  if (targets.length !== 1) return '';
+  const tg = targets[0];
+  const it = EXC.items[excKey(tg.comm, tg.side, tg.code)];
+  if (!it) return '';
+  if (action === 'edit') return it.note || '';
+  if (action === 'accept') return it.note || it.reason || '';
+  return '';
+}
+
+// 버튼 동작 공통 — 노트 입력 → 저장 → 화면 전체 갱신.
 let EXC_BUSY = false;
 async function excAction(action, targets) {
   if (EXC_BUSY || !targets.length) return;
-  let text = '';
-  if (action === 'request') {
-    text = prompt(t('exc.ask.reason', { n: targets.length }), '');
-    if (text === null) return;
-    text = text.trim();
-    if (!text) { alert(t('exc.ask.reasonReq')); return; }
-  } else if (action === 'reject' || action === 'revoke') {
-    text = prompt(t('exc.ask.' + action), '');
-    if (text === null) return;
-    text = text.trim();
-    if (action === 'revoke' && !text) { alert(t('exc.ask.reasonReq')); return; }
-  } else if (action === 'approve') {
-    const tg = targets[0];
-    if (!confirm(t('exc.ask.approve', { c: tg.comm, code: tg.code }))) return;
-  } else if (action === 'cancel') {
-    if (!confirm(t('exc.ask.cancel'))) return;
-  }
+  if (!IS_ADMIN) { alert(t('role.denied')); return; }
+  let text = prompt(t('exc.ask.' + action, { n: targets.length }), excNoteDefault(action, targets));
+  if (text === null) return;
+  text = text.trim();
+  if (!text) { alert(t('exc.ask.noteReq')); return; }
   EXC_BUSY = true;
   document.body.classList.add('exc-busy');
   try {
@@ -1211,38 +1214,37 @@ function excRefreshAll() {
   render();
   if (VIEW_INIT.history) histRender();
   if (VIEW_INIT.exceptions) excRender();
-  excNavBadge();
   if (DRAWER_ROW && !$('#drawer').classList.contains('hidden')) openDrawer(DRAWER_ROW);
 }
 
-function excNavBadge() {
-  const b = $('#excNavBadge');
-  if (!b) return;
-  const n = Object.values(EXC.items).filter((it) => it.status === 'pending').length;
-  b.textContent = n ? fmtNum(n) : '';
-  b.classList.toggle('hidden', !n);
-  b.title = t('exc.navBadge', { n });
-}
-
 function excSideLabel(side) { return t(side === 'sam' ? 'exc.side.sam' : 'exc.side.win'); }
+// approved / revoked 외(예전 승인 절차의 pending·rejected·cancelled)는 모두 '미반영'.
+function excStatusKey(it) {
+  if (!it) return 'none';
+  return it.status === 'approved' || it.status === 'revoked' ? it.status : 'legacy';
+}
 function excStateHtml(it) {
-  const st = it ? it.status : 'none';
+  const st = excStatusKey(it);
   return `<span class="exc-st ${st}">${esc(t('exc.st.' + st))}</span>`;
 }
 function excWho(name, at) {
   return [name, at ? fmtKst(at) : ''].filter(Boolean).join(' · ');
 }
-// 한 코드에 대해 지금 사용자가 누를 수 있는 버튼들.
+// 예전 기록은 requested_*/decided_* 필드를 쓴다 — 마지막 처리자로 읽을 때 함께 본다.
+function excLastBy(it) {
+  return { name: it.by_name || it.decided_by_name || it.requested_by_name || '',
+    at: it.at || it.decided_at || it.requested_at || '' };
+}
+// 한 코드에 대해 Admin 이 누를 수 있는 버튼들 (Read 는 없음).
 function excButtonsHtml(it, comm, side, code) {
-  const u = excUser();
-  const btn = (a, cls) => excCan(a, it, u)
+  const btn = (a, cls) => excCan(a, it)
     ? `<button type="button" class="btn xs ${cls || ''}" data-exc="${a}" data-comm="${esc(comm)}" data-side="${side}" data-code="${esc(code)}">${esc(t('exc.act.' + a))}</button>`
     : '';
-  return btn('request', 'primary-soft') + btn('approve', 'ok') + btn('reject', 'danger') + btn('cancel') + btn('revoke', 'danger');
+  return btn('accept', 'ok') + btn('edit') + btn('revoke', 'danger');
 }
 function excTargetOf(b) { return { comm: b.dataset.comm, side: b.dataset.side, code: b.dataset.code }; }
 
-// 상세 창 — 원래 Mismatch 인 차량에만, 차이 코드마다 예외 상태와 버튼을 보여 준다.
+// 상세 창 — 원래 Mismatch 인 차량에만, 차이 코드마다 예외 상태(와 Admin 버튼)를 보여 준다.
 function excSecHtml(r) {
   if (r._orig_status !== 'Mismatch') return '';
   const comm = String(r['Commission no.']).trim();
@@ -1250,35 +1252,39 @@ function excSecHtml(r) {
   if (!codes.length) return '';
   const rows = codes.map(([side, code]) => {
     const it = excItem(r, side, code);
-    const meta = [];
-    if (it && it.requested_at) {
-      meta.push(`${esc(t('exc.meta.req'))} ${esc(excWho(it.requested_by_name, it.requested_at))}`
-        + (it.reason ? ` — “${esc(it.reason)}”` : ''));
-    }
-    if (it && it.decided_at && it.status !== 'pending') {
-      meta.push(`${esc(t('exc.st.' + it.status))} ${esc(excWho(it.decided_by_name, it.decided_at))}`
-        + (it.note ? ` — “${esc(it.note)}”` : ''));
+    const st = excStatusKey(it);
+    let meta = '';
+    if (st === 'approved') {
+      const w = excLastBy(it);
+      meta = `${esc(excWho(w.name, w.at))}` + (it.note ? ` — “${esc(it.note)}”` : '');
+    } else if (st === 'revoked') {
+      const w = excLastBy(it);
+      meta = `${esc(t('exc.st.revoked'))} ${esc(excWho(w.name, w.at))}`
+        + (it.revoke_note ? ` — “${esc(it.revoke_note)}”` : '');
+    } else if (st === 'legacy') {
+      meta = `${esc(t('exc.meta.legacy'))} ${esc(excWho(it.requested_by_name, it.requested_at))}`
+        + (it.reason ? ` — “${esc(it.reason)}”` : '');
     }
     const chip = side === 'sam' ? 'crit' : 'accent';
-    return `<div class="exc-row${it && it.status === 'approved' ? ' accepted' : ''}" data-q="${qAttr(code, describe(code))}">`
+    return `<div class="exc-row${st === 'approved' ? ' accepted' : ''}" data-q="${qAttr(code, describe(code))}">`
       + `<span class="exc-side">${esc(excSideLabel(side))}</span>`
       + `<span class="cchip ${chip}">${esc(code)}</span>`
       + `<span class="cdesc">${esc(describe(code) || '—')}</span>`
       + excStateHtml(it)
       + `<span class="exc-acts">${excButtonsHtml(it, comm, side, code)}</span>`
-      + (meta.length ? `<div class="exc-meta">${meta.join('<br>')}</div>` : '')
+      + (meta ? `<div class="exc-meta">${meta}</div>` : '')
       + `</div>`;
   }).join('');
-  const open = codes.filter(([s, c]) => excCan('request', excItem(r, s, c)));
+  const open = codes.filter(([s, c]) => excCan('accept', excItem(r, s, c)));
   const all = open.length > 1
-    ? `<button type="button" class="btn xs primary-soft" data-exc-all="request">${esc(t('exc.act.requestAll', { n: open.length }))}</button>`
+    ? `<button type="button" class="btn xs ok" data-exc-all="accept">${esc(t('exc.act.acceptAll', { n: open.length }))}</button>`
     : '';
   const n = r._accN || 0;
   return `<section class="dsec exc-sec">
       <header class="dsec-head">
         <h3>${esc(t('exc.sec.title'))}</h3><span class="cnt ${n === codes.length ? 'zero' : 'crit'}">${n}/${codes.length}</span>
         ${all}
-        <span class="dsec-hint">${esc(t('exc.sec.hint'))}</span>
+        <span class="dsec-hint">${esc(t(IS_ADMIN ? 'exc.sec.hint' : 'exc.sec.hintRead'))}</span>
       </header>
       <div class="dsec-body">${rows}</div>
     </section>`;
@@ -1293,9 +1299,9 @@ function wireExcSec(root, r) {
     const all = e.target.closest('button[data-exc-all]');
     if (all) {
       const comm = String(r['Commission no.']).trim();
-      const targets = excRowCodes(r).filter(([s, c]) => excCan('request', excItem(r, s, c)))
+      const targets = excRowCodes(r).filter(([s, c]) => excCan('accept', excItem(r, s, c)))
         .map(([side, code]) => ({ comm, side, code }));
-      excAction('request', targets);
+      excAction('accept', targets);
     }
   });
 }
@@ -3546,13 +3552,12 @@ function buildLog() {
 }
 
 // ====================== Mismatch 예외 관리 화면 ======================
-// 대시보드에서는 승인된 차이가 Match 로 사라지므로, 무엇이 왜 Match 가 됐는지는 여기서 본다.
-// 탭: 승인 대기 / 승인됨 / 반려·취소·해제 / 변경 이력(전체 log).
-let EXC_TAB = 'pending';
-const EXC_TAB_STATES = {
-  pending: ['pending'],
-  approved: ['approved'],
-  closed: ['rejected', 'cancelled', 'revoked'],
+// 대시보드에서는 문제없음 처리된 차이가 사라지므로, 무엇이 왜 Match 가 됐는지는 여기서 본다.
+// 탭: 문제없음 처리 / 해제·미반영 / 변경 이력(전체 log).
+let EXC_TAB = 'approved';
+const EXC_TAB_FILTER = {
+  approved: (it) => it.status === 'approved',
+  closed: (it) => it.status !== 'approved',
 };
 
 function initExceptions() {
@@ -3578,7 +3583,7 @@ function initExceptions() {
   excRender();
 }
 
-// 차량이 지금 데이터에서 어떤 상태인지 — 승인의 효과를 바로 보이게 한다.
+// 차량이 지금 데이터에서 어떤 상태인지 — 예외의 효과를 바로 보이게 한다.
 function excVehicleState(it) {
   const r = rowByComm(it.commission);
   if (!r) return { cls: 'gone', text: t('exc.veh.gone') };
@@ -3590,14 +3595,20 @@ function excVehicleState(it) {
   return { cls: 'miss', text: t('exc.veh.left', { n: left }) };
 }
 
+function excNoteOf(it) {
+  if (it.status === 'approved') return it.note || '';
+  if (it.status === 'revoked') return it.revoke_note || it.note || '';
+  return it.reason || it.note || '';
+}
+
 function excItemsFor(tab) {
-  const states = EXC_TAB_STATES[tab] || [];
+  const keep = EXC_TAB_FILTER[tab] || (() => false);
   const q = ($('#excSearch').value || '').trim().toLowerCase();
   return Object.values(EXC.items)
-    .filter((it) => states.includes(it.status))
-    .filter((it) => !q || [it.commission, it.code, it.vehicle, it.type, it.reason, it.note,
-      it.requested_by_name, it.decided_by_name, describe(it.code)].join(' ').toLowerCase().includes(q))
-    .sort((a, b) => String(b.decided_at || b.requested_at).localeCompare(String(a.decided_at || a.requested_at)));
+    .filter(keep)
+    .filter((it) => !q || [it.commission, it.code, it.vehicle, it.type, excNoteOf(it), it.note,
+      excLastBy(it).name, describe(it.code)].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => String(excLastBy(b).at).localeCompare(String(excLastBy(a).at)));
 }
 function excLogFor() {
   const q = ($('#excSearch').value || '').trim().toLowerCase();
@@ -3614,10 +3625,10 @@ function excNoticeHtml() {
 
 function excRender() {
   if (!VIEW_INIT.exceptions) return;
+  const all = Object.values(EXC.items);
   const counts = {
-    pending: Object.values(EXC.items).filter((it) => it.status === 'pending').length,
-    approved: Object.values(EXC.items).filter((it) => it.status === 'approved').length,
-    closed: Object.values(EXC.items).filter((it) => EXC_TAB_STATES.closed.includes(it.status)).length,
+    approved: all.filter(EXC_TAB_FILTER.approved).length,
+    closed: all.filter(EXC_TAB_FILTER.closed).length,
     log: EXC.log.length,
   };
   document.querySelectorAll('#excTabs button[data-tab]').forEach((b) => {
@@ -3638,13 +3649,13 @@ function excRender() {
     const logs = excLogFor();
     n = logs.length;
     html = `<table class="exc-table"><thead><tr>`
-      + ['exc.col.at', 'exc.col.by', 'exc.col.action', 'exc.col.comm', 'exc.col.side', 'exc.col.code', 'exc.col.text']
+      + ['exc.col.at', 'exc.col.by', 'exc.col.action', 'exc.col.comm', 'exc.col.side', 'exc.col.code', 'exc.col.note']
         .map((k) => `<th>${esc(t(k))}</th>`).join('')
       + `</tr></thead><tbody>`
       + logs.map((l) => `<tr>
           <td class="mono nowrap">${esc(fmtKst(l.at))}</td>
           <td title="${esc(l.by)}">${esc(l.by_name || l.by)}</td>
-          <td><span class="exc-st ${esc(EXC_NEXT[l.action] || '')}">${esc(t('exc.act.' + l.action))}</span></td>
+          <td><span class="exc-st ${esc(EXC_STATUS_OF[l.action] || '')}">${esc(t('exc.act.' + l.action))}</span></td>
           <td>${excCommHtml(l.commission)}</td>
           <td>${esc(excSideLabel(l.side))}</td>
           <td><span class="cchip ${l.side === 'sam' ? 'crit' : 'accent'}">${esc(l.code)}</span></td>
@@ -3656,13 +3667,13 @@ function excRender() {
     n = items.length;
     html = `<table class="exc-table"><thead><tr>`
       + ['exc.col.comm', 'exc.col.model', 'exc.col.prod', 'exc.col.side', 'exc.col.code', 'exc.col.desc',
-        'exc.col.status', 'exc.col.req', 'exc.col.reason', 'exc.col.dec', 'exc.col.note', 'exc.col.vehicle', '']
+        'exc.col.status', 'exc.col.note', 'exc.col.by', 'exc.col.vehicle', '']
         .map((k) => `<th>${k ? esc(t(k)) : ''}</th>`).join('')
       + `</tr></thead><tbody>`
       + items.map((it) => {
         const v = excVehicleState(it);
+        const w = excLastBy(it);
         const model = [it.vehicle, it.type, it.axle].filter(Boolean).join(' ');
-        const decided = it.status !== 'pending' && it.decided_at;
         return `<tr>
           <td>${excCommHtml(it.commission)}</td>
           <td class="nowrap">${esc(model || '—')}</td>
@@ -3671,10 +3682,8 @@ function excRender() {
           <td><span class="cchip ${it.side === 'sam' ? 'crit' : 'accent'}">${esc(it.code)}</span></td>
           <td class="wrap">${esc(describe(it.code) || '—')}</td>
           <td>${excStateHtml(it)}</td>
-          <td class="nowrap">${esc(it.requested_by_name || '')}<div class="sub mono">${esc(fmtKst(it.requested_at))}</div></td>
-          <td class="wrap">${esc(it.reason || '')}</td>
-          <td class="nowrap">${decided ? `${esc(it.decided_by_name || '')}<div class="sub mono">${esc(fmtKst(it.decided_at))}</div>` : '—'}</td>
-          <td class="wrap">${decided ? esc(it.note || '') : ''}</td>
+          <td class="wrap">${esc(excNoteOf(it))}</td>
+          <td class="nowrap">${esc(w.name)}<div class="sub mono">${esc(fmtKst(w.at))}</div></td>
           <td><span class="exc-veh ${v.cls}">${esc(v.text)}</span></td>
           <td class="exc-acts nowrap">${excButtonsHtml(it, it.commission, it.side, it.code)}</td>
         </tr>`;
@@ -3700,19 +3709,20 @@ function excExport() {
   const C = (v) => ({ v: v == null ? '' : String(v), s: 3 });
   const rows = [];
   if (isLog) {
-    rows.push(['Time (KST)', 'User', 'User ID', 'Action', 'Commission', 'Side', 'Code', 'Description', 'Reason / Note'].map(H));
+    rows.push(['Time (KST)', 'User', 'User ID', 'Action', 'Commission', 'Side', 'Code', 'Description', 'Note'].map(H));
     excLogFor().forEach((l) => rows.push([fmtKst(l.at), l.by_name, l.by, t('exc.act.' + l.action), l.commission,
       excSideLabel(l.side), l.code, describe(l.code), l.text].map(C)));
   } else {
     rows.push(['Commission', 'Model', 'Production', 'Side', 'Code', 'Description', 'Status',
-      'Requested by', 'Requested at (KST)', 'Reason', 'Decided by', 'Decided at (KST)', 'Note', 'Vehicle now'].map(H));
-    excItemsFor(EXC_TAB).forEach((it) => rows.push([it.commission, [it.vehicle, it.type, it.axle].filter(Boolean).join(' '),
-      String(it.production || '').slice(0, 10), excSideLabel(it.side), it.code, describe(it.code), t('exc.st.' + it.status),
-      it.requested_by_name, fmtKst(it.requested_at), it.reason,
-      it.status !== 'pending' ? it.decided_by_name : '', it.status !== 'pending' ? fmtKst(it.decided_at) : '',
-      it.status !== 'pending' ? it.note : '', excVehicleState(it).text].map(C)));
+      'Note', 'By', 'At (KST)', 'Vehicle now'].map(H));
+    excItemsFor(EXC_TAB).forEach((it) => {
+      const w = excLastBy(it);
+      rows.push([it.commission, [it.vehicle, it.type, it.axle].filter(Boolean).join(' '),
+        String(it.production || '').slice(0, 10), excSideLabel(it.side), it.code, describe(it.code),
+        t('exc.st.' + excStatusKey(it)), excNoteOf(it), w.name, fmtKst(w.at), excVehicleState(it).text].map(C));
+    });
   }
-  const widths = isLog ? [18, 18, 28, 12, 14, 12, 10, 40, 50] : [14, 20, 12, 12, 10, 40, 12, 18, 18, 40, 18, 18, 40, 22];
+  const widths = isLog ? [18, 18, 28, 14, 14, 12, 10, 40, 50] : [14, 20, 12, 12, 10, 40, 14, 50, 18, 18, 22];
   const cols = widths.map((w, i) => ({ min: i + 1, max: i + 1, w }));
   writeXlsx(`mismatch_exceptions_${EXC_TAB}_${CUR_DATE}.xlsx`, 'Exceptions', rows, [], cols);
 }

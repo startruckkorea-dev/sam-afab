@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="style.css?v=20261116b" />
+  <link rel="stylesheet" href="style.css?v=20261116c" />
 </head>
 <body>
   <!-- 아이콘 — <svg><use href="#i-…"/></svg> 로 쓴다. -->
@@ -36,7 +36,7 @@
     <nav class="nav" id="nav" data-i18n-aria="nav.aria" aria-label="주 메뉴">
       <button class="nav-link active" data-view="dashboard" data-i18n="nav.dashboard" aria-current="page">대시보드</button>
       <button class="nav-link" data-view="history" data-i18n="nav.history">생산월 이력관리</button>
-      <button class="nav-link" data-view="exceptions"><span data-i18n="nav.exceptions">Mismatch 예외</span><span id="excNavBadge" class="nav-badge hidden"></span></button>
+      <button class="nav-link" data-view="exceptions"><span data-i18n="nav.exceptions">Mismatch 예외</span></button>
       <button class="nav-link" data-view="matching" data-i18n="nav.matching">모델 매칭</button>
       <button class="nav-link" data-view="codes" data-i18n="nav.codes">코드 관리</button>
       <button class="nav-link" data-view="manual" data-i18n="nav.manual">사용자 매뉴얼</button>
@@ -186,14 +186,14 @@
     </section>
 
     <!-- ===================== Mismatch 예외 뷰 ===================== -->
-    <!-- 담당자가 '문제없음'으로 요청한 차이 코드를 Admin 이 코드 단위로 승인한다.
-         승인된 코드는 대시보드에서 차이로 세지 않으며(전부 승인되면 Match), 여기서만 보인다. -->
+    <!-- Admin 이 실제로는 문제없는 차이 코드를 코드 단위로 '문제없음' 처리한다(별도 승인 없음).
+         처리된 코드는 대시보드에서 차이로 세지 않으며(전부 처리되면 Match), 여기서만 보인다. -->
     <section class="view" id="view-exceptions">
       <div class="page">
         <div class="page-head">
           <div>
             <h1 data-i18n="exc.title">Mismatch 예외 관리</h1>
-            <p class="page-sub" data-i18n="exc.sub">실제로는 문제없는 차이 코드를 담당자가 요청하고 Admin 이 코드 단위로 승인합니다. 승인된 코드는 대시보드에서 차이로 세지 않으며, 모든 차이가 승인된 차량은 Match 로 분류됩니다.</p>
+            <p class="page-sub" data-i18n="exc.sub">실제로는 문제없는 차이 코드를 Admin 이 코드 단위로 '문제없음' 처리합니다. 처리된 코드는 대시보드에서 차이로 세지 않으며, 모든 차이가 처리된 차량은 Match 로 분류됩니다.</p>
           </div>
           <div class="page-actions">
             <button id="excReload" type="button" class="btn">
@@ -207,14 +207,13 @@
         <div id="excNotice"></div>
         <section class="exc-toolbar">
           <div class="seg" id="excTabs" role="group">
-            <button type="button" data-tab="pending" class="active" aria-pressed="true"><span data-i18n="exc.tab.pending">승인 대기</span> <span class="cnt">0</span></button>
-            <button type="button" data-tab="approved" aria-pressed="false"><span data-i18n="exc.tab.approved">승인됨 (Match 처리)</span> <span class="cnt">0</span></button>
-            <button type="button" data-tab="closed" aria-pressed="false"><span data-i18n="exc.tab.closed">반려 · 취소 · 해제</span> <span class="cnt">0</span></button>
+            <button type="button" data-tab="approved" class="active" aria-pressed="true"><span data-i18n="exc.tab.approved">문제없음 처리</span> <span class="cnt">0</span></button>
+            <button type="button" data-tab="closed" aria-pressed="false"><span data-i18n="exc.tab.closed">해제 · 미반영</span> <span class="cnt">0</span></button>
             <button type="button" data-tab="log" aria-pressed="false"><span data-i18n="exc.tab.log">변경 이력</span> <span class="cnt">0</span></button>
           </div>
           <label class="search-box exc-search">
             <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
-            <input type="search" id="excSearch" data-i18n-ph="exc.searchPh" data-i18n-aria="exc.searchPh" placeholder="Commission / 코드 / 사람 / 사유 검색&hellip;" aria-label="Commission / 코드 / 사람 / 사유 검색" />
+            <input type="search" id="excSearch" data-i18n-ph="exc.searchPh" data-i18n-aria="exc.searchPh" placeholder="Commission / 코드 / 사람 / 노트 검색&hellip;" aria-label="Commission / 코드 / 사람 / 노트 검색" />
           </label>
           <span id="excUpdated" class="exc-updated"></span>
           <span id="excCount" class="count"></span>
@@ -768,28 +767,27 @@
           <h2>06+ · Mismatch 예외 (문제없는 차이)</h2>
           <p>
             비교상 차이는 있지만 <b>실제로는 문제가 없는</b> 코드를 예외로 등록하는 기능입니다.
-            예외는 <b>Commission × 코드 단위</b>로 관리되며, 담당자가 요청하고 <b>Admin 이 코드 하나씩 승인</b>해야 반영됩니다.
+            예외는 <b>Commission × 코드 단위</b>로 관리되며, <b>Admin 만</b> 등록·수정·해제할 수 있습니다(별도 승인 절차 없음).
           </p>
-          <h3>흐름</h3>
+          <h3>사용법</h3>
           <ol class="man-ul">
             <li>대시보드에서 Mismatch 차량을 열면 <b>차이 코드</b> 탭 맨 위에 <b>문제없는 Mismatch 확인</b> 섹션이 나옵니다.</li>
-            <li>담당자가 코드별 <b>문제없음 요청</b>(또는 <b>남은 n개 모두 요청</b>)을 누르고 사유를 적습니다 → <b>승인 대기</b>.</li>
-            <li>Admin 이 상세 창 또는 <b>Mismatch 예외</b> 메뉴에서 코드별로 <b>승인</b> / <b>반려</b>합니다.</li>
-            <li>승인된 코드는 대시보드에서 더 이상 차이로 세지 않습니다. 한 차량의 차이가 <b>모두</b> 승인되면 그 차량은 <b>Match</b> 로 분류되고 상태 옆에 <b>예외 승인</b> 표시가 붙습니다.</li>
-            <li>Admin 은 승인된 예외를 <b>승인 해제</b>할 수 있고, 해제·반려·취소된 코드는 다시 요청할 수 있습니다.</li>
+            <li>Admin 이 코드별 <b>문제없음</b>(또는 <b>남은 n개 모두 문제없음</b>)을 누르고 <b>노트</b>(이유)를 적으면 바로 반영됩니다.</li>
+            <li>처리된 코드는 대시보드에서 더 이상 차이로 세지 않습니다. 한 차량의 차이가 <b>모두</b> 처리되면 그 차량은 <b>Match</b> 로 분류되고 상태 옆에 <b>예외</b> 표시가 붙습니다.</li>
+            <li>Admin 은 <b>노트 수정</b>과 <b>해제</b>를 할 수 있습니다. 해제한 코드는 다시 차이로 집계됩니다.</li>
+            <li>Read 권한자는 상태와 노트를 볼 수만 있습니다.</li>
           </ol>
           <h3>Mismatch 예외 메뉴</h3>
           <table class="man-tb">
             <thead><tr><th>탭</th><th>내용</th></tr></thead>
             <tbody>
-              <tr><td>승인 대기</td><td>요청됐지만 아직 처리되지 않은 코드 (메뉴 옆 빨간 숫자)</td></tr>
-              <tr><td>승인됨 (Match 처리)</td><td>대시보드에서 Match/차이 제외로 처리된 코드와, 그 차량의 현재 상태</td></tr>
-              <tr><td>반려 · 취소 · 해제</td><td>반영되지 않은 요청</td></tr>
-              <tr><td>변경 이력</td><td>누가 언제 무엇을 요청·승인·반려·해제했는지 전체 기록 (삭제되지 않음)</td></tr>
+              <tr><td>문제없음 처리</td><td>대시보드에서 차이 제외(전부면 Match)로 처리된 코드와, 그 차량의 현재 상태</td></tr>
+              <tr><td>해제 · 미반영</td><td>해제된 코드, 그리고 예전 승인 절차 시절에 요청만 되고 반영되지 않은 기록</td></tr>
+              <tr><td>변경 이력</td><td>누가 언제 무엇을 등록·수정·해제했는지 전체 기록 (삭제되지 않음)</td></tr>
             </tbody>
           </table>
           <ul class="man-ul">
-            <li>기록은 SharePoint <code>SAM-AFAB_Data/06. exceptions/exceptions.json</code> 에 저장됩니다. 요청하려면 이 폴더에 <b>쓰기 권한</b>이 필요합니다.</li>
+            <li>기록은 SharePoint <code>SAM-AFAB_Data/06. exceptions/exceptions.json</code> 에 저장됩니다.</li>
             <li>데이터를 다시 계산하지 않아도 화면을 여는 즉시 반영됩니다. 빌드 결과(data.json)의 원래 판정은 바뀌지 않습니다.</li>
             <li>같은 코드라도 Commission 이 다르면 별도 예외입니다.</li>
           </ul>

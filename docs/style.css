@@ -1093,9 +1093,6 @@ body.lang-en .man-lang-note { display: block; margin: 0 0 18px; padding: 10px 14
 }
 
 /* ===================== Mismatch 예외 (문제없는 차이) ===================== */
-.nav-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 6px; border-radius: 999px;
-  background: var(--crit); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
-.nav-link.active .nav-badge { background: #fff; color: var(--accent); }
 .status.exc { background: var(--accent-bg); color: var(--accent); }
 .status.exc.part { background: var(--neutral-bg); color: var(--neutral); }
 body.exc-busy, body.exc-busy button { cursor: progress; }
@@ -1123,7 +1120,7 @@ body.exc-busy, body.exc-busy button { cursor: progress; }
 .exc-meta { grid-column: 2 / -1; font-size: 12px; color: var(--text-3); line-height: 1.5; overflow-wrap: anywhere; }
 .exc-st { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px;
   white-space: nowrap; background: var(--neutral-bg); color: var(--text-3); }
-.exc-st.pending { background: var(--warn-bg); color: var(--warn); }
+.exc-st.pending, .exc-st.legacy { background: var(--warn-bg); color: var(--warn); }
 .exc-st.approved { background: var(--ok-bg); color: var(--ok); }
 .exc-st.rejected, .exc-st.revoked { background: var(--crit-bg); color: var(--crit); }
 .exc-st.cancelled { background: var(--neutral-bg); color: var(--neutral); }
