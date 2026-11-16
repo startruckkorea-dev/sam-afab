@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116i';
+const I18N_VER = '20261116j';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -2515,14 +2515,16 @@ function initHistory() {
   histRender();
 }
 
-// ====================== SAM 파일 비교 (SAM 문서 ↔ SAM 문서) ======================
-// MY 폴더 · 생산월 폴더 · 모델로 SAM 견적서 두 개(A=기준, B=비교)를 골라, 상세 창의
-// SAM/WINGS 좌우 대조와 같은 모양으로 코드·도색·타이어를 맞대어 본다.
+// ====================== SAM 파일 비교 (SAM 문서끼리, 최대 3개) ======================
+// MY 폴더 · 생산월 폴더 · 모델로 SAM 견적서를 A·B(기본), 필요하면 C 까지 골라, 상세 창의
+// 좌우 대조와 같은 모양(열마다 한 문서, 같은 코드는 같은 줄)으로 코드·도색·타이어를 맞대어 본다.
 // 데이터는 빌드가 남긴 data.json 의 sam_files(읽은 문서 전체). 예전 data.json 에는 없으므로
 // 그때는 주문에 붙은 문서만 행(Compared SAM file name)에서 모아 쓴다.
-const SCMP = { a: { my: '', month: '', id: '', key: '' }, b: { my: '', month: '', id: '', key: '' },
-  tab: 'diff', list: [], byId: new Map(), fromRows: false };
-const SCMP_SIDES = ['a', 'b'];
+const SCMP_MAX = 3;
+const SCMP_LETTERS = ['A', 'B', 'C'];
+const SCMP = { sides: [], open: 2, tab: 'diff', list: [], byId: new Map(), fromRows: false };
+function scmpBlankSide() { return { my: '', month: '', id: '', key: '' }; }
+for (let i = 0; i < SCMP_MAX; i++) SCMP.sides.push(scmpBlankSide());
 
 // 파일명 → 화면용 모델 이름. 'Internal quotation_TR01-1  Actros-L 2863 LS 6x2 G5F 2026-08_(1).docx'
 //   → label 'Actros-L 2863 LS 6x2 G5F', tag 'TR01-1'
@@ -2536,7 +2538,7 @@ function scmpLabelOf(file) {
   s = s.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
   return { label: s || String(file || ''), tag };
 }
-// 같은 모델인지 — 다른 달로 옮겨 가도 같은 모델을 계속 고르게 하는 키.
+// 같은 모델인지 — 생산월을 바꿔도 같은 모델을 계속 고르게 하는 키.
 function scmpModelKey(e) { return e.label.toLowerCase().replace(/[\s-]+/g, '') + (e.pto ? '|pto' : ''); }
 
 function scmpCatalog() {
@@ -2572,97 +2574,143 @@ function scmpCatalog() {
     groups.set(gk(e), (groups.get(gk(e)) || 0) + 1);
   }
   for (const e of out) e.text = e.label + (groups.get(gk(e)) > 1 ? ' · ' + (e.tag || e.file) : '');
-  out.sort((x, y) => (y.month || '').localeCompare(x.month || '') || x.text.localeCompare(y.text));
   return out;
 }
 
-// 처음 열 때: B = 가장 최근 문서 중 이전 생산월에도 같은 모델이 있는 것, A = 그 모델의 직전 문서.
-function scmpDefaults() {
+// 한 칸(A/B/C)의 선택을 목록과 맞춘다 — 위 단계가 바뀌어 없어진 값은 비우고,
+// 생산월만 바뀐 경우에는 같은 모델이 있으면 그대로 고른다.
+function scmpNormalize(S) {
   const L = SCMP.list;
-  if (!L.length) return;
-  const b = L.find((e) => L.some((x) => x.key === e.key && x.month < e.month)) || L[0];
-  const a = L.filter((x) => x.key === b.key && x.month < b.month)[0] || L.find((x) => x !== b) || b;
-  SCMP.a = { my: a.my, month: a.month, id: a.id, key: a.key };
-  SCMP.b = { my: b.my, month: b.month, id: b.id, key: b.key };
+  if (S.my && !L.some((e) => e.my === S.my)) S.my = '';
+  if (!S.my) S.month = '';
+  if (S.month && !L.some((e) => e.my === S.my && e.month === S.month)) S.month = '';
+  const files = S.month ? L.filter((e) => e.my === S.my && e.month === S.month) : [];
+  if (!files.some((e) => e.id === S.id)) {
+    const same = S.key ? files.find((e) => e.key === S.key) : null;
+    S.id = same ? same.id : '';
+  }
 }
 
-function scmpOptions(sel, items, value) {
-  sel.innerHTML = items.map((o) => `<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('');
-  sel.value = value;
-  enhanceSelect(sel);
+function scmpSelectHtml(id, ph, items, value) {
+  return `<select id="${id}"><option value="">${esc(ph)}</option>` +
+    items.map((o) => `<option value="${esc(o.v)}"${o.v === value ? ' selected' : ''}>${esc(o.t)}</option>`).join('') +
+    `</select>`;
 }
-// 한 쪽(A/B)의 MY → 생산월 → 모델 드롭다운을 채운다. 위 단계가 바뀌면 같은 모델을 유지하려 한다.
-function scmpFillSide(side) {
-  const S = SCMP[side], up = side.toUpperCase(), L = SCMP.list;
-  const mySel = $('#scmpMy' + up), mSel = $('#scmpMonth' + up), fSel = $('#scmpFile' + up);
-  if (!mySel) return;
+
+// 선택 줄 — A ⇄ B [C] [+ 비교 추가]. 바뀔 때마다 통째로 다시 그린다.
+function scmpPickRender() {
+  const box = $('#scmpPick');
+  if (!box) return;
+  const L = SCMP.list;
   const mys = [...new Set(L.map((e) => e.my))].filter((v) => v !== HIST_NO_MY).sort().reverse();
   if (L.some((e) => e.my === HIST_NO_MY)) mys.push(HIST_NO_MY);
-  if (!mys.includes(S.my)) S.my = mys[0] || '';
-  const months = [...new Set(L.filter((e) => e.my === S.my).map((e) => e.month))].sort().reverse();
-  if (!months.includes(S.month)) {
-    // 같은 모델이 있는 가장 최근 달을 먼저 찾는다.
-    S.month = months.find((m) => L.some((e) => e.my === S.my && e.month === m && e.key === S.key)) || months[0] || '';
+  const sideHtml = (i) => {
+    const S = SCMP.sides[i];
+    scmpNormalize(S);
+    const months = S.my ? [...new Set(L.filter((e) => e.my === S.my).map((e) => e.month))].sort().reverse() : [];
+    const files = S.month ? L.filter((e) => e.my === S.my && e.month === S.month)
+      .sort((x, y) => x.text.localeCompare(y.text)) : [];
+    const letter = SCMP_LETTERS[i];
+    const close = i >= 2
+      ? `<button type="button" class="scmp-close" data-i="${i}" title="${esc(t('scmp.remove'))}" aria-label="${esc(t('scmp.remove'))}">` +
+        `<svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>` : '';
+    return `<div class="scmp-side" data-i="${i}">` +
+      `<div class="scmp-side-t"><span class="scmp-tag s${i}">${letter}</span>` +
+      `<span>${esc(t(i === 0 ? 'scmp.sideA' : 'scmp.sideB'))}</span>${close}</div>` +
+      `<div class="scmp-sels">` +
+        scmpSelectHtml(`scmpMy${i}`, t('scmp.ph.my'), mys.map((v) => ({ v, t: histMyLabel(v) })), S.my) +
+        scmpSelectHtml(`scmpMonth${i}`, t('scmp.ph.month'), months.map((v) => ({ v, t: t('scmp.monthOpt', { m: v || '—' }) })), S.month) +
+        scmpSelectHtml(`scmpFile${i}`, t('scmp.ph.model'), files.map((e) => ({ v: e.id, t: e.text })), S.id) +
+      `</div></div>`;
+  };
+  let html = sideHtml(0) +
+    `<button type="button" id="scmpSwap" class="btn scmp-swap" title="${esc(t('scmp.swap'))}" aria-label="${esc(t('scmp.swap'))}">⇄</button>` +
+    sideHtml(1);
+  for (let i = 2; i < SCMP.open; i++) html += sideHtml(i);
+  if (SCMP.open < SCMP_MAX) {
+    html += `<button type="button" id="scmpAdd" class="btn scmp-add">＋ ${esc(t('scmp.add'))}</button>`;
   }
-  const files = L.filter((e) => e.my === S.my && e.month === S.month).sort((x, y) => x.text.localeCompare(y.text));
-  if (!files.some((e) => e.id === S.id)) {
-    const same = files.find((e) => e.key === S.key);
-    S.id = (same || files[0] || {}).id || '';
+  box.innerHTML = html;
+  box.classList.toggle('n3', SCMP.open >= 3);
+
+  for (let i = 0; i < SCMP.open; i++) {
+    const S = SCMP.sides[i];
+    const on = (sel, fn) => { const el = $('#' + sel + i); enhanceSelect(el); el.addEventListener('input', (e) => { fn(e.target.value); scmpUpdate(); }); };
+    on('scmpMy', (v) => { S.my = v; });
+    on('scmpMonth', (v) => { S.month = v; });
+    on('scmpFile', (v) => {
+      S.id = v;
+      const cur = SCMP.byId.get(v);
+      S.key = cur ? cur.key : '';
+    });
+    const file = $('#scmpFile' + i);
+    const cur = SCMP.byId.get(S.id);
+    if (cur && file._csel) file.parentNode.title = (cur.folder ? cur.folder + ' / ' : '') + cur.file.split(/[\\/]/).pop();
   }
-  const cur = SCMP.byId.get(S.id);
-  if (cur) S.key = cur.key;
-  scmpOptions(mySel, mys.map((v) => ({ v, t: histMyLabel(v) })), S.my);
-  scmpOptions(mSel, months.map((v) => ({ v, t: t('scmp.monthOpt', { m: v || '—' }) })), S.month);
-  scmpOptions(fSel, files.map((e) => ({ v: e.id, t: e.text })), S.id);
-  const fn = $('#scmpFileName' + up);
-  if (fn) {
-    fn.textContent = cur ? (cur.folder ? cur.folder + ' / ' : '') + cur.file.split(/[\\/]/).pop() : '';
-    fn.title = fn.textContent;
-  }
+  $('#scmpSwap').addEventListener('click', () => {
+    [SCMP.sides[0], SCMP.sides[1]] = [SCMP.sides[1], SCMP.sides[0]];
+    scmpUpdate();
+  });
+  const add = $('#scmpAdd');
+  if (add) add.addEventListener('click', () => { SCMP.open = Math.min(SCMP_MAX, SCMP.open + 1); scmpUpdate(); });
+  box.querySelectorAll('.scmp-close').forEach((b) => b.addEventListener('click', () => {
+    const i = Number(b.dataset.i);
+    SCMP.sides.splice(i, 1);
+    SCMP.sides.push(scmpBlankSide());
+    SCMP.open = Math.max(2, SCMP.open - 1);
+    scmpUpdate();
+  }));
 }
 
-// 데이터가 바뀌면(빌드·언어 전환) 목록을 다시 만들고 화면을 새로 그린다.
+function scmpUpdate() { scmpPickRender(); scmpRender(); }
+
+// 데이터가 바뀌면(빌드·언어 전환) 목록을 다시 만들고 화면을 새로 그린다. 선택은 남아 있는 것만 유지.
 function scmpRefresh() {
   SCMP.list = scmpCatalog();
   SCMP.byId = new Map(SCMP.list.map((e) => [e.id, e]));
-  if (!SCMP.byId.has(SCMP.a.id) || !SCMP.byId.has(SCMP.b.id)) scmpDefaults();
-  SCMP_SIDES.forEach(scmpFillSide);
   const note = $('#scmpNote');
   if (note) {
     const on = SCMP.fromRows && SCMP.list.length > 0;
     note.textContent = on ? t('scmp.oldData') : '';
     note.classList.toggle('hidden', !on);
   }
-  scmpRender();
+  scmpUpdate();
 }
 
-// 비교 계산 — 갈래(코드·도색·타이어)별 A에만 / B에만 / 공통.
-function scmpDiff(A, B) {
-  const out = {};
-  for (const k of ['codes', 'paint', 'tyre']) {
-    const a = A[k], b = B[k];
-    out[k] = {
-      onlyA: [...a].filter((c) => !b.has(c)).sort(),
-      onlyB: [...b].filter((c) => !a.has(c)).sort(),
-      common: [...a].filter((c) => b.has(c)).sort(),
-    };
+// 지금 고른 문서들(빈 칸은 건너뛴다) — 열 머리글용 글자와 함께.
+function scmpChosen() {
+  const out = [];
+  for (let i = 0; i < SCMP.open; i++) {
+    const e = SCMP.byId.get(SCMP.sides[i].id);
+    if (e) out.push({ letter: SCMP_LETTERS[i], i, e });
   }
   return out;
 }
-function scmpHead(side, e) { return `${side.toUpperCase()} · ${histMyLabel(e.my)} ${e.month}`; }
+function scmpHead(c) {  // 열 머리글(글자 제외): MY · 생산월 · SAM now
+  return `${histMyLabel(c.e.my)} ${c.e.month}` + (c.e.now ? ' · ' + c.e.now : '');
+}
 
-function scmpCardHtml(side, e) {
-  const v = (x) => (x == null || String(x).trim() === '') ? '<span class="empty-cell">—</span>' : esc(x);
-  return `<section class="scard scmp-card ${side}"><h3 class="scard-t"><span class="scmp-tag ${side}">${side.toUpperCase()}</span>` +
-    `<span class="scmp-card-name">${esc(e.label)}</span></h3><div class="fgrid g4">` +
-    fieldHtml('MY', v(e.my === HIST_NO_MY ? '' : e.my)) +
-    fieldHtml(t('scmp.f.month'), v(e.month)) +
-    fieldHtml('SAM now', v(e.now)) +
-    fieldHtml('SAM Baumuster', v(e.bm)) +
-    fieldHtml('PTO', e.pto ? 'PTO' : v('')) +
-    fieldHtml(t('scmp.f.codes'), esc(fmtNum(e.codes.size))) +
-    fieldHtml(t('scmp.f.file'), `<span class="scmp-fname" title="${esc(e.file)}">${esc(e.file.split(/[\\/]/).pop())}</span>`, 'span2') +
-    `</div></section>`;
+// 열 N개 정렬 표 — 상세 창 alignedGroupHtml 의 N열판. 같은 코드는 같은 줄, 없는 칸은 음영.
+// diffOnly 면 모든 열에 다 있는 코드는 빼고 보여 준다.
+function scmpAlignedHtml(title, chosen, field, kind, diffOnly) {
+  const sets = chosen.map((c) => c.e[field]);
+  let union = [...new Set(sets.flatMap((s) => [...s]))].sort();
+  if (diffOnly) union = union.filter((c) => !sets.every((s) => s.has(c)));
+  if (!union.length) return '';
+  const desc = (code) => kind === 'paint' ? `MB ${code}` : (kind === 'tyre' ? '' : (describe(code) || '—'));
+  const rows = union.map((code) =>
+    `<div class="acode-row" data-q="${qAttr(code, desc(code))}">` +
+    sets.map((s) => s.has(code)
+      ? `<div class="acode-cell"><span class="c">${esc(code)}</span><span class="d">${esc(desc(code))}</span></div>`
+      : `<div class="acode-cell miss"></div>`).join('') +
+    `</div>`).join('');
+  const heads = chosen.map((c, k) => {
+    const n = diffOnly ? union.filter((code) => sets[k].has(code)).length : sets[k].size;
+    return `<h4>${title ? esc(title) + ' · ' : ''}<span class="scmp-tag s${c.i}">${c.letter}</span>` +
+      `<span class="scmp-h">${esc(scmpHead(c))}</span> <span class="badge">${n}</span></h4>`;
+  }).join('');
+  return `<div class="acode scmp-acode n${chosen.length}">` +
+    `<div class="acode-head">${heads}</div><div class="acode-body">${rows}</div></div>`;
 }
 
 function scmpRender() {
@@ -2672,49 +2720,35 @@ function scmpRender() {
     el.innerHTML = `<div class="hist-empty">${esc(t(DATA.rows && DATA.rows.length ? 'scmp.empty' : 'msg.noData'))}</div>`;
     return;
   }
-  const A = SCMP.byId.get(SCMP.a.id), B = SCMP.byId.get(SCMP.b.id);
-  if (!A || !B) { el.innerHTML = ''; return; }
-  const d = scmpDiff(A, B);
-  const heads = [scmpHead('a', A), scmpHead('b', B)];
-  const nA = d.codes.onlyA.length + d.paint.onlyA.length + d.tyre.onlyA.length;
-  const nB = d.codes.onlyB.length + d.paint.onlyB.length + d.tyre.onlyB.length;
-  const nUnion = new Set([...A.codes, ...B.codes]).size;
-  const stat = (label, value, cls) =>
-    `<div class="hs-stat${cls ? ' ' + cls : ''}"><span class="hs-l">${esc(label)}</span><span class="hs-v">${value}</span></div>`;
-  const sum = `<div class="hist-sum">` +
-    stat(t('scmp.st.common'), esc(fmtNum(d.codes.common.length))) +
-    stat(t('scmp.st.onlyA'), `<span class="hs-del">−${nA}</span>`) +
-    stat(t('scmp.st.onlyB'), `<span class="hs-add">+${nB}</span>`) +
-    stat(t('scmp.st.result'), esc(t(nA + nB ? 'scmp.st.diff' : 'scmp.st.same')), nA + nB ? 'warn' : '') +
-    `<span class="hs-note">${esc(A.id === B.id ? t('scmp.sameFile') : t('scmp.note'))}</span></div>`;
-
-  const sec = (title, hint, cls, codes) => {
-    const body = codes.length ? codes.map((c) => codeItemHtml(c, cls, describe(c))).join('') : okLine(t('scmp.none'));
-    return diffSecHtml({ title, hint, cls, n: codes.length, body });
+  const chosen = scmpChosen();
+  if (chosen.length < 2) {
+    el.innerHTML = `<div class="hist-empty">${esc(t('scmp.pickHint'))}</div>`;
+    return;
+  }
+  const notAll = (field) => {
+    const sets = chosen.map((c) => c.e[field]);
+    return [...new Set(sets.flatMap((s) => [...s]))].filter((c) => !sets.every((s) => s.has(c))).length;
   };
+  const nDiff = notAll('codes') + notAll('paint') + notAll('tyre');
+  const nUnion = new Set(chosen.flatMap((c) => [...c.e.codes])).size;
   const tab = (name, label, n) => `<button type="button" role="tab" class="dtab${SCMP.tab === name ? ' active' : ''}" ` +
     `data-tab="${name}" aria-selected="${SCMP.tab === name}">${esc(label)} <span class="cnt">${fmtNum(n)}</span></button>`;
-  const join = (s) => [...s].sort().join(',');
+  const codesDiff = scmpAlignedHtml('', chosen, 'codes', 'code', true);
 
-  el.innerHTML = sum +
-    `<div class="scmp-inner">` +
-    `<div class="scards scmp-cards">${scmpCardHtml('a', A)}${scmpCardHtml('b', B)}</div>` +
-    `<div class="dtabs-bar"><div class="dtabs" role="tablist">${tab('diff', t('scmp.tab.diff'), nA + nB)}${tab('full', t('scmp.tab.full'), nUnion)}</div>` +
+  el.innerHTML =
+    `<div class="dtabs-bar"><div class="dtabs" role="tablist">${tab('diff', t('scmp.tab.diff'), nDiff)}${tab('full', t('scmp.tab.full'), nUnion)}</div>` +
     `<label class="search-box sm"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>` +
     `<input type="search" id="scmpQ" placeholder="${esc(t('code.searchPh'))}" aria-label="${esc(t('code.searchPh'))}" /></label></div>` +
     `<div class="dpane scmp-pane${SCMP.tab === 'diff' ? '' : ' hidden'}" data-pane="diff">` +
-      alignedGroupHtml('🎨 Paint', join(A.paint), join(B.paint), 'paint', true, heads) +
-      alignedGroupHtml('🛞 Tyre', join(A.tyre), join(B.tyre), 'tyre', true, heads) +
-      `<div class="dgrid">` +
-        sec(t('scmp.onlyA'), t('scmp.onlyA.hint'), 'crit', d.codes.onlyA) +
-        sec(t('scmp.onlyB'), t('scmp.onlyB.hint'), 'ok', d.codes.onlyB) +
-      `</div><div class="q-none hidden">${esc(t('code.noHit'))}</div></div>` +
-    `<div class="dpane scmp-pane${SCMP.tab === 'full' ? '' : ' hidden'}" data-pane="full">` +
-      alignedGroupHtml('🎨 Paint', join(A.paint), join(B.paint), 'paint', false, heads) +
-      alignedGroupHtml('🛞 Tyre', join(A.tyre), join(B.tyre), 'tyre', false, heads) +
-      alignedFullHtml(join(A.codes), join(B.codes), heads) +
+      scmpAlignedHtml('🎨 Paint', chosen, 'paint', 'paint', true) +
+      scmpAlignedHtml('🛞 Tyre', chosen, 'tyre', 'tyre', true) +
+      (codesDiff || (nDiff ? '' : okLine(t('scmp.none')))) +
       `<div class="q-none hidden">${esc(t('code.noHit'))}</div></div>` +
-    `</div>`;
+    `<div class="dpane scmp-pane${SCMP.tab === 'full' ? '' : ' hidden'}" data-pane="full">` +
+      scmpAlignedHtml('🎨 Paint', chosen, 'paint', 'paint', false) +
+      scmpAlignedHtml('🛞 Tyre', chosen, 'tyre', 'tyre', false) +
+      scmpAlignedHtml('', chosen, 'codes', 'code', false) +
+      `<div class="q-none hidden">${esc(t('code.noHit'))}</div></div>`;
 
   el.querySelectorAll('.dtab').forEach((b) => b.addEventListener('click', () => {
     SCMP.tab = b.dataset.tab;
@@ -2747,54 +2781,40 @@ function scmpFilter() {
   if (none) none.classList.toggle('hidden', !q || hits > 0 || !total);
 }
 
-// 엑셀 — 갈래 · 코드 · 설명 · A · B · 구분 을 한 표로.
+// 엑셀 — 갈래 · 코드 · 설명 · (문서별 O) · 구분 을 한 표로.
 function scmpExportXlsx() {
-  const A = SCMP.byId.get(SCMP.a.id), B = SCMP.byId.get(SCMP.b.id);
-  if (!A || !B) return;
+  const chosen = scmpChosen();
+  if (chosen.length < 2) { alert(t('scmp.pickHint')); return; }
+  const n = chosen.length;
+  const lastCol = _colName(3 + n);
   const rows = [], merges = [];
-  rows.push([{ v: `${t('scmp.title')} — A ${histMyLabel(A.my)} ${A.month} ${A.label}  ↔  B ${histMyLabel(B.my)} ${B.month} ${B.label}`, s: 1 }]);
-  merges.push('A1:F1');
-  rows.push([{ v: 'A', s: 5 }, { v: (A.folder ? A.folder + ' / ' : '') + A.file, s: 3 }]);
-  rows.push([{ v: 'B', s: 5 }, { v: (B.folder ? B.folder + ' / ' : '') + B.file, s: 3 }]);
-  merges.push('B2:F2', 'B3:F3');
+  rows.push([{ v: t('scmp.title'), s: 1 }]);
+  merges.push(`A1:${lastCol}1`);
+  chosen.forEach((c, k) => {
+    rows.push([{ v: c.letter, s: 5 }, { v: `${histMyLabel(c.e.my)} ${c.e.month} · ${c.e.label}  —  ` +
+      (c.e.folder ? c.e.folder + ' / ' : '') + c.e.file, s: 3 }]);
+    merges.push(`B${k + 2}:${lastCol}${k + 2}`);
+  });
   rows.push([]);
-  rows.push(['Group', 'Code', 'Description', 'A', 'B', 'Result'].map((v) => ({ v, s: 2 })));
+  rows.push(['Group', 'Code', 'Description', ...chosen.map((c) => c.letter), 'Result'].map((v) => ({ v, s: 2 })));
   for (const [k, label] of [['codes', 'Code'], ['paint', 'Paint'], ['tyre', 'Tyre']]) {
-    const union = [...new Set([...A[k], ...B[k]])].sort();
-    for (const c of union) {
-      const inA = A[k].has(c), inB = B[k].has(c);
-      const res = inA && inB ? t('scmp.x.common') : (inA ? t('scmp.x.onlyA') : t('scmp.x.onlyB'));
-      const s = inA && inB ? 3 : 4;
-      const desc = k === 'codes' ? (describe(c) || '') : (k === 'paint' ? 'MB ' + c : '');
-      rows.push([{ v: label, s }, { v: c, s }, { v: desc, s },
-        { v: inA ? 'O' : '', s }, { v: inB ? 'O' : '', s }, { v: res, s }]);
+    const union = [...new Set(chosen.flatMap((c) => [...c.e[k]]))].sort();
+    for (const code of union) {
+      const has = chosen.map((c) => c.e[k].has(code));
+      const all = has.every(Boolean);
+      const res = all ? t('scmp.x.common') : t('scmp.x.only', { s: chosen.filter((_, j) => has[j]).map((c) => c.letter).join(', ') });
+      const s = all ? 3 : 4;
+      const desc = k === 'codes' ? (describe(code) || '') : (k === 'paint' ? 'MB ' + code : '');
+      rows.push([{ v: label, s }, { v: code, s }, { v: desc, s }, ...has.map((h) => ({ v: h ? 'O' : '', s })), { v: res, s }]);
     }
   }
   const cols = [{ min: 1, max: 1, w: 9 }, { min: 2, max: 2, w: 14 }, { min: 3, max: 3, w: 54 },
-    { min: 4, max: 5, w: 6 }, { min: 6, max: 6, w: 12 }];
+    { min: 4, max: 3 + n, w: 6 }, { min: 4 + n, max: 4 + n, w: 14 }];
   const name = (e) => `${histMyLabel(e.my)}_${e.month}_${e.label}`.replace(/[^\w.-]+/g, '_');
-  writeXlsx(`sam_compare_${name(A)}__${name(B)}.xlsx`, 'SAM Compare', rows, merges, cols);
+  writeXlsx(`sam_compare_${chosen.map((c) => name(c.e)).join('__')}.xlsx`, 'SAM Compare', rows, merges, cols);
 }
 
 function initSamCmp() {
-  SCMP_SIDES.forEach((side) => {
-    const up = side.toUpperCase();
-    const S = () => SCMP[side];
-    $('#scmpMy' + up).addEventListener('input', (e) => { S().my = e.target.value; S().month = ''; scmpFillSide(side); scmpRender(); });
-    $('#scmpMonth' + up).addEventListener('input', (e) => { S().month = e.target.value; scmpFillSide(side); scmpRender(); });
-    $('#scmpFile' + up).addEventListener('input', (e) => {
-      S().id = e.target.value;
-      const cur = SCMP.byId.get(S().id);
-      if (cur) S().key = cur.key;
-      scmpFillSide(side);
-      scmpRender();
-    });
-  });
-  $('#scmpSwap').addEventListener('click', () => {
-    [SCMP.a, SCMP.b] = [SCMP.b, SCMP.a];
-    SCMP_SIDES.forEach(scmpFillSide);
-    scmpRender();
-  });
   $('#scmpExport').addEventListener('click', scmpExportXlsx);
   scmpRefresh();
 }

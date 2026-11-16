@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="style.css?v=20261116g" />
+  <link rel="stylesheet" href="style.css?v=20261116h" />
 </head>
 <body>
   <!-- 아이콘 — <svg><use href="#i-…"/></svg> 로 쓴다. -->
@@ -188,13 +188,12 @@
 
     <!-- ===================== SAM 파일 비교 뷰 ===================== -->
     <!-- 생산월(MY 폴더 · YYYY-MM 폴더) · 모델로 SAM 문서 두 개를 골라, 상세 창의 SAM/WINGS
-         좌우 대조와 같은 모양으로 맞대어 본다. 데이터는 data.json 의 sam_files(빌드가 남김). -->
+         좌우 대조와 같은 모양으로 맞대어 본다(A·B 기본, '비교 추가'로 C 까지). 선택 줄은 app.js 가 그린다. -->
     <section class="view" id="view-samcmp">
       <div class="page">
         <div class="page-head">
           <div>
             <h1 data-i18n="scmp.title">SAM 파일 비교</h1>
-            <p class="page-sub" data-i18n="scmp.sub">생산월·모델로 SAM 파일 두 개를 골라 코드·도색·타이어를 왼쪽(A)·오른쪽(B)으로 맞대어 봅니다.</p>
           </div>
           <div class="page-actions">
             <button id="scmpExport" type="button" class="btn" data-i18n-title="scmp.exportTitle" title="지금 비교를 엑셀로 저장">
@@ -203,27 +202,7 @@
           </div>
         </div>
 
-        <section class="scmp-pick">
-          <div class="scmp-side" data-side="a">
-            <div class="scmp-side-t"><span class="scmp-tag a">A</span><span data-i18n="scmp.sideA">기준</span></div>
-            <div class="scmp-sels">
-              <select id="scmpMyA"></select>
-              <select id="scmpMonthA"></select>
-              <select id="scmpFileA"></select>
-            </div>
-            <div class="scmp-file" id="scmpFileNameA"></div>
-          </div>
-          <button type="button" id="scmpSwap" class="btn scmp-swap" data-i18n-title="scmp.swap" title="A ↔ B 바꾸기" aria-label="A ↔ B">⇄</button>
-          <div class="scmp-side" data-side="b">
-            <div class="scmp-side-t"><span class="scmp-tag b">B</span><span data-i18n="scmp.sideB">비교</span></div>
-            <div class="scmp-sels">
-              <select id="scmpMyB"></select>
-              <select id="scmpMonthB"></select>
-              <select id="scmpFileB"></select>
-            </div>
-            <div class="scmp-file" id="scmpFileNameB"></div>
-          </div>
-        </section>
+        <section class="scmp-pick" id="scmpPick"></section>
         <div id="scmpNote" class="scmp-note hidden"></div>
 
         <section class="scmp-body" id="scmpBody"></section>
@@ -1327,7 +1306,7 @@
     ];
     function loadAuth() {
       var a = document.createElement('script');
-      a.src = 'auth.js?v=20261116b';
+      a.src = 'auth.js?v=20261116c';
       document.body.appendChild(a);
     }
     function tryCdn(i) {
