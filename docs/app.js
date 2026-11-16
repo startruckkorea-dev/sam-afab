@@ -78,7 +78,7 @@ const $ = (s) => document.querySelector(s);
 // 문구 사전은 i18n/ko.json · en.json 에 있다. 첫 렌더 전에 boot() 가 둘 다 읽어 온다.
 // 기본은 한국어, 키가 없으면 한국어로, 그래도 없으면 키 자체로 떨어진다.
 const I18N = { ko: {}, en: {} };
-const I18N_VER = '20261116d';
+const I18N_VER = '20261116e';
 async function loadI18n() {
   await Promise.all(['ko', 'en'].map(async (l) => {
     try {
@@ -276,7 +276,7 @@ async function load() {
   DATA_SOURCE = '';
   const d = await fetchJson('data.json');
   const c = await fetchJson('codes.json', CODES);
-  await loadExceptions();   // 실패해도 대시보드는 뜬다(예외 미적용 = 원래 판정 그대로)
+  await Promise.all([loadExceptions(), loadMatchIgnore()]);   // 실패해도 대시보드는 뜬다(미적용 = 원래 판정 그대로)
   applyData(d, c);
 }
 
@@ -3022,26 +3022,91 @@ function matchProblems() {
       why = t('mp.why.noDoc', { num: num || gg.r['Model(WINGS)'],
         keys: (near.length ? near : keys).slice(0, 12).join(', ') || '—' });
     }
-    out.push({ kind: 'nosam', sev: 'problem', model: gg.r['Model(WINGS)'] || '', cab: gg.r['Cab'] || '',
+    out.push({ key: ['nosam', gg.r['Model(WINGS)'] || '', gg.r['Cab'] || '', gg.r['PTO'] || '', gg.ym].join('|'),
+      kind: 'nosam', sev: 'problem', model: gg.r['Model(WINGS)'] || '', cab: gg.r['Cab'] || '',
       pto: gg.r['PTO'] || '', ym: gg.ym, n: gg.n, file: '', why, num, comms: gg.comms,
       sample: gg.r });
   }
   for (const u of ((g && g.sam_unused) || [])) {
-    out.push({ kind: 'unused', sev: u.orders ? 'problem' : 'info', model: (u.keys || []).join(', '),
+    out.push({ key: ['unused', u.month, u.file].join('|'),
+      kind: 'unused', sev: u.orders ? 'problem' : 'info', model: (u.keys || []).join(', '),
       cab: '', pto: u.pto ? 'PTO' : '', ym: u.month, n: u.orders, file: u.file,
       why: u.orders === 0 ? t('match.diagNoOrders') : t('match.diagNotPicked', { n: u.orders }) });
   }
   for (const sk of ((g && g.sam_skipped) || [])) {
-    out.push({ kind: 'skipped', sev: 'problem', model: '', cab: '', pto: '', ym: sk.month, n: '',
+    out.push({ key: ['skipped', sk.month, sk.file].join('|'),
+      kind: 'skipped', sev: 'problem', model: '', cab: '', pto: '', ym: sk.month, n: '',
       file: sk.file, why: sk.reason });
   }
   for (const m of months) {
     const orders = ((g && g.orders_by_month) || {})[m.yyyymm] || 0;
-    out.push({ kind: 'month', sev: 'info', model: '', cab: '', pto: '', ym: m.name, n: orders, file: '',
+    out.push({ key: ['month', m.name].join('|'),
+      kind: 'month', sev: 'info', model: '', cab: '', pto: '', ym: m.name, n: orders, file: '',
       why: t('match.diagMonthWhy', { parsed: m.parsed, files: m.files, keys: m.keys.length })
         + (m.keys.length ? ' — ' + m.keys.join(', ') : '') });
   }
   return out;
+}
+
+// ---- 매칭 문제 '무시' 목록 ----
+// WINGS 는 SAM 이 없는 과거 모델까지 매칭하려 하므로, 고칠 수 없는 미매칭이 많다.
+// Admin 이 골라 '무시'하면 고칠 것 수·배지에서 빠진다(목록에서는 '무시됨' 칩으로 계속 볼 수 있음).
+// 공유되어야 하므로 SharePoint '06. exceptions/match-ignore.json' 에 둔다 — Mismatch 예외와
+// 같은 방식(eTag 조건부 저장 + log 누적).
+//   key = nosam|모델|캡|PTO|생산월  ·  unused|생산월폴더|파일  ·  skipped|생산월폴더|파일
+const MI_FILE = 'match-ignore.json';
+const MI_LOCAL_KEY = 'sam-afab-match-ignore';
+let MI = { version: 1, items: {}, log: [], updated_at: '' };
+
+async function miRead() {
+  if (excLocal()) {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(MI_LOCAL_KEY) || 'null'); } catch { /* 저장소 막힘 */ }
+    return { data: d, etag: null };
+  }
+  return Graph.readJsonVersioned('exceptions', MI_FILE);
+}
+async function loadMatchIgnore() {
+  try { MI = excNormalize((await miRead()).data); }
+  catch (e) { console.warn('[match-ignore] 읽기 실패 — 무시 목록 미적용:', e.message); }
+}
+// action = 'ignore' | 'unignore'. probs = 문제 줄(matchProblems 항목)들.
+async function miMutate(action, probs, note) {
+  const u = excUser();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data, etag } = await miRead();
+    const doc = excNormalize(data);
+    const now = new Date().toISOString();
+    let done = 0;
+    for (const p of probs) {
+      const has = !!doc.items[p.key];
+      if (action === 'ignore' && !has) {
+        doc.items[p.key] = { key: p.key, kind: p.kind, model: p.model, cab: p.cab, pto: p.pto, ym: p.ym,
+          file: p.file, note: note || '', by: u.id, by_name: u.name, at: now };
+      } else if (action === 'unignore' && has) {
+        delete doc.items[p.key];
+      } else continue;
+      doc.log.push({ at: now, by: u.id, by_name: u.name, action, key: p.key, text: note || '' });
+      done++;
+    }
+    if (!done) { MI = doc; return 0; }
+    doc.updated_at = now;
+    if (excLocal()) {
+      try { localStorage.setItem(MI_LOCAL_KEY, JSON.stringify(doc)); } catch { /* 이번 세션만 */ }
+      MI = doc;
+      return done;
+    }
+    try {
+      if (!etag) await Graph.ensureFolder('exceptions');
+      await Graph.writeJsonVersioned('exceptions', MI_FILE, doc, etag);
+      MI = doc;
+      return done;
+    } catch (e) {
+      if (e.conflict && attempt < 3) continue;
+      throw e;
+    }
+  }
+  return 0;
 }
 
 // ---- 예전 워크북(종류별 시트 9장) → '매칭규칙' 시트 한 장 ----
@@ -3159,14 +3224,31 @@ function initMatching() {
       if (b) showMatchPane(b.dataset.pane);
     });
   }
-  const mpS = $('#mpSearch');
-  if (mpS) mpS.addEventListener('input', renderMatchProblems);
+  for (const id of ['#mpSearch', '#mpFrom', '#mpTo', '#mpModel']) {
+    const el = $(id);
+    if (el) el.addEventListener('input', renderMatchProblems);
+  }
+  const mpI = $('#mpIgnore'); if (mpI) mpI.addEventListener('click', () => mpBulk('ignore'));
+  const mpU = $('#mpUnignore'); if (mpU) mpU.addEventListener('click', () => mpBulk('unignore'));
   const chips = $('#mpChips');
   if (chips) chips.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-mp]');
     if (b) { MP_FILTER = b.dataset.mp; renderMatchProblems(); }
   });
   const grid = $('#matchProbGrid');
+  if (grid) grid.addEventListener('change', (e) => {
+    if (e.target.id === 'mpAll') {
+      for (const p of MP_SHOWN) {
+        if (p.kind === 'month') continue;
+        if (e.target.checked) MP_SEL.add(p.key); else MP_SEL.delete(p.key);
+      }
+      grid.querySelectorAll('input[data-sel]').forEach((cb) => { cb.checked = e.target.checked; });
+      mpSyncBulk();
+      return;
+    }
+    const cb = e.target.closest('input[data-sel]');
+    if (cb) { if (cb.checked) MP_SEL.add(cb.dataset.sel); else MP_SEL.delete(cb.dataset.sel); mpSyncBulk(); }
+  });
   if (grid) grid.addEventListener('click', (e) => {
     const add = e.target.closest('button[data-add-rule]');
     if (add) { addRuleFor(add.dataset.addRule); return; }
@@ -3354,44 +3436,105 @@ function renderMatchSummary() {
 }
 
 // ---- 문제 탭 ----
-// 고칠 것(problem)을 먼저, 참고(info)는 칩으로 골라 본다. 맨 위 탭 버튼에도 고칠 것 수를 단다.
+// 고칠 것(problem, 무시 안 함)을 먼저 본다. 필터(생산월 범위·모델)로 좁히고, 체크한 줄을
+// 한꺼번에 '무시'하거나 되돌린다. 무시한 줄은 고칠 것 수·탭 배지에서 빠진다.
+const MP_SEL = new Set();   // 체크한 문제 key
+function mpYm(p) { return String(p.ym || '').slice(0, 7); }
+function mpFilterVals() {
+  const v = (id) => (($(id) || {}).value || '');
+  return { from: v('#mpFrom'), to: v('#mpTo'), model: v('#mpModel'),
+    q: v('#mpSearch').trim().toLowerCase() };
+}
+// 칩(종류/무시됨) 말고 드롭다운·검색만 적용 — 칩 숫자도 이 결과로 센다.
+function mpApplyFilters(list) {
+  const f = mpFilterVals();
+  return list.filter((p) => {
+    const ym = mpYm(p);
+    if (f.from && (!ym || ym < f.from)) return false;
+    if (f.to && (!ym || ym > f.to)) return false;
+    if (f.model && p.model !== f.model) return false;
+    if (f.q && ![t('mp.kind.' + p.kind), p.model, p.ym, p.file, p.why, (p.comms || []).join(' ')]
+      .join(' ').toLowerCase().includes(f.q)) return false;
+    return true;
+  });
+}
+function mpFillFilters(all) {
+  const months = [...new Set(all.map(mpYm).filter((x) => /^\d{4}-\d{2}$/.test(x)))].sort();
+  const models = [...new Set(all.filter((p) => p.kind === 'nosam' || p.kind === 'unused')
+    .map((p) => p.model).filter(Boolean))].sort();
+  const fill = (id, allKey, vals) => {
+    const sel = $(id);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">${esc(t(allKey))}</option>`
+      + vals.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    sel.value = vals.includes(prev) ? prev : '';
+    enhanceSelect(sel);
+  };
+  fill('#mpFrom', 'mp.f.from', months);
+  fill('#mpTo', 'mp.f.to', months);
+  fill('#mpModel', 'filter.allModel', models);
+}
+
+function mpIsTodo(p) { return p.sev === 'problem' && !p.ignored; }
+function mpChipKeep(p) {
+  switch (MP_FILTER) {
+    case 'all': return true;
+    case 'problem': return mpIsTodo(p);
+    case 'ignored': return p.ignored;
+    default: return p.kind === MP_FILTER && !p.ignored;
+  }
+}
+
+let MP_SHOWN = [];
 function renderMatchProblems() {
   const table = $('#matchProbGrid');
   if (!table) return;
-  const all = DATA.rows.length || (DATA && DATA.diagnostics) ? matchProblems() : [];
-  const q = (($('#mpSearch') || {}).value || '').trim().toLowerCase();
-  const nProblem = all.filter((p) => p.sev === 'problem').length;
-  const units = all.filter((p) => p.kind === 'nosam').reduce((a, p) => a + p.n, 0);
-  const cnt = (k) => all.filter((p) => p.kind === k).length;
+  const all = (DATA.rows.length || DATA.diagnostics) ? matchProblems() : [];
+  for (const p of all) p.ignored = !!MI.items[p.key];
 
   const badge = $('#matchPaneBadge');
-  if (badge) { badge.textContent = nProblem ? fmtNum(nProblem) : ''; badge.classList.toggle('hidden', !nProblem); }
+  const nTodoAll = all.filter(mpIsTodo).length;
+  if (badge) { badge.textContent = nTodoAll ? fmtNum(nTodoAll) : ''; badge.classList.toggle('hidden', !nTodoAll); }
+
+  mpFillFilters(all);
+  const base = mpApplyFilters(all);
+  const live = base.filter((p) => !p.ignored);
+  const nTodo = base.filter(mpIsTodo).length;
+  const units = live.filter((p) => p.kind === 'nosam').reduce((a, p) => a + p.n, 0);
+  const cnt = (k) => live.filter((p) => p.kind === k).length;
 
   const chip = (k, label, n, cls) => `<button type="button" class="mp-chip ${cls || ''}${MP_FILTER === k ? ' active' : ''}" data-mp="${k}">`
     + `<b>${esc(fmtNum(n))}</b> ${esc(label)}</button>`;
   const chips = $('#mpChips');
   if (chips) {
-    chips.innerHTML = chip('problem', t('mp.f.problem'), nProblem, nProblem ? 'bad' : 'ok')
+    chips.innerHTML = chip('problem', t('mp.f.problem'), nTodo, nTodo ? 'bad' : 'ok')
       + chip('nosam', t('mp.f.nosam', { units: fmtNum(units) }), cnt('nosam'))
       + chip('unused', t('mp.f.unused'), cnt('unused'))
       + chip('skipped', t('mp.f.skipped'), cnt('skipped'))
       + chip('month', t('mp.f.month'), cnt('month'))
-      + chip('all', t('mp.f.all'), all.length);
+      + chip('ignored', t('mp.f.ignored'), base.filter((p) => p.ignored).length, 'muted')
+      + chip('all', t('mp.f.all'), base.length);
   }
 
-  const keep = (p) => MP_FILTER === 'all' || (MP_FILTER === 'problem' ? p.sev === 'problem' : p.kind === MP_FILTER);
-  const shown = all.filter(keep).filter((p) => !q
-    || [t('mp.kind.' + p.kind), p.model, p.ym, p.file, p.why, (p.comms || []).join(' ')]
-      .join(' ').toLowerCase().includes(q));
+  const shown = base.filter(mpChipKeep);
+  MP_SHOWN = shown;
+  // 화면에서 사라진 줄의 체크는 버린다 — 안 보이는 줄이 같이 무시되면 안 된다.
+  const visible = new Set(shown.map((p) => p.key));
+  for (const k of [...MP_SEL]) if (!visible.has(k)) MP_SEL.delete(k);
+
   const c = $('#matchProbCount');
   if (c) c.textContent = t('match.diagCount', { n: fmtNum(shown.length), total: fmtNum(all.length) });
+  mpSyncBulk();
 
   if (!all.length) {
     table.querySelector('thead').innerHTML = '';
     table.querySelector('tbody').innerHTML = `<tr><td class="none">${esc(t(DATA.diagnostics ? 'mp.none' : 'match.diagOld'))}</td></tr>`;
     return;
   }
+  const allOn = shown.length > 0 && shown.every((p) => MP_SEL.has(p.key));
   table.querySelector('thead').innerHTML = '<tr>'
+    + `<th class="mp-ck"><input type="checkbox" id="mpAll" aria-label="${esc(t('mp.selAll'))}"${allOn ? ' checked' : ''} /></th>`
     + ['mp.col.kind', 'mp.col.model', 'Cab', 'PTO', 'mp.col.month', 'mp.col.n', 'match.samFile', 'match.diagWhy', '']
       .map((k) => `<th>${k ? esc(k.indexOf('.') !== -1 ? t(k) : k) : ''}</th>`).join('') + '</tr>';
   table.querySelector('tbody').innerHTML = shown.length
@@ -3400,16 +3543,58 @@ function renderMatchProblems() {
       const units2 = p.kind === 'nosam' && first
         ? `<button type="button" class="link-btn" data-open="${esc(first)}" title="${esc(p.comms.join(', '))}">${esc(fmtNum(p.n))}</button>`
         : esc(String(p.n));
-      const act = p.kind === 'nosam' && IS_ADMIN
+      const act = p.kind === 'nosam' && IS_ADMIN && !p.ignored
         ? `<button type="button" class="btn xs" data-add-rule="${esc(p.num)}">${esc(t('mp.addRule'))}</button>` : '';
-      return `<tr class="mp-${p.sev}">`
+      const ig = p.ignored ? MI.items[p.key] : null;
+      const why = esc(p.why) + (ig ? `<div class="mp-ig">${esc(t('mp.ignoredBy', { who: excWho(ig.by_name, ig.at) }))}`
+        + (ig.note ? ` — “${esc(ig.note)}”` : '') + `</div>` : '');
+      const canSel = p.kind !== 'month';
+      return `<tr class="mp-${p.sev}${p.ignored ? ' mp-ignored' : ''}">`
+        + `<td class="mp-ck">${canSel ? `<input type="checkbox" data-sel="${esc(p.key)}"${MP_SEL.has(p.key) ? ' checked' : ''} />` : ''}</td>`
         + `<td class="nowrap"><span class="mp-kind ${p.kind}">${esc(t('mp.kind.' + p.kind))}</span></td>`
         + `<td>${esc(p.model)}</td><td>${esc(p.cab)}</td><td>${esc(p.pto)}</td>`
         + `<td class="nowrap">${esc(p.ym)}</td><td class="num">${units2}</td>`
         + `<td class="ms-file"><span title="${esc(p.file)}">${esc(p.file)}</span></td>`
-        + `<td class="mp-why">${esc(p.why)}</td><td class="nowrap">${act}</td></tr>`;
+        + `<td class="mp-why">${why}</td><td class="nowrap">${act}</td></tr>`;
     }).join('')
-    : `<tr><td class="none" colspan="9">${esc(t(MP_FILTER === 'problem' ? 'mp.allGood' : 'match.noHit'))}</td></tr>`;
+    : `<tr><td class="none" colspan="10">${esc(t(MP_FILTER === 'problem' ? 'mp.allGood' : 'match.noHit'))}</td></tr>`;
+}
+
+// 선택 막대 — 몇 개 골랐는지, 무시/해제 가능 여부.
+function mpSyncBulk() {
+  const sel = MP_SHOWN.filter((p) => MP_SEL.has(p.key));
+  const nIg = sel.filter((p) => p.ignored).length;
+  const n = $('#mpSelCount');
+  if (n) n.textContent = sel.length ? t('mp.selected', { n: fmtNum(sel.length) }) : '';
+  const bi = $('#mpIgnore'), bu = $('#mpUnignore');
+  if (bi) bi.disabled = !IS_ADMIN || sel.length - nIg === 0;
+  if (bu) bu.disabled = !IS_ADMIN || nIg === 0;
+}
+
+let MP_BUSY = false;
+async function mpBulk(action) {
+  if (MP_BUSY || !IS_ADMIN) return;
+  const sel = MP_SHOWN.filter((p) => MP_SEL.has(p.key) && (action === 'ignore' ? !p.ignored : p.ignored));
+  if (!sel.length) return;
+  let note = '';
+  if (action === 'ignore') {
+    note = prompt(t('mp.ask.ignore', { n: sel.length }), t('mp.ask.ignoreDefault'));
+    if (note === null) return;
+    note = note.trim();
+  } else if (!confirm(t('mp.ask.unignore', { n: sel.length }))) return;
+  MP_BUSY = true;
+  document.body.classList.add('exc-busy');
+  try {
+    await miMutate(action, sel, note);
+    MP_SEL.clear();
+  } catch (e) {
+    console.error(e);
+    alert(t(e.status === 403 || e.status === 401 ? 'exc.err.perm' : 'exc.err.save', { err: e.message }));
+  } finally {
+    MP_BUSY = false;
+    document.body.classList.remove('exc-busy');
+    renderMatchProblems();
+  }
 }
 
 // 상태 뱃지(Match / Mismatch / No SAM 대수) — 모델 줄과 문서 줄이 같이 쓴다.

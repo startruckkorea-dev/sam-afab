@@ -377,5 +377,16 @@
   "mp.why.noFolder": "생산월 폴더가 없음 — 01. SAM_files 에 {ym} 폴더/파일 추가",
   "mp.why.noDoc": "그 생산월 SAM 에 {num} 번호가 없음 — 파일 추가, 또는 같은 차의 다른 번호면 '규칙 추가'(대체번호). 그 달 비슷한 번호: {keys}",
   "mp.why.nosamNoDiag": "SAM 을 찾지 못함 — ⟳ 데이터 다시 계산을 한 번 실행하면 원인이 표시됩니다.",
-  "build.mapping.same": "{file} — 변경 없음"
+  "build.mapping.same": "{file} — 변경 없음",
+  "mp.f.ignored": "무시됨",
+  "mp.f.from": "생산월 시작",
+  "mp.f.to": "생산월 끝",
+  "mp.ignore": "선택 무시",
+  "mp.unignore": "무시 해제",
+  "mp.selAll": "보이는 줄 모두 선택",
+  "mp.selected": "{n}개 선택",
+  "mp.ignoredBy": "무시됨 · {who}",
+  "mp.ask.ignore": "선택한 {n}개를 무시합니다. 고칠 것 수에서 빠지고 '무시됨'에서 볼 수 있습니다. 메모(선택):",
+  "mp.ask.ignoreDefault": "SAM 없는 과거 모델",
+  "mp.ask.unignore": "선택한 {n}개의 무시를 해제할까요? 다시 고칠 것에 포함됩니다."
 }

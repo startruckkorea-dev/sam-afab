@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="style.css?v=20261116d" />
+  <link rel="stylesheet" href="style.css?v=20261116e" />
 </head>
 <body>
   <!-- 아이콘 — <svg><use href="#i-…"/></svg> 로 쓴다. -->
@@ -279,7 +279,17 @@
           </div>
           <div class="controls ms-filters">
             <div class="mp-chips" id="mpChips"></div>
+          </div>
+          <div class="controls ms-filters mp-bar">
+            <select id="mpFrom"></select>
+            <span class="mp-tilde" aria-hidden="true">~</span>
+            <select id="mpTo"></select>
+            <select id="mpModel"></select>
             <input type="search" id="mpSearch" data-i18n-ph="mp.searchPh" placeholder="모델 / 생산월 / 파일 / Commission 검색&hellip;" />
+            <span class="spacer"></span>
+            <span id="mpSelCount" class="mp-selcount"></span>
+            <button type="button" id="mpIgnore" class="btn" disabled data-i18n="mp.ignore">선택 무시</button>
+            <button type="button" id="mpUnignore" class="btn" disabled data-i18n="mp.unignore">무시 해제</button>
           </div>
           <div class="ms-scroll">
             <table class="ms-grid mp-grid" id="matchProbGrid"><thead></thead><tbody></tbody></table>
@@ -818,6 +828,13 @@
               <tr><td><b>생산월 폴더</b>(참고)</td><td>폴더별로 읽은 파일 수와 인식한 모델 번호, 그 달 주문 수</td></tr>
             </tbody>
           </table>
+          <h4>필터 · 무시</h4>
+          <ul class="man-ul">
+            <li><b>생산월 시작 ~ 끝</b>, <b>모델</b>, 검색어로 좁혀 봅니다</li>
+            <li>SAM 이 없는 과거 모델처럼 고칠 수 없는 줄은 체크(머리글 체크 = 보이는 줄 모두)한 뒤 <b>선택 무시</b>.
+              무시한 줄은 <b>고칠 것</b> 수와 탭의 빨간 숫자에서 빠지고, <b>무시됨</b> 칩에서 누가 언제 무시했는지와 함께 보입니다</li>
+            <li>되돌리려면 <b>무시됨</b>에서 체크 후 <b>무시 해제</b>. 무시 목록은 SharePoint <code>06. exceptions/match-ignore.json</code> 에 저장되어 모든 Admin 에게 같게 보입니다</li>
+          </ul>
           <h3>매칭 결과</h3>
           <ul class="man-ul">
             <li>모델별로 <b>비교에 쓰인 SAM 파일</b>, 대수, 상태를 보여 줍니다</li>

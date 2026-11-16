@@ -381,5 +381,16 @@
   "mp.why.noFolder": "No production-month folder — add a {ym} folder/file under 01. SAM_files",
   "mp.why.noDoc": "No SAM with number {num} in that month — add the file, or if it is the same truck under another number use 'Add rule' (fallback). Similar numbers that month: {keys}",
   "mp.why.nosamNoDiag": "No SAM found — run ⟳ Recalculate data once to see the cause.",
-  "build.mapping.same": "{file} — no change"
+  "build.mapping.same": "{file} — no change",
+  "mp.f.ignored": "Ignored",
+  "mp.f.from": "From month",
+  "mp.f.to": "To month",
+  "mp.ignore": "Ignore selected",
+  "mp.unignore": "Un-ignore",
+  "mp.selAll": "Select all visible rows",
+  "mp.selected": "{n} selected",
+  "mp.ignoredBy": "Ignored · {who}",
+  "mp.ask.ignore": "Ignore the {n} selected item(s)? They leave the to-fix count and stay visible under 'Ignored'. Note (optional):",
+  "mp.ask.ignoreDefault": "Old model without SAM",
+  "mp.ask.unignore": "Un-ignore the {n} selected item(s)? They count as to-fix again."
 }
